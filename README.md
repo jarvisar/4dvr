@@ -2,8 +2,6 @@
 
 WebXR app for viewing and interacting with 4D objects, higher-dimensional geometry and hyperbolic space. Built with [Three.js](https://threejs.org/) and designed for Meta Quest headsets with hand tracking. Controllers are also supported, and every scene can be used in a desktop browser with a mouse and keyboard.
 
-Once GitHub Pages is enabled (see [Deploying](#deploying)), the latest deployment is at `https://<user>.github.io/<repo>/`.
-
 ## Scenes
 
 - **Hyperplay:** 4D physics sandbox on a table. Includes tesseracts, hyperspheres, the 5-cell, 16-cell, 24-cell, 120-cell and 600-cell, duocylinders, spherinders, cubinders and a tiger. Objects are shown as 3D cross-sections of the 4D scene, and the cross-section can be moved along the W axis or rotated in the xw/zw planes. Presets include a sealed glass box, where the ball has to be moved out through W.
