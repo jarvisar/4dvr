@@ -34,11 +34,14 @@ void main() {
     vec3 g = d * 160.0;
     vec3 cell = floor(g);
     float s = hash(cell);
-    vec3 jitter = vec3(hash(cell + 1.3), hash(cell + 2.7), hash(cell + 4.1)) * 0.6 + 0.2;
-    float dist = length(fract(g) - jitter);
-    float star = step(0.985, s) * (1.0 - smoothstep(0.02, 0.09, dist));
-    star *= smoothstep(-0.1, 0.3, h + 0.2);
-    col += vec3(0.8, 0.9, 1.0) * star * uStars * (0.35 + 0.65 * hash(cell + 3.1));
+    // only 1.5% of cells have a star, so skip the other hashes for the rest
+    if (s >= 0.985) {
+      vec3 jitter = vec3(hash(cell + 1.3), hash(cell + 2.7), hash(cell + 4.1)) * 0.6 + 0.2;
+      float dist = length(fract(g) - jitter);
+      float star = 1.0 - smoothstep(0.02, 0.09, dist);
+      star *= smoothstep(-0.1, 0.3, h + 0.2);
+      col += vec3(0.8, 0.9, 1.0) * star * uStars * (0.35 + 0.65 * hash(cell + 3.1));
+    }
   }
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>

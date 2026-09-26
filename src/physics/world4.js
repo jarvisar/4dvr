@@ -112,8 +112,9 @@ export class Body4 {
 const _b1 = R4.biv(), _b2 = R4.biv(), _b3 = R4.biv(), _b4 = R4.biv();
 const _pw = [0, 0, 0, 0], _pl = [0, 0, 0, 0], _n = [0, 0, 0, 0], _t = [0, 0, 0, 0];
 const _va = [0, 0, 0, 0], _vb = [0, 0, 0, 0], _rel = [0, 0, 0, 0], _J = [0, 0, 0, 0];
-const _tmp = [0, 0, 0, 0];
+const _tmp = [0, 0, 0, 0], _ps = [0, 0, 0, 0];
 const _M = R4.mat4(), _Om = R4.mat4();
+let _minD = new Float64Array(64), _kept = new Uint8Array(64); // _reduce scratch
 
 const STATIC = { id: 0, invMass: 0, kinematic: true, x: [0, 0, 0, 0], v: [0, 0, 0, 0], w: R4.biv(), sleeping: false, friction: 0.6, restitution: 0.3,
   velocityAt(out) { return V.set(out, 0, 0, 0, 0); }, applyImpulse() {}, responseAt(out) { return V.set(out, 0, 0, 0, 0); }, wake() {} };
@@ -316,42 +317,45 @@ export class World4 {
     const R = this.wallRadius, W = this.wRange;
     const tol = 0.001 + this._spec(b);
     const nearFloor = b.x[1] - col.bound < floor + 0.002 + tol;
-    const nearWall = Math.hypot(b.x[0], b.x[2]) + col.bound > R;
+    const nearWall = Math.sqrt(b.x[0] * b.x[0] + b.x[2] * b.x[2]) + col.bound > R;
     const nearW = Math.abs(b.x[3]) + col.bound > W;
     if (!nearFloor && !nearWall && !nearW) return;
 
-    const test = (p, radius) => {
-      if (nearFloor) {
-        const d = p[1] - radius - floor;
-        if (d < tol) { V.set(_n, 0, 1, 0, 0); V.copy(_pw, p); _pw[1] -= radius; this._addContact(STATIC, b, _pw, _n, -d); }
-      }
-      if (nearWall) {
-        const rad = Math.hypot(p[0], p[2]);
-        const d = R - (rad + radius);
-        if (d < tol && rad > 1e-6) {
-          V.set(_n, -p[0] / rad, 0, -p[2] / rad, 0);
-          V.addScaled(_pw, p, _n, -radius);
-          this._addContact(STATIC, b, _pw, _n, -d);
-        }
-      }
-      if (nearW) {
-        for (const sgn of [-1, 1]) {
-          const d = W - (sgn * p[3] + radius);
-          if (d < tol) { V.set(_n, 0, 0, 0, -sgn); V.copy(_pw, p); _pw[3] += sgn * radius; this._addContact(STATIC, b, _pw, _n, -d); }
-        }
-      }
-    };
-
     if (col.type === 'sphere') {
-      test(b.x, col.r);
+      this._testStatic(b, b.x, col.r, tol, floor, nearFloor, nearWall, nearW);
     } else {
       for (const s of col.samples) {
-        R4.apply(_pw, b.R, s);
-        V.add(_pw, _pw, b.x);
-        test(_pw, 0);
+        R4.apply(_ps, b.R, s);
+        V.add(_ps, _ps, b.x);
+        this._testStatic(b, _ps, 0, tol, floor, nearFloor, nearWall, nearW);
       }
     }
     if (this.contacts.length > before) this._reduce(before);
+  }
+
+  /** Point p (with radius) against the floor, the round wall and the ±w walls. */
+  _testStatic(b, p, radius, tol, floor, nearFloor, nearWall, nearW) {
+    if (nearFloor) {
+      const d = p[1] - radius - floor;
+      if (d < tol) { V.set(_n, 0, 1, 0, 0); V.copy(_pw, p); _pw[1] -= radius; this._addContact(STATIC, b, _pw, _n, -d); }
+    }
+    if (nearWall) {
+      const R = this.wallRadius;
+      const rad = Math.sqrt(p[0] * p[0] + p[2] * p[2]);
+      const d = R - (rad + radius);
+      if (d < tol && rad > 1e-6) {
+        V.set(_n, -p[0] / rad, 0, -p[2] / rad, 0);
+        V.addScaled(_pw, p, _n, -radius);
+        this._addContact(STATIC, b, _pw, _n, -d);
+      }
+    }
+    if (nearW) {
+      const W = this.wRange;
+      for (let sgn = -1; sgn <= 1; sgn += 2) {
+        const d = W - (sgn * p[3] + radius);
+        if (d < tol) { V.set(_n, 0, 0, 0, -sgn); V.copy(_pw, p); _pw[3] += sgn * radius; this._addContact(STATIC, b, _pw, _n, -d); }
+      }
+    }
   }
 
   _collidePair(A, B) {
@@ -379,7 +383,7 @@ export class World4 {
     const cg = G.collider;
     V.sub(_tmp, S.x, G.x);
     R4.applyT(_pl, G.R, _tmp);
-    const d = cg.sdf(_pl) - S.collider.r;
+    const d = cg.sdf(_pl, this._tol + S.collider.r) - S.collider.r;
     if (d > this._tol) return;
     cg.normal(_pl, _t);
     R4.apply(_n, G.R, _t); // outward from G, towards S
@@ -398,7 +402,7 @@ export class World4 {
       V.sub(_tmp, _pw, Q.x);
       if (V.lengthSq(_tmp) > reach * reach) continue;
       R4.applyT(_pl, Q.R, _tmp);
-      const d = cq.sdf(_pl);
+      const d = cq.sdf(_pl, this._tol);
       if (d > this._tol) continue;
       cq.normal(_pl, _t);
       R4.apply(_n, Q.R, _t); // from Q towards P
@@ -413,20 +417,29 @@ export class World4 {
     if (count <= 8) return;
     const pool = list.splice(start, count);
     pool.sort((a, b) => b.depth - a.depth);
-    const keep = [pool[0]];
-    while (keep.length < 8) {
-      let best = null, bestD = -1;
-      for (const c of pool) {
-        if (keep.includes(c)) continue;
-        let md = Infinity;
-        for (const k of keep) md = Math.min(md, V.distance(c.p, k.p));
-        if (md > bestD) { bestD = md; best = c; }
+    // Farthest-point selection. Each candidate's distance to the nearest kept
+    // contact is updated as contacts are kept (O(n) per pick, not O(n·kept)).
+    if (_minD.length < count) { _minD = new Float64Array(count * 2); _kept = new Uint8Array(count * 2); }
+    const minD = _minD, kept = _kept;
+    for (let i = 0; i < count; i++) { minD[i] = Infinity; kept[i] = 0; }
+    let last = 0;
+    kept[0] = 1;
+    list.push(pool[0]);
+    for (let n = 1; n < 8; n++) {
+      const lp = pool[last].p;
+      let best = -1, bestD = -1;
+      for (let i = 0; i < count; i++) {
+        if (kept[i]) continue;
+        const md = Math.min(minD[i], V.distance(pool[i].p, lp));
+        minD[i] = md;
+        if (md > bestD) { bestD = md; best = i; }
       }
-      if (!best) break;
-      keep.push(best);
+      if (best < 0) break;
+      kept[best] = 1;
+      list.push(pool[best]);
+      last = best;
     }
-    for (const c of pool) if (!keep.includes(c)) this._free.push(c);
-    list.push(...keep);
+    for (let i = 0; i < count; i++) if (!kept[i]) this._free.push(pool[i]);
   }
 
   // ---------------------------------------------------------------------------
@@ -497,7 +510,7 @@ export class World4 {
     const jt = c.jt;
     const nx = jt[0] + _t[0] * jtMag, ny = jt[1] + _t[1] * jtMag, nz = jt[2] + _t[2] * jtMag, nw = jt[3] + _t[3] * jtMag;
     const maxF = c.mu * c.jn;
-    const len = Math.hypot(nx, ny, nz, nw);
+    const len = Math.sqrt(nx * nx + ny * ny + nz * nz + nw * nw);
     const s = len > maxF ? maxF / len : 1;
     _J[0] = nx * s - jt[0]; _J[1] = ny * s - jt[1]; _J[2] = nz * s - jt[2]; _J[3] = nw * s - jt[3];
     jt[0] = nx * s; jt[1] = ny * s; jt[2] = nz * s; jt[3] = nw * s;

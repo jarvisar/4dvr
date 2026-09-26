@@ -203,21 +203,26 @@ export class ProjectedWire {
       uShowSlice: { value: 1 },
     };
 
-    // edges
+    // edges. Perspective projection keeps 4D edges straight, so they only need
+    // a few rings (for the change in thickness along the edge); stereographic
+    // edges are arcs and use the finely subdivided tube. Both share the edge data.
     this.edgeGeo = edgeTubeGeometry(segments, 7);
+    this.edgeGeoStraight = edgeTubeGeometry(4, 7);
     this.aA = new THREE.InstancedBufferAttribute(new Float32Array(maxEdges * 4), 4);
     this.aB = new THREE.InstancedBufferAttribute(new Float32Array(maxEdges * 4), 4);
     this.aEC = new THREE.InstancedBufferAttribute(new Float32Array(maxEdges * 3).fill(1), 3);
     for (const a of [this.aA, this.aB, this.aEC]) a.setUsage(THREE.DynamicDrawUsage);
-    this.edgeGeo.setAttribute('aA', this.aA);
-    this.edgeGeo.setAttribute('aB', this.aB);
-    this.edgeGeo.setAttribute('aColor', this.aEC);
+    for (const g of [this.edgeGeo, this.edgeGeoStraight]) {
+      g.setAttribute('aA', this.aA);
+      g.setAttribute('aB', this.aB);
+      g.setAttribute('aColor', this.aEC);
+    }
     this.edgeMat = new THREE.ShaderMaterial({
       uniforms: { ...LIGHT, ...this.shared, uRadius: { value: 0.0032 }, uTint: { value: 0 }, uOpacity: { value: 1 } },
       vertexShader: EDGE_VERT,
       fragmentShader: WIRE_FRAG,
     });
-    this.edges = new THREE.Mesh(this.edgeGeo, this.edgeMat);
+    this.edges = new THREE.Mesh(this.edgeGeoStraight, this.edgeMat);
     this.edges.frustumCulled = false;
     this.group.add(this.edges);
 
@@ -277,7 +282,7 @@ export class ProjectedWire {
       const c = edgeColors ? edgeColors[i] : [1, 1, 1];
       this.aEC.setXYZ(i, c[0], c[1], c[2]);
     }
-    this.edgeGeo.instanceCount = nE;
+    this.edgeGeo.instanceCount = this.edgeGeoStraight.instanceCount = nE;
     this.aA.needsUpdate = this.aB.needsUpdate = this.aEC.needsUpdate = true;
 
     const nV = Math.min(vertices.length, this.aP.count);
@@ -314,7 +319,10 @@ export class ProjectedWire {
     this.a4.needsUpdate = this.aFC.needsUpdate = true;
   }
 
-  set mode(m) { this.shared.uMode.value = m === 'stereo' ? 1 : 0; }
+  set mode(m) {
+    this.shared.uMode.value = m === 'stereo' ? 1 : 0;
+    this.edges.geometry = m === 'stereo' ? this.edgeGeo : this.edgeGeoStraight;
+  }
   set scale(s) { this.shared.uScale.value = s; }
   set eye(e) { this.shared.uEye.value = e; }
   set faceOpacity(o) { this.faceMat.uniforms.uOpacity.value = o; this.faces.visible = o > 0.001; }

@@ -79,11 +79,21 @@ void main() {
   int cornerId = gl_VertexID - tet * 4;
   int base = tet * ${TEXELS_PER_TET};
 
+  // Quick reject: every corner is within 'reach' of corner 0, so its w differs
+  // from q0.w by at most |w row of uRot| * reach. If that can't reach w = 0 the
+  // whole tetrahedron is on one side (the mask test below would cull it too).
   vec4 p0 = fetchTexel(base);
+  vec4 q0 = uRot * p0 + uPos;
+  float reach = fetchTexel(base + 9).x;
+  float wRow = length(vec4(uRot[0][3], uRot[1][3], uRot[2][3], uRot[3][3]));
+  if (abs(q0.w) > wRow * reach * 1.001 + 1e-5) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    return;
+  }
+
   vec4 p1 = fetchTexel(base + 1);
   vec4 p2 = fetchTexel(base + 2);
   vec4 p3 = fetchTexel(base + 3);
-  vec4 q0 = uRot * p0 + uPos;
   vec4 q1 = uRot * p1 + uPos;
   vec4 q2 = uRot * p2 + uPos;
   vec4 q3 = uRot * p3 + uPos;

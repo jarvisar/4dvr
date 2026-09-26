@@ -1,5 +1,6 @@
 import { App } from './core/app.js';
 import { PlaygroundScene } from './scenes/playground.js';
+import { prebuildShapes } from './four/shapes.js';
 
 const SCENES = [
   { key: 'playground', short: 'Hyperplay', create: (app) => new PlaygroundScene(app) },
@@ -150,6 +151,11 @@ loadExtraScenes().then(() => {
   const key = pendingScene || initial;
   pendingScene = null;
   if (key !== 'playground' && SCENES.some((s) => s.key === key)) app.setScene(key, true);
+  // Build the remaining 4D shapes and upload them to the GPU in idle time, but
+  // only before VR starts: in the headset they're built on first use as before.
+  prebuildShapes(() => !app.presenting, (shape) => {
+    if (shape.tetMesh) app.renderer.initTexture(shape.tetMesh.texture);
+  });
 }).catch((e) => console.error('Failed to load scenes', e));
 
 // --- HUD toggles ------------------------------------------------------------------

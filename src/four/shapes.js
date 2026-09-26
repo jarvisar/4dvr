@@ -106,10 +106,33 @@ export function getShape(key) {
     radius: def.radius,
     pattern: def.pattern || 0,
     tetMesh: def.tets ? def.tets() : null,
-    physics: def.physics,
+    physics: once(def.physics), // colliders copy what they need, so the description can be shared
   };
   built.set(key, s);
   return s;
+}
+
+function once(fn) {
+  let v;
+  return () => (v ??= fn());
+}
+
+/**
+ * Build every shape ahead of time, one per idle callback, while keepGoing()
+ * returns true. Building the larger curved shapes takes tens of milliseconds
+ * (more on a headset), which would otherwise stall frames the first time a
+ * preset or gallery shape uses them. onBuilt(shape) can upload GPU data.
+ */
+export function prebuildShapes(keepGoing, onBuilt) {
+  const keys = SHAPE_KEYS.filter((k) => !built.has(k));
+  const idle = window.requestIdleCallback || ((f) => setTimeout(f, 30));
+  const next = () => {
+    if (!keys.length || !keepGoing()) return;
+    const shape = getShape(keys.shift());
+    onBuilt?.(shape);
+    idle(next);
+  };
+  idle(next);
 }
 
 export const SHAPE_KEYS = Object.keys(DEFS);

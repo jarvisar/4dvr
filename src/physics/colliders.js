@@ -9,6 +9,13 @@
 import { icosphere } from '../four/tetmesh.js';
 
 const hyp = Math.hypot;
+// Math.hypot is much slower than sqrt of a sum of squares (V8 does not inline
+// it), and the SDFs below run for every sample point of every body pair each
+// substep. Magnitudes here are far from overflow, so the plain form is exact enough.
+const len2 = (a, b) => Math.sqrt(a * a + b * b);
+const len3 = (a, b, c) => Math.sqrt(a * a + b * b + c * c);
+const len4 = (a, b, c, d) => Math.sqrt(a * a + b * b + c * c + d * d);
+const _q = [0, 0, 0, 0];
 
 function comboSDF(a, b, c) {
   // exact SDF of a product of convex sets given per-factor distances
@@ -142,28 +149,37 @@ export class Collider {
     this.moments = moments;
   }
 
-  /** Signed distance in body space. */
-  sdf(p) {
+  /**
+   * Signed distance in body space. With `limit`, the result is only exact up to
+   * `limit`: a convex shape stops at the first face plane farther than that,
+   * which lets callers that discard far-away points skip most of the planes.
+   */
+  sdf(p, limit = Infinity) {
     const x = p[0], y = p[1], z = p[2], w = p[3];
     switch (this.type) {
-      case 'sphere': return hyp(x, y, z, w) - this.r;
+      case 'sphere': return len4(x, y, z, w) - this.r;
       case 'box': {
         const h = this.h;
         const qx = Math.abs(x) - h[0], qy = Math.abs(y) - h[1], qz = Math.abs(z) - h[2], qw = Math.abs(w) - h[3];
-        const out = hyp(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0), Math.max(qw, 0));
+        const out = len4(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0), Math.max(qw, 0));
         return out + Math.min(Math.max(qx, qy, qz, qw), 0);
       }
       case 'convex': {
         let d = -Infinity;
-        for (const pl of this.planes) d = Math.max(d, pl[0] * x + pl[1] * y + pl[2] * z + pl[3] * w - pl[4]);
+        const planes = this.planes;
+        for (let i = 0; i < planes.length; i++) {
+          const pl = planes[i];
+          const e = pl[0] * x + pl[1] * y + pl[2] * z + pl[3] * w - pl[4];
+          if (e > d) { d = e; if (d > limit) return d; }
+        }
         return d;
       }
-      case 'duocylinder': return comboSDF(hyp(x, y) - this.r1, hyp(z, w) - this.r2);
-      case 'spherinder': return comboSDF(hyp(x, y, z) - this.r, Math.abs(w) - this.h);
-      case 'cubinder': return comboSDF(hyp(x, y) - this.r, Math.abs(z) - this.h, Math.abs(w) - this.h);
-      case 'tiger': return hyp(hyp(x, y) - this.R1, hyp(z, w) - this.R2) - this.r;
-      case 'spheritorus': return hyp(hyp(x, y) - this.R, z, w) - this.r;
-      case 'torisphere': return hyp(hyp(x, y, z) - this.R, w) - this.r;
+      case 'duocylinder': return comboSDF(len2(x, y) - this.r1, len2(z, w) - this.r2);
+      case 'spherinder': return comboSDF(len3(x, y, z) - this.r, Math.abs(w) - this.h);
+      case 'cubinder': return comboSDF(len2(x, y) - this.r, Math.abs(z) - this.h, Math.abs(w) - this.h);
+      case 'tiger': return len2(len2(x, y) - this.R1, len2(z, w) - this.R2) - this.r;
+      case 'spheritorus': return len3(len2(x, y) - this.R, z, w) - this.r;
+      case 'torisphere': return len2(len3(x, y, z) - this.R, w) - this.r;
     }
     return Infinity;
   }
@@ -171,7 +187,7 @@ export class Collider {
   /** Outward unit normal (SDF gradient) in body space. */
   normal(p, out) {
     if (this.type === 'sphere') {
-      const l = hyp(p[0], p[1], p[2], p[3]) || 1;
+      const l = len4(p[0], p[1], p[2], p[3]) || 1;
       out[0] = p[0] / l; out[1] = p[1] / l; out[2] = p[2] / l; out[3] = p[3] / l;
       return out;
     }
@@ -187,7 +203,8 @@ export class Collider {
       return out;
     }
     const e = this.scale * 1e-3;
-    const q = [p[0], p[1], p[2], p[3]];
+    const q = _q;
+    q[0] = p[0]; q[1] = p[1]; q[2] = p[2]; q[3] = p[3];
     let l = 0;
     for (let i = 0; i < 4; i++) {
       q[i] = p[i] + e; const a = this.sdf(q);

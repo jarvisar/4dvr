@@ -109,12 +109,16 @@ class Rope {
     loops.forEach((pts, li) => pts.forEach((p) => {
       this.p.set(p, k * 4); this.q.set(p, k * 4); this.loopOf[k] = li; k++;
     }));
-    // rest lengths
+    // neighbours along each loop and rest lengths
+    this.next1 = new Int32Array(off);
+    this.next2 = new Int32Array(off);
     this.rest = new Float64Array(off);
     this.bend = new Float64Array(off);
     for (let i = 0; i < off; i++) {
-      this.rest[i] = this._dist(i, this.next(i, 1));
-      this.bend[i] = this._dist(i, this.next(i, 2));
+      this.next1[i] = this.next(i, 1);
+      this.next2[i] = this.next(i, 2);
+      this.rest[i] = this._dist(i, this.next1[i]);
+      this.bend[i] = this._dist(i, this.next2[i]);
     }
     this.pinned = -1;
     this.pinTarget = [0, 0, 0, 0];
@@ -128,13 +132,14 @@ class Rope {
 
   _dist(i, j) {
     const p = this.p;
-    return Math.hypot(p[j * 4] - p[i * 4], p[j * 4 + 1] - p[i * 4 + 1], p[j * 4 + 2] - p[i * 4 + 2], p[j * 4 + 3] - p[i * 4 + 3]);
+    const dx = p[j * 4] - p[i * 4], dy = p[j * 4 + 1] - p[i * 4 + 1], dz = p[j * 4 + 2] - p[i * 4 + 2], dw = p[j * 4 + 3] - p[i * 4 + 3];
+    return Math.sqrt(dx * dx + dy * dy + dz * dz + dw * dw);
   }
 
   _constrain(i, j, rest, stiff) {
     const p = this.p;
     const dx = p[j * 4] - p[i * 4], dy = p[j * 4 + 1] - p[i * 4 + 1], dz = p[j * 4 + 2] - p[i * 4 + 2], dw = p[j * 4 + 3] - p[i * 4 + 3];
-    const d = Math.hypot(dx, dy, dz, dw) || 1e-9;
+    const d = Math.sqrt(dx * dx + dy * dy + dz * dz + dw * dw) || 1e-9;
     const wi = i === this.pinned ? 0 : 1, wj = j === this.pinned ? 0 : 1;
     if (wi + wj === 0) return;
     const k = ((d - rest) / d) * stiff / (wi + wj);
@@ -151,7 +156,9 @@ class Rope {
       const li = this.loopOf[i];
       const loop = this.loops[li];
       for (let j = i + 1; j < N; j++) {
-        const dx = p[j * 4] - xi, dy = p[j * 4 + 1] - yi, dz = p[j * 4 + 2] - zi;
+        const dx = p[j * 4] - xi;
+        if (dx > COLLIDE || dx < -COLLIDE) continue; // cheap reject (implies r3 > d2)
+        const dy = p[j * 4 + 1] - yi, dz = p[j * 4 + 2] - zi;
         const r3 = dx * dx + dy * dy + dz * dz;
         if (r3 > d2) continue;
         if (this.loopOf[j] === li) {
@@ -191,8 +198,8 @@ class Rope {
     }
     for (let it = 0; it < 10; it++) {
       if (this.pinned >= 0) this.p.set(this.pinTarget, this.pinned * 4);
-      for (let i = 0; i < N; i++) this._constrain(i, this.next(i, 1), this.rest[i], 1);
-      for (let i = 0; i < N; i++) this._constrain(i, this.next(i, 2), this.bend[i], 0.06);
+      for (let i = 0; i < N; i++) this._constrain(i, this.next1[i], this.rest[i], 1);
+      for (let i = 0; i < N; i++) this._constrain(i, this.next2[i], this.bend[i], 0.06);
       if (it % 3 === 2) this._collide(it === 8);
     }
     if (this.pinned >= 0) this.p.set(this.pinTarget, this.pinned * 4);
@@ -235,7 +242,8 @@ class Rope {
     let r = 0;
     for (let k = 0; k < l.n; k++) {
       const i = l.start + k;
-      r = Math.max(r, Math.hypot(this.p[i * 4] - c[0], this.p[i * 4 + 1] - c[1], this.p[i * 4 + 2] - c[2]));
+      const dx = this.p[i * 4] - c[0], dy = this.p[i * 4 + 1] - c[1], dz = this.p[i * 4 + 2] - c[2];
+      r = Math.max(r, Math.sqrt(dx * dx + dy * dy + dz * dz));
     }
     return { c, r };
   }
@@ -308,7 +316,7 @@ class RopeMesh {
       for (let i = 0; i <= M; i++) {
         const a = ((i - 1 + M) % M) * 4, b = ((i + 1) % M) * 4;
         let tx = S[b] - S[a], ty = S[b + 1] - S[a + 1], tz = S[b + 2] - S[a + 2];
-        const tl = Math.hypot(tx, ty, tz) || 1;
+        const tl = Math.sqrt(tx * tx + ty * ty + tz * tz) || 1;
         tx /= tl; ty /= tl; tz /= tl;
         let nx, ny, nz;
         if (i === 0) {
@@ -320,7 +328,7 @@ class RopeMesh {
           const dp = px * tx + py * ty + pz * tz;
           nx = px - dp * tx; ny = py - dp * ty; nz = pz - dp * tz;
         }
-        const nl = Math.hypot(nx, ny, nz) || 1;
+        const nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
         Ts[i * 3] = tx; Ts[i * 3 + 1] = ty; Ts[i * 3 + 2] = tz;
         Ns[i * 3] = nx / nl; Ns[i * 3 + 1] = ny / nl; Ns[i * 3 + 2] = nz / nl;
       }
@@ -452,7 +460,8 @@ export class KnotScene extends SceneBase {
     const p = this.rope.p;
     let best = -1, bd = maxD;
     for (let i = 0; i < this.rope.N; i++) {
-      const d = Math.hypot(p[i * 4] - local.x, p[i * 4 + 1] - local.y, p[i * 4 + 2] - local.z);
+      const dx = p[i * 4] - local.x, dy = p[i * 4 + 1] - local.y, dz = p[i * 4 + 2] - local.z;
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
       if (d < bd) { bd = d; best = i; }
     }
     return { index: best, dist: bd };

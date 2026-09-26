@@ -8,6 +8,9 @@
 
 export const PLANES = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]];
 export const PLANE_NAMES = ['xy', 'xz', 'xw', 'yz', 'yw', 'zw'];
+// PLANES as flat index tables, for hot loops (no per-iteration array destructuring)
+const PI = [0, 0, 0, 1, 1, 2];
+const PJ = [1, 2, 3, 2, 3, 3];
 
 export function mat4() {
   const m = new Float64Array(16);
@@ -128,7 +131,7 @@ export function orthonormalize(m) {
 export function skew(out, B, s = 1) {
   out.fill(0);
   for (let k = 0; k < 6; k++) {
-    const [i, j] = PLANES[k];
+    const i = PI[k], j = PJ[k];
     out[i * 4 + j] = B[k] * s;
     out[j * 4 + i] = -B[k] * s;
   }
@@ -167,10 +170,14 @@ export function biv() {
 
 /** Angular impulse of linear impulse J applied at offset r: B_ij = J_i r_j − r_i J_j. */
 export function angularImpulse(out, r, J) {
-  for (let k = 0; k < 6; k++) {
-    const [i, j] = PLANES[k];
-    out[k] = J[i] * r[j] - r[i] * J[j];
-  }
+  const r0 = r[0], r1 = r[1], r2 = r[2], r3 = r[3];
+  const J0 = J[0], J1 = J[1], J2 = J[2], J3 = J[3];
+  out[0] = J0 * r1 - r0 * J1;
+  out[1] = J0 * r2 - r0 * J2;
+  out[2] = J0 * r3 - r0 * J3;
+  out[3] = J1 * r2 - r1 * J2;
+  out[4] = J1 * r3 - r1 * J3;
+  out[5] = J2 * r3 - r2 * J3;
   return out;
 }
 
@@ -193,7 +200,7 @@ export function bivRotate(out, R, B) {
   multiply(_T, R, _S);
   // (_T Rᵀ)_ij = Σ_k _T[i][k] R[j][k]
   for (let k = 0; k < 6; k++) {
-    const [i, j] = PLANES[k];
+    const i = PI[k], j = PJ[k];
     let s = 0;
     for (let c = 0; c < 4; c++) s += _T[i * 4 + c] * R[j * 4 + c];
     out[k] = s;
@@ -211,7 +218,7 @@ export function bivRotateInv(out, R, B) {
     _T[r * 4 + c] = s;
   }
   for (let k = 0; k < 6; k++) {
-    const [i, j] = PLANES[k];
+    const i = PI[k], j = PJ[k];
     let s = 0;
     for (let c = 0; c < 4; c++) s += _T[i * 4 + c] * R[c * 4 + j];
     out[k] = s;

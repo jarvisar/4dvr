@@ -45,10 +45,11 @@ export function fromKlein(k) {
 }
 
 /** Lorentz inverse: J Mᵀ J. */
+const _J = [1, 1, 1, -1];
+const _inv = new Float64Array(16);
 export function lorentzInverse(out, M) {
-  const J = [1, 1, 1, -1];
-  const t = new Float64Array(16);
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) t[i * 4 + j] = J[i] * M[j * 4 + i] * J[j];
+  const t = _inv;
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) t[i * 4 + j] = _J[i] * M[j * 4 + i] * _J[j];
   out.set(t);
   return out;
 }

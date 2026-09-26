@@ -83,9 +83,10 @@ The site is deployed to GitHub Pages with GitHub Actions.
 
 4D objects are stored as tetrahedral meshes of their 3D boundary, the same approach used by 4D Toys. Polytope cells are split into tetrahedra from the cell center. Curved shapes are built from prisms and cubes split into tetrahedra with consistent diagonals so that the cross-sections have no gaps. See [tetmesh.js](src/four/tetmesh.js).
 
-Each tetrahedron is stored in a float texture (9 texels per tetrahedron). The vertex shader in [sliceMaterial.js](src/four/sliceMaterial.js) handles the rest:
+Each tetrahedron is stored in a float texture (10 texels per tetrahedron). The vertex shader in [sliceMaterial.js](src/four/sliceMaterial.js) handles the rest:
 
 - Each tetrahedron is drawn as 4 indexed vertices, and its corners are fetched using `gl_VertexID`.
+- Most tetrahedra are nowhere near the slice. Each one stores the largest distance from its first corner to the others, so the shader can skip it after reading only that corner.
 - The corners are transformed so the viewer's slice is the hyperplane w = 0, then classified by which side of it they are on.
 - A 16-case lookup table gives the cross-section as a triangle, a quad or nothing.
 - Triangles are wound to match the 4D normal, so back-face culling can be used.
@@ -130,8 +131,10 @@ Based on Hart, Hawksley, Matsumoto and Segerman's [Non-Euclidean Virtual Reality
 - No post-processing.
 - Scenes are loaded when first opened.
 - Instancing keeps draw calls low.
-- Shadows use a single 1024x1024 shadow map, and it is only re-rendered in scenes that have shadow receivers (Hyperplay).
+- Shadows use a single 1024x1024 shadow map, and it is only re-rendered in scenes that have shadow receivers (Hyperplay), and there only in frames where an object or the slice moved.
 - The sky is drawn after the other opaque objects, so the depth test skips the sky wherever something covers it.
+- In perspective mode, projected polytope edges are straight, so their tubes use fewer segments than the curved stereographic ones.
+- The 4D shapes are built and uploaded in idle time before VR starts, so choosing a preset in the headset doesn't stall frames.
 - Per-frame code avoids allocations (physics contacts are pooled, the knot tube is built into reused buffers, labels that change are redrawn in place) to avoid garbage-collection pauses on the headset.
 - The hyperbolic per-eye transform is computed once per eye on the CPU, not per vertex.
 - The hyperbolic honeycomb uses about 100k vertices.

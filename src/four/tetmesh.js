@@ -6,17 +6,20 @@
 // surface of the 3D cross-section. The cutting is done in sliceMaterial.js;
 // this module builds the tetrahedra.
 //
-// Each tetrahedron is stored as 9 RGBA float texels:
+// Each tetrahedron is stored as 10 RGBA float texels:
 //   0-3  vertex positions (object space, xyzw)
 //   4-7  vertex normals (4D hypersurface normals)
 //   8    rgb color + h: vertex 0 of a polytope tetrahedron is the cell center,
 //        so its barycentric weight * h is the distance to the nearest face.
 //        The fragment shader uses this to draw edges.
+//   9    x: reach, the largest distance from vertex 0 to the other vertices.
+//        The vertex shader uses it to skip tetrahedra far from the slice
+//        after reading only vertex 0 (most of them, for any given slice).
 
 import * as THREE from 'three';
 import * as V from '../math/vec4.js';
 
-export const TEXELS_PER_TET = 9;
+export const TEXELS_PER_TET = 10;
 export const TEX_WIDTH = 1024;
 
 export class TetMesh {
@@ -30,12 +33,15 @@ export class TetMesh {
 
   addTet(p, n, color, h = 0) {
     const d = this.data;
+    let reach = 0;
     for (let k = 0; k < 4; k++) {
       d.push(p[k][0], p[k][1], p[k][2], p[k][3]);
       this.radius = Math.max(this.radius, V.length(p[k]));
+      if (k > 0) reach = Math.max(reach, V.distance(p[k], p[0]));
     }
     for (let k = 0; k < 4; k++) d.push(n[k][0], n[k][1], n[k][2], n[k][3]);
     d.push(color[0], color[1], color[2], h);
+    d.push(reach, 0, 0, 0);
     this.count++;
   }
 
@@ -51,6 +57,7 @@ export class TetMesh {
       tex.generateMipmaps = false;
       tex.needsUpdate = true;
       this._texture = tex;
+      this.data = null; // the texture keeps its own Float32 copy
     }
     return this._texture;
   }
@@ -65,7 +72,7 @@ export class TetMesh {
       const g = new THREE.BufferGeometry();
       const n = this.count * 4;
       g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n), 1));
-      const index = new Uint32Array(this.count * 6);
+      const index = n < 65535 ? new Uint16Array(this.count * 6) : new Uint32Array(this.count * 6);
       for (let t = 0; t < this.count; t++) {
         const b = t * 4, o = t * 6;
         index[o] = b; index[o + 1] = b + 1; index[o + 2] = b + 2;

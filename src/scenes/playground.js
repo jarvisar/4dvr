@@ -23,6 +23,8 @@ const _v3 = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _hp = new THREE.Vector3();
 const _hq = new THREE.Quaternion();
+const _oc = new THREE.Vector3();
+const _rp = new THREE.Vector3();
 const EW = [0, 0, 0, 1];
 
 let seed = 7;
@@ -84,12 +86,12 @@ class Toy {
     const lo = this.pg.stage.worldToLocal(_v3.copy(o));
     const c = _hp.set(this.obj.slicePos[0], this.obj.slicePos[1], this.obj.slicePos[2]);
     const r = this.obj.sliceRadius + 0.01;
-    const oc = lo.clone().sub(c);
+    const oc = _oc.copy(lo).sub(c);
     const b = oc.dot(d), cc = oc.lengthSq() - r * r, disc = b * b - cc;
     if (disc < 0) return Infinity;
     let t = Math.max(0, -b - Math.sqrt(disc));
     const tEnd = -b + Math.sqrt(disc);
-    const p = new THREE.Vector3();
+    const p = _rp;
     for (let i = 0; i < 32 && t < tEnd; i++) {
       p.copy(lo).addScaledVector(d, t);
       const dist = this.body.collider.sdf(this._sliceToBody(p, _p4));
@@ -196,6 +198,7 @@ export class PlaygroundScene extends SceneBase {
     this.shadows = true;
     this.tableY = 0.86;
     this.tableZ = -0.72;
+    this._shadowsDirty = true;
 
     this.view = new SliceView();
     this.view.wMin = -W_RANGE;
@@ -226,6 +229,7 @@ export class PlaygroundScene extends SceneBase {
   }
 
   _placeStage() {
+    this._shadowsDirty = true;
     this.stage.position.set(0, this.tableY, this.tableZ);
     this.table.position.set(0, this.tableY, this.tableZ);
     this.app.env.setShadowFocus(new THREE.Vector3(0, this.tableY, this.tableZ), 0.75);
@@ -306,6 +310,14 @@ export class PlaygroundScene extends SceneBase {
   _removeToy(t) {
     this.app.interaction.forget(t);
     t.dispose();
+    this._shadowsDirty = true;
+  }
+
+  /** Called by the app before rendering: the shadow map only needs redrawing when a toy moved. */
+  shadowsChanged() {
+    const dirty = this._shadowsDirty;
+    this._shadowsDirty = false;
+    return dirty;
   }
 
   clear() {
@@ -318,6 +330,7 @@ export class PlaygroundScene extends SceneBase {
   add(key, opts) {
     const t = new Toy(this, key, opts);
     this.toys.push(t);
+    this._shadowsDirty = true;
     if (!t.fixed) this.interactables.push(t);
     t.sync(0);
     return t;
@@ -494,6 +507,7 @@ export class PlaygroundScene extends SceneBase {
     for (const t of this.toys) {
       t.obj.ghostsEnabled = this.ghosts && !t.fixed;
       t.sync(dt);
+      if (t.obj.poseChanged) { this._shadowsDirty = true; t.obj.poseChanged = false; }
       // fell off the table: move it back into the slice
       if (t.body.x[1] < -1.5) {
         const s = [0, 0.3, 0, 0];

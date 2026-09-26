@@ -40,6 +40,13 @@ void main() {
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
 const _l = new THREE.Vector3();
+const _w0 = new THREE.Vector3();
+const _p1 = new THREE.Vector3();
+const _p2 = new THREE.Vector3();
+const _m = new THREE.Matrix4();
+const _col = new THREE.Color();
+const RING_ACTIVE = new THREE.Color('#bff3ff');
+const RING_IDLE = new THREE.Color('#ffffff');
 
 export class WRail {
   constructor(playground, position, { height = 0.46, base = 0.06 } = {}) {
@@ -129,8 +136,8 @@ export class WRail {
   nearDistance(p) {
     this._segment();
     const ab = _l.subVectors(_b, _a);
-    const t = THREE.MathUtils.clamp(new THREE.Vector3().subVectors(p, _a).dot(ab) / ab.lengthSq(), 0, 1);
-    const closest = _a.clone().addScaledVector(ab, t);
+    const t = THREE.MathUtils.clamp(_w0.subVectors(p, _a).dot(ab) / ab.lengthSq(), 0, 1);
+    const closest = _p1.copy(_a).addScaledVector(ab, t);
     return closest.distanceTo(p) - 0.022;
   }
 
@@ -138,15 +145,15 @@ export class WRail {
     this._segment();
     // closest approach between the ray and the rail segment
     const u = _l.subVectors(_b, _a);
-    const w0 = new THREE.Vector3().subVectors(o, _a);
+    const w0 = _w0.subVectors(o, _a);
     const a = d.dot(d), b = d.dot(u), c = u.dot(u), dd = d.dot(w0), e = u.dot(w0);
     const den = a * c - b * b;
     if (den < 1e-9) return Infinity;
     let s = (b * e - c * dd) / den;
     let t = THREE.MathUtils.clamp((a * e - b * dd) / den, 0, 1);
     s = Math.max(0, s);
-    const p1 = o.clone().addScaledVector(d, s);
-    const p2 = _a.clone().addScaledVector(u, t);
+    const p1 = _p1.copy(o).addScaledVector(d, s);
+    const p2 = _p2.copy(_a).addScaledVector(u, t);
     return p1.distanceTo(p2) < 0.03 ? s : Infinity;
   }
 
@@ -177,7 +184,7 @@ export class WRail {
 
   rayDistanceParam(o, d) {
     const u = _l.subVectors(_b, _a);
-    const w0 = new THREE.Vector3().subVectors(o, _a);
+    const w0 = _w0.subVectors(o, _a);
     const a = d.dot(d), b = d.dot(u), c = u.dot(u), dd = d.dot(w0), e = u.dot(w0);
     const den = a * c - b * b;
     const t = den > 1e-9 ? (a * e - b * dd) / den : 0;
@@ -199,10 +206,10 @@ export class WRail {
     const active = this.hovered || this.grabbedBy;
     const s = active ? 1.25 : 1;
     this.ring.scale.setScalar(s);
-    this.ringMat.color.set(active ? '#bff3ff' : '#ffffff');
+    this.ringMat.color.copy(active ? RING_ACTIVE : RING_IDLE);
 
-    const m = new THREE.Matrix4();
-    const col = new THREE.Color();
+    const m = _m;
+    const col = _col;
     let n = 0;
     for (const o of objects) {
       if (n >= this.maxTags || o.hideTag) continue;
@@ -225,7 +232,7 @@ export class WRail {
     // labels face the viewer
     const head = this.pg.app.headPosition;
     for (const l of this.labels) {
-      const wp = l.getWorldPosition(new THREE.Vector3());
+      const wp = l.getWorldPosition(_p1);
       l.lookAt(head.x, wp.y, head.z);
     }
   }

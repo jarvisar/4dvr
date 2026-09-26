@@ -62,6 +62,7 @@ const TINT_NONE = new THREE.Color(0, 0, 0);
 const TINT_PINCH = new THREE.Color('#33c3ff');
 const TINT_GRIP = new THREE.Color('#ff4f9a');
 const TINT_POKE = new THREE.Color('#eceef4');
+const RING_IDLE = new THREE.Color('#ffffff');
 
 export class HandVisuals {
   constructor(app) {
@@ -153,7 +154,7 @@ export class HandVisuals {
         ring.lookAt(app.headPosition);
         const s = 0.006 + 0.012 * (1 - ix.pinchStrength);
         ring.scale.setScalar(ix.pinch.pressed || ix.grip.pressed ? 0.007 : s);
-        ring.material.color.copy(ix.grip.pressed ? TINT_GRIP : ix.pinch.pressed ? TINT_PINCH : new THREE.Color('#ffffff'));
+        ring.material.color.copy(ix.grip.pressed ? TINT_GRIP : ix.pinch.pressed ? TINT_PINCH : RING_IDLE);
         ring.material.opacity = 0.35 + 0.6 * ix.pinchStrength;
       }
     });

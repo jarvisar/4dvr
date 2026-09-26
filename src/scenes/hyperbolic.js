@@ -298,6 +298,10 @@ const _E = R4.mat4();
 const _T = R4.mat4();
 const _eye = [0, 0, 0];
 const _euler = new THREE.Euler();
+const _mv = new THREE.Vector3();
+const _qi = new THREE.Quaternion();
+const _B = R4.mat4();
+const _v3 = [0, 0, 0];
 
 export class HyperbolicScene extends SceneBase {
   constructor(app) {
@@ -444,12 +448,12 @@ export class HyperbolicScene extends SceneBase {
 
   /** Move the viewer by a head-local displacement (hyperbolic units). */
   _translateLocal(v) {
-    const B = H.boost(R4.mat4(), v);
+    const B = H.boost(_B, v);
     R4.multiply(this.Hm, this.Hm, B);
   }
 
   _rotateLocal(q) {
-    const Rq = R4.fromQuaternion(R4.mat4(), q);
+    const Rq = R4.fromQuaternion(_B, q);
     R4.multiply(this.Hm, this.Hm, Rq);
   }
 
@@ -498,7 +502,7 @@ export class HyperbolicScene extends SceneBase {
       app.camera.updateMatrixWorld();
       app.camera.getWorldPosition(app.headPosition);
       app.camera.getWorldQuaternion(app.headQuaternion);
-      const mv = new THREE.Vector3(
+      const mv = _mv.set(
         (this.keys.has('d') ? 1 : 0) - (this.keys.has('a') ? 1 : 0),
         (this.keys.has('e') ? 1 : 0) - (this.keys.has('q') ? 1 : 0),
         (this.keys.has('s') ? 1 : 0) - (this.keys.has('w') ? 1 : 0),
@@ -506,7 +510,8 @@ export class HyperbolicScene extends SceneBase {
       if (mv.lengthSq() > 0) {
         const sp = (this.keys.has('shift') ? 2.2 : 0.9) * dt;
         mv.normalize().multiplyScalar(sp);
-        this._translateLocal([mv.x, mv.y, mv.z]);
+        _v3[0] = mv.x; _v3[1] = mv.y; _v3[2] = mv.z;
+        this._translateLocal(_v3);
       }
     }
 
@@ -516,7 +521,8 @@ export class HyperbolicScene extends SceneBase {
       const dp = _v.copy(pos).sub(this.prevPos);
       if (dp.length() < 0.5) {
         dp.applyQuaternion(_q.copy(this.prevQuat).invert()).divideScalar(L);
-        this._translateLocal([dp.x, dp.y, dp.z]);
+        _v3[0] = dp.x; _v3[1] = dp.y; _v3[2] = dp.z;
+        this._translateLocal(_v3);
       }
       const dq = _q.copy(this.prevQuat).invert().multiply(quat);
       this._rotateLocal(dq);
@@ -531,9 +537,10 @@ export class HyperbolicScene extends SceneBase {
     // controllers: thumbstick moves in the controller's pointing direction
     for (const ix of app.input.xr) {
       if (ix.kind !== 'controller' || (!ix.stick.x && !ix.stick.y)) continue;
-      const v = new THREE.Vector3(ix.stick.x, 0, ix.stick.y).multiplyScalar(dt * 0.9);
-      v.applyQuaternion(ix.rayQuat).applyQuaternion(quat.clone().invert());
-      this._translateLocal([v.x, v.y, v.z]);
+      const v = _mv.set(ix.stick.x, 0, ix.stick.y).multiplyScalar(dt * 0.9);
+      v.applyQuaternion(ix.rayQuat).applyQuaternion(_qi.copy(quat).invert());
+      _v3[0] = v.x; _v3[1] = v.y; _v3[2] = v.z;
+      this._translateLocal(_v3);
     }
 
     H.lorentzOrthonormalize(this.Hm);

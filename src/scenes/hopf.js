@@ -189,6 +189,11 @@ function baseColor(p) {
 const _hp = new THREE.Vector3();
 const _hq = new THREE.Quaternion();
 const _v = new THREE.Vector3();
+const _dq = new THREE.Quaternion();
+const _axis = new THREE.Vector3();
+const _M = R4.mat4();
+const _L = R4.mat4();
+const AUTO_SPIN = [0, 0, 0.07, 0, 0.045, 0];
 const EW = [0, 0, 0, 1];
 
 export class HopfScene extends SceneBase {
@@ -472,7 +477,7 @@ export class HopfScene extends SceneBase {
     // globe inertia
     if (!this.globeGrab && this.globeSpin.lengthSq() > 1e-6) {
       const ang = this.globeSpin.length() * dt;
-      const dq = new THREE.Quaternion().setFromAxisAngle(this.globeSpin.clone().normalize(), ang);
+      const dq = _dq.setFromAxisAngle(_axis.copy(this.globeSpin).normalize(), ang);
       this.globeQ.premultiply(dq).normalize();
       this.globeSpin.multiplyScalar(Math.exp(-dt * 0.6));
     }
@@ -483,17 +488,17 @@ export class HopfScene extends SceneBase {
     if (!this.air) {
       const damp = Math.exp(-dt * 0.8);
       for (let k = 0; k < 6; k++) this.viewSpin[k] *= damp;
-      const M = R4.expBivector(R4.mat4(), this.viewSpin, dt);
+      const M = R4.expBivector(_M, this.viewSpin, dt);
       R4.multiply(this.viewR, M, this.viewR);
       if (this.spin4) {
-        const A = R4.expBivector(R4.mat4(), [0, 0, 0.07, 0, 0.045, 0], dt);
+        const A = R4.expBivector(_M, AUTO_SPIN, dt);
         R4.multiply(this.viewR, A, this.viewR);
       }
       R4.orthonormalize(this.viewR);
     }
 
-    const L = leftMulMatrix(new Float64Array(16), this.globeQ);
-    const total = R4.multiply(R4.mat4(), this.viewR, L);
+    const L = leftMulMatrix(_L, this.globeQ);
+    const total = R4.multiply(_M, this.viewR, L);
     R4.toThreeMatrix(this.fiberMat.uniforms.uRot.value, total, 1);
     this.fiberMat.uniforms.uTime.value = time;
     this.fiberMat.uniforms.uFlow.value = this.flow ? 1 : 0;

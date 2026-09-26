@@ -10,6 +10,7 @@ import { ANA_COLOR, KATA_COLOR } from './sliceView.js';
 const _M = R4.mat4();
 const _MT = R4.mat4();
 const _P = [0, 0, 0, 0];
+const _key = new Float64Array(21);
 
 export class Object4D {
   constructor(shapeKey, { scale = 0.1, scale4 = null, position = [0, 0, 0, 0], rotation = null, tint = null, tintAmount = 0.0, ghosts = true, opacity = 1 } = {}) {
@@ -29,6 +30,11 @@ export class Object4D {
     this.slicePos = [0, 0, 0, 0]; // centre in slice space (updated in sync)
     this.sliceRadius = 0;         // bounding radius of the current cross-section
     this.inSlice = false;
+    // Set by sync() whenever what the solid mesh draws changes (its pose
+    // uniforms or visibility). Stays set until the owner clears it, e.g. after
+    // deciding whether the shadow map needs redrawing.
+    this.poseChanged = true;
+    this._poseKey = new Float64Array(21).fill(NaN);
 
     this.group = new THREE.Group();
     const geom = this.shape.isSphere ? hypersphereGeometry() : this.shape.tetMesh.geometry;
@@ -99,6 +105,7 @@ export class Object4D {
     u.uHighlight.value = this.highlight;
 
     this.mesh.visible = this.inSlice;
+    if (this._updatePoseKey()) this.poseChanged = true;
 
     // Ghost: the object's cross-section through its own center, colored by the
     // sign of w. Fades in as the object leaves the slice and out with distance.
@@ -112,6 +119,18 @@ export class Object4D {
     g.uGhostAlpha.value = ga;
     g.uGhostColor.value.copy(dw > 0 ? ANA_COLOR : KATA_COLOR);
     this.ghost.visible = ga > 0.01;
+  }
+
+  /** Compare the solid mesh's pose uniforms and visibility with the last sync. */
+  _updatePoseKey() {
+    const k = this._poseKey, v = _key, sh = this.mats.shared, p = sh.uPos.value;
+    if (this.shape.isSphere) { v.fill(0); v[0] = sh.uSliceRadius.value; } else v.set(sh.uRot.value.elements);
+    v[16] = p.x; v[17] = p.y; v[18] = p.z; v[19] = p.w;
+    v[20] = this.mesh.visible ? 1 : 0;
+    for (let i = 0; i < 21; i++) {
+      if (k[i] !== v[i]) { k.set(v); return true; }
+    }
+    return false;
   }
 
   dispose() {

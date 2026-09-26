@@ -184,7 +184,9 @@ export class App {
     this.env.setMood(scene.mood);
     // Only re-render the shadow map for scenes that have shadow receivers.
     // (Toggling castShadow instead would recompile every lit material.)
-    this.renderer.shadowMap.autoUpdate = !!scene.shadows;
+    // Scenes that implement shadowsChanged() only re-render it when a shadow
+    // caster moved (see _frame).
+    this.renderer.shadowMap.autoUpdate = !!scene.shadows && !scene.shadowsChanged;
     this.renderer.shadowMap.needsUpdate = !!scene.shadows;
     scene.enter();
     if (this.presenting && !this._sessionJustStarted) scene.onUserReady?.(); // fit to the person's height
@@ -283,6 +285,8 @@ export class App {
     this.hands.update();
     this.audio.updateListener(this.camera);
 
+    const scene = this.activeScene;
+    if (scene?.shadows && scene.shadowsChanged?.()) this.renderer.shadowMap.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
 
     this._fpsT += dt; this._fpsN++;

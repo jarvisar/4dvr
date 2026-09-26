@@ -158,6 +158,7 @@ export class InputSystem {
     this.mouse = new Interactor(2);
     this.mouse.kind = 'mouse';
     this.mouse.handedness = 'right';
+    this._mouseList = [this.mouse];
     this.spaces = [];
     this.smoothers = [new Smoother(), new Smoother()];
     const factory = new XRControllerModelFactory();
@@ -194,7 +195,7 @@ export class InputSystem {
   }
 
   get all() {
-    return this.app.presenting ? this.xr : [this.mouse];
+    return this.app.presenting ? this.xr : this._mouseList;
   }
 
   byHand(handedness) {
