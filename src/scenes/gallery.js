@@ -106,7 +106,7 @@ export class GalleryScene extends SceneBase {
     this.ring.position.set(c.x, topY + 0.002, c.z);
     this.glow.position.set(c.x, topY + 0.003, c.z);
     if (this.nameplate) this.nameplate.position.set(c.x, topY - 0.06, c.z + 0.205);
-    this.app.env.setShadowFocus(c, 0.6);
+    this.app.env.aimSun(c);
     if (this.desktopView) this.desktopView.target.copy(c);
   }
 
@@ -165,7 +165,6 @@ export class GalleryScene extends SceneBase {
       let o = this.sliceObjs.get(key);
       if (!o) {
         o = new Object4D(key, { scale: this.S, ghosts: false, opacity: 0.82 });
-        o.mesh.castShadow = false;
         o.mesh.renderOrder = 9; // after the additive faces, so the slice keeps its colours
         this.pivot.add(o.group);
         this.sliceObjs.set(key, o);

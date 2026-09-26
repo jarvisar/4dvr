@@ -74,7 +74,6 @@ export class WRail {
     post.position.y = base / 2;
     const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.034, 0.008, 32), postMat);
     foot.position.y = 0.004;
-    foot.receiveShadow = true;
     this.group.add(post, foot);
 
     // ticks every 10 cm of w

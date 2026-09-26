@@ -279,7 +279,6 @@ class RopeMesh {
       g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 2);
       const mesh = new THREE.Mesh(g, parent.material);
       mesh.frustumCulled = false;
-      mesh.castShadow = true;
       parent.group.add(mesh);
       return { mesh, M };
     });

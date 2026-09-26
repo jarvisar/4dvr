@@ -12,7 +12,8 @@ const CHAINS = [
   ['wrist', 'pinky-finger-metacarpal', 'pinky-finger-phalanx-proximal', 'pinky-finger-phalanx-intermediate', 'pinky-finger-phalanx-distal', 'pinky-finger-tip'],
   ['index-finger-phalanx-proximal', 'middle-finger-phalanx-proximal', 'ring-finger-phalanx-proximal', 'pinky-finger-phalanx-proximal'],
 ];
-const BONES = [];
+/** Joint index pairs of the hand's bones (also used to draw hands in other spaces). */
+export const BONES = [];
 for (const chain of CHAINS) for (let i = 0; i + 1 < chain.length; i++) BONES.push([J[chain[i]], J[chain[i + 1]]]);
 
 const HAND_VERT = /* glsl */ `

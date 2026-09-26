@@ -1,16 +1,26 @@
 # 4D VR
 
-WebXR app for viewing and interacting with 4D objects, higher-dimensional geometry, and hyperbolic space. Built with [Three.js](https://threejs.org/) for the Meta Quest with hand tracking. Controllers are also supported, and every scene works in a desktop browser with a mouse and keyboard.
+WebXR app for viewing and interacting with 4D objects, higher-dimensional geometry, and hyperbolic and spherical space. Built with [Three.js](https://threejs.org/) for the Meta Quest with hand tracking. Controllers are also supported, and every scene works in a desktop browser with a mouse and keyboard.
 
 Visit the [GitHub Pages site](https://ajarvis.co/anakata/) to access the latest deployment.
 
 ## Scenes
 
-- **Hyperplay:** 4D physics sandbox on a table. Includes all six regular 4-polytopes, hyperspheres, duocylinders, spherinders, cubinders, and a tiger. Objects are shown as 3D cross-sections, and the cross-section can be moved along the W axis or rotated in the xw/zw planes. One of the presets is a sealed glass box where the ball has to be moved out through W.
+- **Hyperplay:** 4D physics sandbox on a table. Includes all six regular 4-polytopes, hyperspheres, duocylinders, spherinders, cubinders, and a tiger. Objects are shown as 3D cross-sections, and the cross-section can be moved along the W axis or rotated in the xw/zw planes. Shadows are 4D shadows: the sun can lean towards ana, so objects outside the slice cast shadows into it. Presets:
+  - **Sealed box:** the ball has to be moved out of a closed glass box through W.
+  - **Mirror:** a chiral piece has to go into an outline of its mirror image. No 3D rotation does it, but a half-turn through W does.
+  - **Dice:** the regular 4-polytopes as a d5, d8, d16, d24, d120, and d600. A die lands on a cell, and the result is the cell facing up. Opposite cells add up to N + 1, like on a d6.
+  - **Orbits:** moons around a sun with 4D gravity, which falls off as 1/r³. Every circular orbit has zero energy, so a small nudge sends a moon into the sun or away for good. Switch to 1/r² to compare.
+  - **Shadows:** the sun leans 50° towards ana.
+  - **Worldline:** a motion with time as the W axis, so moving the slice replays it and rotating the slice in xw mixes time with space, like a slit-scan photo. Shows juggling by default, and can record 4 seconds of your hands.
+- **Flatland:** A 2D world on a sheet, for seeing 4D the way a 2D being would see 3D. Push a finger, or a sphere, cube, cone, or torus, through the sheet and it appears as its cross-section. A strip shows what A Square sees: one dimension, dimmed by distance. Flatlanders can be lifted out of the plane and put back upside down, which leaves them mirror-reversed, and the gem can be taken out of a sealed vault.
 - **Polytope Lab:** The regular 4-polytopes shown as perspective or stereographic projections, with the current cross-section drawn inside. Also includes a tesseract net that folds into a tesseract, and cross-sections of curved shapes like the spheritorus and torisphere.
 - **Knot Lab:** A rope simulated in 4D. Strands only collide when they are close in all four coordinates, so a strand moved in W can pass through another one. Includes a trefoil, figure-eight knot, Hopf link, and Borromean rings. The scene detects when a knot is untied or a link is separated.
 - **Hopf Garden:** The Hopf fibration of the 3-sphere, stereographically projected. Touch the globe to add the fiber for that point. Rotating the globe rotates all of the fibers.
 - **Hyperbolic Space:** The {5,3,4} honeycomb (right-angled dodecahedra) and {4,3,5} honeycomb (cubes, five around each edge), viewed from inside. Head movement is tracked in hyperbolic space, so walking in a loop leaves you rotated (holonomy).
+- **Spherical Space:** The 120-cell, 24-cell, tesseract, and 5-cell as tilings of the 3-sphere, viewed from inside: three cells around each edge, which leaves a gap in flat space. Walking straight ahead for 2π times the radius brings you back to the start. Every line of sight is a great circle, so everything is also seen the long way round, in the opposite direction, and straight ahead at the end of the long way is the back of your own head.
+- **Klein Room:** A room glued to itself. Walk out through the left or right side and you come back in through the other. Walk out through the front or back and you come back mirror-reversed, because that pair of walls is glued with a flip. The floor plan is a Klein bottle. Copies of the room, and of you, are visible through the walls, every other row mirror-reversed. After crossing a flipped wall, text reads backwards and your left hand fits the right-hand print.
+- **Quasicrystals:** A Penrose tiling as a 2D slice of the 5D cubic lattice, on the floor around you, and an icosahedral tiling of two rhombohedra as a 3D slice of the 6D lattice. Moving the slice through the hidden dimensions rearranges tiles three at a time (phason flips), but the pattern never repeats.
 
 ## Controls
 
@@ -30,15 +40,21 @@ Use the trigger to grab, move, and throw objects, and the grip to rotate them th
 
 Left drag to grab, move, and throw objects. Right drag to rotate them through 4D, or right drag on empty space to rotate the slice. Use the scroll wheel or Q/E to move the slice along W, and A/D to rotate it.
 
-Press 1–5 to switch scenes, M to toggle the menu, and H to toggle the controls.
+Press 1–9 to switch scenes, M to toggle the menu, and H to toggle the controls.
 
-On touch screens, drag an object to move it and drag empty space to orbit. Rotating objects through 4D, changing a strand's W, and moving in Hyperbolic Space require a mouse and keyboard or a headset.
+On touch screens, drag an object to move it and drag empty space to orbit. Rotating objects through 4D, changing a strand's W, and moving in Hyperbolic Space, Spherical Space, and the Klein Room require a mouse and keyboard or a headset.
 
 ### Scene Controls
 
-In Hyperbolic Space, pinch empty space to move through the space. On desktop, use WASD to move and drag to look.
+In Hyperbolic Space, Spherical Space, and the Klein Room, walk or pinch empty space to move through the space. On desktop, use WASD to move and drag to look.
 
 In Hopf Garden, touch the globe to add fibers and pinch it to rotate it.
+
+In Flatland, push a finger through the sheet, or pinch a visitor from the shelf and move it through. Pinch a Flatlander to lift it out of the plane. On desktop, drag a visitor or a Flatlander, and right-click a Flatlander to turn it over.
+
+In Quasicrystals, pinch empty space and move your hand to move the slice through the hidden dimensions. On desktop, right drag.
+
+In Hyperplay's Worldline preset, Record captures 4 seconds of your tracked hands (the controllers, or the mouse on desktop).
 
 ## Local Installation
 
@@ -74,7 +90,7 @@ Pushing to `main` builds the site, runs the smoke tests, and deploys it to GitHu
 
 ### URL Parameters
 
-- `?scene=playground|gallery|knots|hopf|hyperbolic` sets the starting scene
+- `?scene=playground|flatland|gallery|knots|hopf|hyperbolic|spherical|klein|quasicrystal` sets the starting scene
 - `?desktop` skips the start screen
 - `?quality=low|medium|high` uses a graphics preset for this visit without changing the saved one
 - `?scale=1` sets the XR framebuffer scale directly, overriding the preset's resolution
@@ -92,9 +108,17 @@ The slicing is done in the vertex shader in [sliceMaterial.js](src/four/sliceMat
 
 Hyperspheres are drawn as regular spheres with radius `sqrt(r² - d²)`, since every cross-section of a hypersphere is a sphere. The fragment shader maps each point back onto the hypersphere to draw an 8-color pattern, which shows rotation in 4D.
 
+### 4D Shadows
+
+A 4D sun shines along a 4D direction. An object's shadow on the floor, which is a 3D hyperplane in 4D, is its projection along that direction, and the slice shows the part of that 3D shadow at w = 0. If the sun has no W component, points keep their w when projected, so this is just the shadow of the cross-section. If it does, objects outside the slice can cast shadows into it.
+
+[shadow4.js](src/four/shadow4.js) compiles the slice shader with `SHADOW4`, which projects each tetrahedron's corners onto the floor before cutting it. The resulting polygons are drawn top-down into a 512x512 mask, and the table multiplies its color by the mask. A hypersphere's shadow is found per pixel: the floor points whose line towards the sun passes within r of its center.
+
 ### Physics
 
 [world4.js](src/physics/world4.js) and [colliders.js](src/physics/colliders.js) handle the 4D rigid bodies. Each body has a 4x4 rotation matrix and stores its angular momentum as a bivector (6 rotation planes). Collisions are found by testing sample points on each body against the other body's signed distance function, and contacts are solved with sequential impulses. Held objects are moved by setting their velocity towards the hand instead of their position, so they still collide with walls.
+
+The Mirror preset's piece is a union of four hypercubes (a chiral tetracube thickened along W), with a compound box collider. In the Orbits preset a force field adds 1/r³ (or 1/r²) gravity towards the sun each substep. For 1/r³, the effective potential is (L²/m − GMm)/2r², which has no minimum, so there is no stable orbit.
 
 ### Projections
 
@@ -111,6 +135,28 @@ Based on [Non-Euclidean Virtual Reality](https://arxiv.org/abs/1702.04004) by Ha
 Points are stored in the hyperboloid model and drawn using the Beltrami-Klein model. Each frame, head movement is converted to a hyperbolic translation and rotation, and each eye gets its own offset. When the viewer leaves the center cell, a symmetry of the honeycomb moves them back, which keeps the coordinates small without changing what is drawn.
 
 ###### Note: this relies on each eye being rendered separately. Three.js's `WebGLRenderer` does not support multiview.
+
+### Spherical Space
+
+See [spherical.js](src/scenes/spherical.js). Points of S³ are unit vectors in R⁴ and its isometries are rotations of R⁴, so head movement is tracked like in Hyperbolic Space with rotations in place of Lorentz transformations. The polytope's vertices, pushed out onto its circumscribed 3-sphere, give the tiling. S³ is finite, so all of it is drawn.
+
+Every geodesic is a great circle of length 2π, so light from each point reaches the eye along two arcs: the short one (direction u, distance t) and the long one (direction −u, distance 2π − t). Everything is drawn twice, once for each. Each vertex is placed in its true direction at its true distance in metres, which gives every triangle exactly the right outline on screen. Near the antipodal point a small triangle can cover a large part of the view, so depth is written per fragment from the interpolated distance. The avatar around the eyes (head, headset, body, and tracked hands) is only drawn along the long arc, where it fills the background.
+
+### Flatland
+
+See [flatland.js](src/scenes/flatland.js). Cross-sections are found per pixel from signed distance functions: the visitors, and capsules around the bones of tracked hands. From above, an object poking up through the sheet would hide its own cross-section, so visitors turn translucent while they cross it and the outlines are drawn over everything. A Square's view casts one ray per column within the plane. Walls and Flatlanders are hit analytically, and 3D intruders are sphere-traced with their 3D distance, which is never more than the distance within the plane.
+
+### Worldlines
+
+A ball moving along p(t) sweeps out the set of points (x, w(t)) with |x − p(t)| ≤ r: at each moment, a 3D ball in the hyperplane w = w(t). A slice of constant w cuts it in the ball at that moment. A tilted slice cuts each moment's ball in a flat disk, and the cross-section is drawn as a stack of thin disks. See [worldline.js](src/four/worldline.js).
+
+### Klein Room
+
+See [klein.js](src/scenes/klein.js). The room is a fundamental domain of a group of isometries of the plane (times the interval from floor to ceiling), generated by a translation along x and a glide reflection (x, z) → (−x, z + D). Space is flat, so the view is 25 instanced copies of the room, one per group element, and copies of the viewer's head, body, and hands. When the head leaves the room, the map from room coordinates to the real room is composed with the group element it crossed into. After a flipped wall, that map is a reflection. three.js decides which side of a triangle faces the camera per object, not per instance, so mirrored instances are drawn by a second, mirrored instanced mesh.
+
+### Quasicrystals
+
+See [quasicrystal.js](src/scenes/quasicrystal.js). The tilings are built with de Bruijn's dual method, which is equivalent to cutting the lattice. N families of parallel grid lines (planes in 3D) with normals e_j and offsets γ_j are laid out. Every point z where d of them cross, from d different families, gives one tile. It is a rhomb (rhombohedron) with the edges e_j of those families, at Σ K_j e_j with K_j = ⌈z·e_j + γ_j⌉. The Penrose tiling uses 5 directions at 72° with offsets adding up to 0. The 3D tiling uses the 6 icosahedral 5-fold axes. Moving γ along the perpendicular-space vectors e⊥_j moves the slice through the hidden dimensions. The smoke test checks that every inner edge (face in 3D) is shared by exactly two tiles.
 
 ### Knots
 
@@ -131,7 +177,8 @@ Points are stored in the hyperboloid model and drawn using the Beltrami-Klein mo
 - No post-processing
 - Scenes are loaded when first opened, and the 4D shapes are built before VR starts so choosing a preset in the headset does not stall
 - Per-frame code avoids allocations to prevent garbage collection pauses on the headset
-- Shadows use a single 1024x1024 shadow map, and are only re-rendered in Hyperplay on frames where something moved
+- Hyperplay's 4D shadows are drawn into a 512x512 mask only on frames where something moved. The three.js shadow map isn't used.
+- Quasicrystal tilings are rebuilt at most about 15 times a second while the slice moves
 
 ## References
 
@@ -142,3 +189,8 @@ Points are stored in the hyperboloid model and drawn using the Beltrami-Klein mo
 - Niles Johnson, [Hopf fibration visualizations](https://nilesjohnson.net/hopf.html)
 - Andrew Hanson, rolling ball method for 4D rotation
 - Dompierre et al., How to Subdivide Pyramids, Prisms and Hexahedra into Tetrahedra (1999)
+- Edwin A. Abbott, Flatland: A Romance of Many Dimensions (1884)
+- Jeff Weeks, [Curved Spaces](https://www.geometrygames.org/CurvedSpaces/)
+- N. G. de Bruijn, Algebraic theory of Penrose's non-periodic tilings of the plane (1981)
+- F. Gähler and J. Rhyner, Equivalence of the generalised grid and projection methods for the construction of quasiperiodic tilings (1986)
+- P. Ehrenfest, In what way does it become manifest in the fundamental laws of physics that space has three dimensions? (1917)

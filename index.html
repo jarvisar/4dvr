@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#07080c" />
     <title>4D VR</title>
-    <meta name="description" content="WebXR app for viewing and interacting with 4D objects, higher-dimensional geometry and hyperbolic space." />
+    <meta name="description" content="WebXR app for viewing and interacting with 4D objects, higher-dimensional geometry, and hyperbolic and spherical space." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M14 4H60V50L50 60H4V14Z' fill='%2307080c' stroke='%23eceef4' stroke-width='4'/%3E%3Cpath d='M4 14L14 4' stroke='%2333c3ff' stroke-width='5'/%3E%3Cpath d='M60 50L50 60' stroke='%23ff4f9a' stroke-width='5'/%3E%3Cpath d='M32 16V48M24 24H40M24 40H40' stroke='%23eceef4' stroke-width='4'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,17 +19,21 @@
       <main class="console">
         <h1 class="wordmark">4D VR</h1>
         <p class="lede">
-          View and interact with 4D objects, higher-dimensional geometry and hyperbolic space.
+          View and interact with 4D objects, higher-dimensional geometry, and hyperbolic and spherical space.
           4D objects are shown as 3D cross-sections, and you can move the cross-section along
           the fourth axis, w.
         </p>
 
         <ol class="index" id="scene-index">
           <li><button data-scene="playground"><span class="n">1</span><b>Hyperplay</b><span class="d">4D physics sandbox</span></button></li>
-          <li><button data-scene="gallery"><span class="n">2</span><b>Polytope Lab</b><span class="d">Regular 4-polytopes, projected and sliced</span></button></li>
-          <li><button data-scene="knots"><span class="n">3</span><b>Knot Lab</b><span class="d">Untie knots by moving strands through w</span></button></li>
-          <li><button data-scene="hopf"><span class="n">4</span><b>Hopf Garden</b><span class="d">The Hopf fibration of the 3-sphere</span></button></li>
-          <li><button data-scene="hyperbolic"><span class="n">5</span><b>Hyperbolic Space</b><span class="d">The {5,3,4} and {4,3,5} honeycombs</span></button></li>
+          <li><button data-scene="flatland"><span class="n">2</span><b>Flatland</b><span class="d">Poke your hand through a 2D world</span></button></li>
+          <li><button data-scene="gallery"><span class="n">3</span><b>Polytope Lab</b><span class="d">Regular 4-polytopes, projected and sliced</span></button></li>
+          <li><button data-scene="knots"><span class="n">4</span><b>Knot Lab</b><span class="d">Untie knots by moving strands through w</span></button></li>
+          <li><button data-scene="hopf"><span class="n">5</span><b>Hopf Garden</b><span class="d">The Hopf fibration of the 3-sphere</span></button></li>
+          <li><button data-scene="hyperbolic"><span class="n">6</span><b>Hyperbolic Space</b><span class="d">The {5,3,4} and {4,3,5} honeycombs</span></button></li>
+          <li><button data-scene="spherical"><span class="n">7</span><b>Spherical Space</b><span class="d">Walk inside the 120-cell on the 3-sphere</span></button></li>
+          <li><button data-scene="klein"><span class="n">8</span><b>Klein Room</b><span class="d">Walk through a wall and come back mirrored</span></button></li>
+          <li><button data-scene="quasicrystal"><span class="n">9</span><b>Quasicrystals</b><span class="d">Penrose tilings as slices of 5D and 6D lattices</span></button></li>
         </ol>
 
         <div class="actions" id="actions">
@@ -37,7 +41,7 @@
           <button id="enter-desktop" class="btn">Desktop mode</button>
         </div>
         <p class="status pending" id="xr-status"><i></i><span id="xr-note">Checking for a headset</span></p>
-        <p class="keys"><kbd>1</kbd>–<kbd>5</kbd> scenes <kbd>M</kbd> menu <kbd>H</kbd> help</p>
+        <p class="keys"><kbd>1</kbd>–<kbd>9</kbd> scenes <kbd>M</kbd> menu <kbd>H</kbd> help</p>
       </main>
     </div>
 

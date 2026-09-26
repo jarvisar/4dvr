@@ -54,8 +54,6 @@ export class Object4D {
 
     this.mesh = new THREE.Mesh(geom, this.mats.solid);
     this.mesh.frustumCulled = false;
-    this.mesh.castShadow = true;
-    this.mesh.customDepthMaterial = this.mats.depth;
     this.group.add(this.mesh);
 
     this.ghost = new THREE.Mesh(geom, this.mats.ghost);
@@ -136,7 +134,6 @@ export class Object4D {
   dispose() {
     this.mats.solid.dispose();
     this.mats.ghost.dispose();
-    this.mats.depth.dispose();
     this.group.removeFromParent();
   }
 }

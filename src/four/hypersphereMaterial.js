@@ -30,8 +30,6 @@ void main() {
 }
 `;
 
-const DEPTH_FRAG = /* glsl */ `void main() { gl_FragColor = vec4(1.0); }`;
-
 const FRAG = /* glsl */ `
 precision highp float;
 ${LIGHTING_GLSL}
@@ -145,11 +143,5 @@ export function createHypersphereMaterials(colors = AXIS_COLORS) {
     depthWrite: false,
     ...PREMULTIPLIED_BLEND,
   });
-  const depth = new THREE.ShaderMaterial({
-    name: 'hypersphere-depth',
-    uniforms: shared,
-    vertexShader: VERT,
-    fragmentShader: DEPTH_FRAG,
-  });
-  return { solid, ghost, depth, shared };
+  return { solid, ghost, shared };
 }

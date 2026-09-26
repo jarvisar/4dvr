@@ -20,8 +20,6 @@ export class App {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.NeutralToneMapping;
     renderer.toneMappingExposure = 1.0;
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.xr.enabled = true;
     renderer.xr.setReferenceSpaceType('local-floor');
     container.appendChild(renderer.domElement);
@@ -184,12 +182,6 @@ export class App {
     this.activeScene = scene;
     this.sceneKey = key;
     this.env.setMood(scene.mood);
-    // Only re-render the shadow map for scenes that have shadow receivers.
-    // (Toggling castShadow instead would recompile every lit material.)
-    // Scenes that implement shadowsChanged() only re-render it when a shadow
-    // caster moved (see _frame).
-    this.renderer.shadowMap.autoUpdate = !!scene.shadows && !scene.shadowsChanged;
-    this.renderer.shadowMap.needsUpdate = !!scene.shadows;
     scene.enter();
     if (this._rates) this._setFrameRate(this._rates.length - 1); // happens during the fade
     if (this.presenting && !this._sessionJustStarted) scene.onUserReady?.(); // fit to the person's height
@@ -307,10 +299,7 @@ export class App {
     // shadows change now; the resolution changes the next time VR starts.
     if (!this.presenting) this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * q.resolution);
     this.renderer.xr.setFoveation(q.foveation);
-    if (this.env.sun.castShadow !== q.shadows) {
-      this.env.setShadows(q.shadows); // recompiles the lit materials, once
-      this.renderer.shadowMap.needsUpdate = true;
-    }
+    this.env.setShadows(q.shadows);
   }
 
   /** True in VR when the chosen preset's resolution differs from the session's. */
@@ -360,8 +349,6 @@ export class App {
     this.hands.update();
     this.audio.updateListener(this.camera);
 
-    const scene = this.activeScene;
-    if (scene?.shadows && scene.shadowsChanged?.()) this.renderer.shadowMap.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
 
     this._fpsT += dt; this._fpsN++;

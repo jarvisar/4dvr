@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "WebXR app for viewing and interacting with 4D objects, higher-dimensional geometry and hyperbolic space (Three.js, Meta Quest hand tracking).",
+  "description": "WebXR app for viewing and interacting with 4D objects, higher-dimensional geometry, and hyperbolic and spherical space (Three.js, Meta Quest hand tracking).",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

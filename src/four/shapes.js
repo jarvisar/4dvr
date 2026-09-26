@@ -4,8 +4,20 @@
 import * as P from './polytopes.js';
 import {
   polytopeTets, axisColor, directionColor, duocylinderTets, spherinderTets, cubinderTets,
-  tigerTets, spheritorusTets, torisphereTets,
+  tigerTets, spheritorusTets, torisphereTets, polycubeTets, hexToRgb,
 } from './tetmesh.js';
+
+// A chiral tetracube: steps of +x, +y, +z (a right-handed twist). No 3D
+// rotation turns it into its mirror image; a half-turn in a plane containing
+// w does. Cube edge 0.5, so the piece is about as big as the other shapes.
+export const SCREW_CUBES = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [1, 1, 1]];
+export const SCREW_EDGE = 0.5;
+const SCREW_COLORS = ['#ff6b6b', '#ffd93d', '#3ddbd9', '#8b7bff'];
+/** Cube centres of the chiral tetracube in body space (w = 0). */
+export function screwCenters() {
+  const cen = [0, 1, 2].map((i) => SCREW_CUBES.reduce((a, c) => a + c[i], 0) / SCREW_CUBES.length);
+  return SCREW_CUBES.map((c) => [(c[0] - cen[0]) * SCREW_EDGE, (c[1] - cen[1]) * SCREW_EDGE, (c[2] - cen[2]) * SCREW_EDGE, 0]);
+}
 
 function convexPhysics(poly) {
   const verts = poly.vertices.map((v) => v.slice());
@@ -83,6 +95,12 @@ const DEFS = {
     label: 'Spheritorus', blurb: 'points within a fixed distance of a circle', radius: 0.9, pattern: 1,
     tets: () => spheritorusTets(0.6, 0.3, 36, 2),
     physics: () => ({ type: 'spheritorus', R: 0.6, r: 0.3 }),
+  },
+  screw: {
+    label: 'Chiral tetracube', blurb: 'four cubes in a right-handed twist, extended along w',
+    radius: Math.max(...screwCenters().map((c) => Math.hypot(Math.abs(c[0]) + 0.25, Math.abs(c[1]) + 0.25, Math.abs(c[2]) + 0.25, 0.25))),
+    tets: () => polycubeTets(SCREW_CUBES, SCREW_COLORS.map(hexToRgb), SCREW_EDGE),
+    physics: () => ({ type: 'boxes', boxes: screwCenters().map((c) => ({ c, h: [0.25, 0.25, 0.25, 0.25] })) }),
   },
   torisphere: {
     label: 'Torisphere', blurb: 'points within a fixed distance of a 2-sphere', radius: 0.85, pattern: 1,

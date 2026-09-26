@@ -8,17 +8,25 @@ const SCENES = [
 
 async function loadExtraScenes() {
   // Other scenes are loaded separately so the first one starts sooner.
-  const [{ GalleryScene }, { KnotScene }, { HopfScene }, { HyperbolicScene }] = await Promise.all([
+  const [{ FlatlandScene }, { GalleryScene }, { KnotScene }, { HopfScene }, { HyperbolicScene }, { SphericalScene }, { KleinScene }, { QuasicrystalScene }] = await Promise.all([
+    import('./scenes/flatland.js'),
     import('./scenes/gallery.js'),
     import('./scenes/knots.js'),
     import('./scenes/hopf.js'),
     import('./scenes/hyperbolic.js'),
+    import('./scenes/spherical.js'),
+    import('./scenes/klein.js'),
+    import('./scenes/quasicrystal.js'),
   ]);
   SCENES.push(
+    { key: 'flatland', short: 'Flatland', create: (app) => new FlatlandScene(app) },
     { key: 'gallery', short: 'Polytopes', create: (app) => new GalleryScene(app) },
     { key: 'knots', short: 'Knots', create: (app) => new KnotScene(app) },
     { key: 'hopf', short: 'Hopf', create: (app) => new HopfScene(app) },
     { key: 'hyperbolic', short: 'Hyperbolic', create: (app) => new HyperbolicScene(app) },
+    { key: 'spherical', short: 'Spherical', create: (app) => new SphericalScene(app) },
+    { key: 'klein', short: 'Klein', create: (app) => new KleinScene(app) },
+    { key: 'quasicrystal', short: 'Penrose', create: (app) => new QuasicrystalScene(app) },
   );
 }
 

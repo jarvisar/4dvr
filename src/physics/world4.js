@@ -135,6 +135,7 @@ export class World4 {
     this.onImpact = null; // (point, speed, bodyA, bodyB)
     this.linearDamping = 0.02;
     this.angularDamping = 0.06;
+    this.accel = null; // optional (body, dt) => void, adds a force field to free bodies' velocities each substep
   }
 
   add(body) { this.bodies.push(body); return body; }
@@ -168,6 +169,7 @@ export class World4 {
       if (b.held && b.target) { this._driveHeld(b, dt); continue; }
       if (b.sleeping) continue;
       V.addScaled(b.v, b.v, this.gravity, dt);
+      if (this.accel) this.accel(b, dt);
       b.updateOmega();
     }
 

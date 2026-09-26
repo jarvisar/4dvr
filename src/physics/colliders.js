@@ -65,6 +65,29 @@ export class Collider {
         moments = h.map((x) => (x * x) / 3);
         break;
       }
+      case 'boxes': {
+        // union of axis-aligned boxes in body space: [{ c: centre, h: half-sizes }]
+        this.boxes = desc.boxes.map((bx) => ({ c: bx.c.map((x) => x * s), h: bx.h.map((x) => x * s) }));
+        const seen = new Set();
+        const addSample = (v) => {
+          const k = v.map((x) => Math.round(x * 1e5)).join(',');
+          if (!seen.has(k)) { seen.add(k); samples.push(v); }
+        };
+        let bound = 0;
+        const m = [0, 0, 0, 0];
+        for (const { c, h } of this.boxes) {
+          for (let mask = 0; mask < 16; mask++) addSample([0, 1, 2, 3].map((i) => c[i] + (mask & (1 << i) ? h[i] : -h[i])));
+          for (let axis = 0; axis < 4; axis++) for (let mask = 0; mask < 16; mask++) {
+            if (mask & (1 << axis)) continue;
+            addSample([0, 1, 2, 3].map((i) => c[i] + (i === axis ? 0 : (mask & (1 << i) ? h[i] : -h[i]))));
+          }
+          bound = Math.max(bound, hyp(...c) + hyp(...h));
+          for (let i = 0; i < 4; i++) m[i] += (c[i] * c[i] + (h[i] * h[i]) / 3) / this.boxes.length;
+        }
+        this.bound = bound;
+        moments = m;
+        break;
+      }
       case 'convex': {
         this.planes = desc.planes.map((p) => [p[0], p[1], p[2], p[3], p[4] * s]);
         samples = desc.samples.map((v) => v.map((x) => x * s));
@@ -163,6 +186,15 @@ export class Collider {
         const qx = Math.abs(x) - h[0], qy = Math.abs(y) - h[1], qz = Math.abs(z) - h[2], qw = Math.abs(w) - h[3];
         const out = len4(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0), Math.max(qw, 0));
         return out + Math.min(Math.max(qx, qy, qz, qw), 0);
+      }
+      case 'boxes': {
+        let d = Infinity;
+        for (const { c, h } of this.boxes) {
+          const qx = Math.abs(x - c[0]) - h[0], qy = Math.abs(y - c[1]) - h[1], qz = Math.abs(z - c[2]) - h[2], qw = Math.abs(w - c[3]) - h[3];
+          const e = len4(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0), Math.max(qw, 0)) + Math.min(Math.max(qx, qy, qz, qw), 0);
+          if (e < d) d = e;
+        }
+        return d;
       }
       case 'convex': {
         let d = -Infinity;

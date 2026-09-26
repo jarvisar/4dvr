@@ -18,7 +18,7 @@ import puppeteer from 'puppeteer-core';
 const PORT = 4321;
 const BASE = `http://localhost:${PORT}/`;
 const OUT = 'smoke-artifacts';
-const SCENES = ['playground', 'gallery', 'knots', 'hopf', 'hyperbolic'];
+const SCENES = ['playground', 'flatland', 'gallery', 'knots', 'hopf', 'hyperbolic', 'spherical', 'klein', 'quasicrystal'];
 
 function chromePath() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -121,6 +121,28 @@ try {
     ['hyperbolic re-centring keeps the head in the central cell', r.hyperbolic?.headDistFromOrigin < 1.5, r.hyperbolic?.headDistFromOrigin],
     ['hyperbolic distance travelled is preserved', Math.abs(r.hyperbolic?.homeDistance - 6) < 0.01, r.hyperbolic?.homeDistance],
     ['head pose stays on the hyperboloid', Math.abs(r.hyperbolic?.lorentzCheck + 1) < 1e-3, r.hyperbolic?.lorentzCheck],
+    ['S³: walking π reaches the antipode', Math.abs(r.spherical?.antipode - Math.PI) < 1e-3, r.spherical?.antipode],
+    ['S³: walking 2π comes back to the start', r.spherical?.around < 1e-3, r.spherical?.around],
+    ['S³: head pose stays orthogonal', r.spherical?.orth < 1e-9, r.spherical?.orth],
+    ['no 4D shadow from outside the slice when the sun is level', r.shadows?.offSliceStraight === 0, JSON.stringify(r.shadows)],
+    ['a tilted 4D sun casts it into the slice', r.shadows?.offSliceTilted > 200, JSON.stringify(r.shadows)],
+    ['objects in the slice cast shadows', r.shadows?.inSlice > 200, JSON.stringify(r.shadows)],
+    ['opposite cells of the d8 add up to 9', r.dice?.pairsOk, JSON.stringify(r.dice)],
+    ['dice come to rest with a result', r.dice?.results.filter((x, i) => x >= 1 && x <= r.dice.sizes[i]).length >= 5, JSON.stringify(r.dice)],
+    ['mirror puzzle is solved by the mirror pose only', r.mirror && !r.mirror.before && r.mirror.atTarget && !r.mirror.unmirrored, JSON.stringify(r.mirror)],
+    ['4D gravity: nudged moons fall in or escape', r.orbits?.g4.fell === 2 && r.orbits?.g4.escaped === 2, JSON.stringify(r.orbits)],
+    ['3D gravity: the same nudges stay in orbit', r.orbits?.g3.orbiting === 4, JSON.stringify(r.orbits)],
+    ['worldline: one ball per path in a slice of constant w', r.worldline?.straightBalls === 5, JSON.stringify(r.worldline)],
+    ['worldline: disks in a tilted slice', r.worldline?.tiltedDisks > 20 && r.worldline?.tiltedBalls === 0, JSON.stringify(r.worldline)],
+    ['worldline: records the mouse for 4 s', r.worldline?.recorded === 1 && r.worldline?.samples > 250, JSON.stringify(r.worldline)],
+    ['Flatland: lift the gem out of the sealed vault', r.flatland?.gemGrabbed && r.flatland?.gemOut, JSON.stringify(r.flatland)],
+    ['Flatland: a Flatlander put back upside down is mirrored', r.flatland?.triGrabbed && r.flatland?.triFlipped && r.flatland?.triBack, JSON.stringify(r.flatland)],
+    ['Penrose floor: every inner edge is shared by two rhombs', r.quasi?.floor.bad === 0 && r.quasi?.floor.checked > 400, JSON.stringify(r.quasi)],
+    ['Penrose floor: both rhombs, thick more often by φ', Math.abs(r.quasi?.floor.ratio - 1.618) < 0.12, JSON.stringify(r.quasi)],
+    ['moving the slice flips tiles', r.quasi?.flips > 0 && r.quasi?.after.bad === 0, JSON.stringify(r.quasi)],
+    ['Klein Room: crossing a pink wall mirrors you, crossing it back undoes it', r.klein?.afterPink && !r.klein?.afterBack && r.klein?.crossings === 2, JSON.stringify(r.klein)],
+    ['Klein Room: crossing a cyan wall does not', !r.klein?.afterCyan && r.klein?.inside, JSON.stringify(r.klein)],
+    ['3D quasicrystal: every inner face is shared by two rhombohedra', r.quasi?.crystal.bad === 0 && r.quasi?.crystal.checked > 80, JSON.stringify(r.quasi)],
   ];
   for (const [name, ok, detail] of checks) (ok ? pass(name) : fail(`${name} (${detail})`));
   await page.close();

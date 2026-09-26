@@ -40,6 +40,7 @@ export class HandMenu {
       // desktop has the HTML tab bar instead
       ...(vr ? [{
         type: 'tabs',
+        columns: Math.ceil(app.sceneList.length / Math.ceil(app.sceneList.length / 5)), // at most 5 per row
         options: app.sceneList.map((s) => ({ label: s.short, value: s.key, small: true })),
         get: () => app.sceneKey,
         set: (k) => app.setScene(k),

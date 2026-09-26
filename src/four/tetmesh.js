@@ -150,6 +150,49 @@ export function polytopeTets(poly, { scale = 1, color = (cell) => directionColor
   return mesh;
 }
 
+/**
+ * A 3D polycube thickened along w: each cube [i, j, k] becomes a hypercube of
+ * edge `edge` with w in [−edge/2, edge/2], centred on the polycube's centroid.
+ * Only the boundary cells are kept (a ±x/±y/±z cell is dropped where the
+ * neighbouring cube shares it); each cell is fanned from its centre like a
+ * polytope cell, so the edge lines show the individual cubes.
+ */
+export function polycubeTets(cubes, colors, edge = 1) {
+  const mesh = new TetMesh('polycube');
+  const has = new Set(cubes.map((c) => c.join(',')));
+  const cen = [0, 1, 2].map((i) => cubes.reduce((acc, c) => acc + c[i], 0) / cubes.length);
+  const h = edge / 2;
+  cubes.forEach((c, ci) => {
+    const center = [(c[0] - cen[0]) * edge, (c[1] - cen[1]) * edge, (c[2] - cen[2]) * edge, 0];
+    for (let axis = 0; axis < 4; axis++) for (const sign of [-1, 1]) {
+      if (axis < 3) {
+        const nb = c.slice();
+        nb[axis] += sign;
+        if (has.has(nb.join(','))) continue;
+      }
+      const n = [0, 0, 0, 0];
+      n[axis] = sign;
+      const nn = [n, n, n, n];
+      const C = center.slice();
+      C[axis] += sign * h;
+      const col = axis === 3 ? colors[ci].map((x) => x + (1 - x) * 0.3) : colors[ci];
+      const others = [0, 1, 2, 3].filter((a) => a !== axis);
+      for (const b of others) for (const t of [-1, 1]) {
+        const F = C.slice();
+        F[b] += t * h;
+        const [u, v] = others.filter((a) => a !== b);
+        const loop = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([su, sv]) => {
+          const p = F.slice();
+          p[u] += su * h; p[v] += sv * h;
+          return p;
+        });
+        for (let k = 0; k < 4; k++) mesh.addTet([C, F, loop[k], loop[(k + 1) % 4]], nn, col, h);
+      }
+    }
+  });
+  return mesh;
+}
+
 // ---------------------------------------------------------------------------
 // Generic builders for smooth shapes
 

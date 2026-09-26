@@ -106,6 +106,18 @@ export const MOODS = {
     top: '#070812', horizon: '#1a1030', bottom: '#050510', glow: '#ff7ad9', stars: 0.4,
     floorBase: '#000000', floorLine: '#000000', light: 'night', floor: false,
   },
+  quasi: {
+    top: '#0c0d18', horizon: '#1b1d2b', bottom: '#0a0b12', glow: '#ffd7a0', stars: 0.5,
+    floorBase: '#000000', floorLine: '#000000', light: 'night', floor: false,
+  },
+  klein: {
+    top: '#151a26', horizon: '#2a2f40', bottom: '#12151d', glow: '#ffe0b0', stars: 0.4,
+    floorBase: '#000000', floorLine: '#000000', light: 'studio', floor: false,
+  },
+  spherical: {
+    top: '#0c0814', horizon: '#1a1224', bottom: '#07050b', glow: '#ffb38a', stars: 0.3,
+    floorBase: '#000000', floorLine: '#000000', light: 'night', floor: false,
+  },
 };
 
 export class Environment {
@@ -151,13 +163,11 @@ export class Environment {
 
     this.hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.0);
     this.sun = new THREE.DirectionalLight(0xffffff, 2.0);
-    this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(1024, 1024);
-    this.sun.shadow.bias = -0.0006;
-    this.sun.shadow.normalBias = 0.004;
-    this.sun.shadow.radius = 3;
     this.group.add(this.hemi, this.sun, this.sun.target);
-    this.setShadowFocus(new THREE.Vector3(0, 1, -0.6), 0.9);
+    this.aimSun(new THREE.Vector3(0, 1, -0.6));
+    // The graphics preset's shadow setting. The three.js shadow map isn't used:
+    // Hyperplay draws its own 4D shadows (four/shadow4.js) and reads this.
+    this.shadows = true;
   }
 
   setMood(name) {
@@ -179,24 +189,18 @@ export class Environment {
     this.sun.color.copy(LIGHT.uSunColor.value);
     this.sun.intensity = 2.2;
     this.mood = name;
-    this.setShadowFocus(this._focus, this._focusRadius);
+    this.aimSun(this._focus);
   }
 
-  /** Fit the shadow camera to the area around center. */
-  setShadowFocus(center, radius) {
+  /** Point the directional light at center, along the lighting preset's sun direction. */
+  aimSun(center) {
     this._focus = center.clone();
-    this._focusRadius = radius;
-    const d = LIGHT.uSunDir.value;
-    this.sun.position.copy(center).addScaledVector(d, 3);
+    this.sun.position.copy(center).addScaledVector(LIGHT.uSunDir.value, 3);
     this.sun.target.position.copy(center);
-    const cam = this.sun.shadow.camera;
-    cam.left = -radius; cam.right = radius; cam.top = radius; cam.bottom = -radius;
-    cam.near = 0.5; cam.far = 6;
-    cam.updateProjectionMatrix();
     this.sun.target.updateMatrixWorld();
   }
 
   setShadows(enabled) {
-    this.sun.castShadow = enabled;
+    this.shadows = enabled;
   }
 }

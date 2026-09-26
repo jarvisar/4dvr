@@ -202,6 +202,197 @@
       recenters: hy.parity !== parity0 ? 'odd' : 'even',
       lorentzCheck: +(p[0] ** 2 + p[1] ** 2 + p[2] ** 2 - p[3] ** 2).toFixed(6),
     };
+
+    // ---------------- Spherical ----------------
+    app.setScene('spherical', true);
+    const sp = app.activeScene;
+    sp.setTiling('c8');
+    sp.goHome();
+    sp.update(1 / 72);
+    const walk = (dist, n = 400) => { for (let i = 0; i < n; i++) { sp._translateLocal(0, 0, -dist / n); sp.update(1 / 72); } };
+    walk(Math.PI);
+    const antipode = sp.homeDistance;
+    walk(Math.PI);
+    let orth = 0;
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+      let d = 0;
+      for (let k = 0; k < 4; k++) d += sp.Hm[r * 4 + k] * sp.Hm[c * 4 + k];
+      orth = Math.max(orth, Math.abs(d - (r === c ? 1 : 0)));
+    }
+    out.spherical = { antipode: +antipode.toFixed(4), around: +sp.homeDistance.toFixed(4), orth: +orth.toExponential(2) };
+    sp.setTiling('c120');
+
+    // ---------------- Hyperplay additions ----------------
+    app.setScene('playground', true);
+    const pgx = app.activeScene;
+    const tick = (n) => { for (let i = 0; i < n; i++) pgx.update(1 / 72, app.time += 1 / 72); };
+    // 4D shadows: a hypersphere just outside the slice (w = 0.12, r = 0.06)
+    pgx.loadPreset('sandbox');
+    pgx.clear();
+    const ball4 = pgx.add('hypersphere', { scale: 0.06, pos: [0, 0.06, 0, 0.12] });
+    const shadowArea = (sunDeg) => {
+      pgx.sunW = sunDeg * Math.PI / 180;
+      tick(1);
+      pgx.shadow4.dirty = true;
+      pgx.shadow4.render(app.renderer);
+      const size = pgx.shadow4.rt.width, buf = new Uint8Array(size * size * 4);
+      app.renderer.readRenderTargetPixels(pgx.shadow4.rt, 0, 0, size, size, buf);
+      let n = 0;
+      for (let i = 0; i < buf.length; i += 4) if (buf[i] > 127) n++;
+      return n;
+    };
+    const offSliceStraight = shadowArea(0);
+    const offSliceTilted = shadowArea(50);
+    ball4.body.x[3] = 0;
+    const inSlice = shadowArea(0);
+    out.shadows = { offSliceStraight, offSliceTilted, inSlice };
+
+    // dice
+    pgx.loadPreset('dice');
+    const d8 = pgx.dice[1];
+    let pairsOk = true;
+    d8.normals.forEach((n, i) => {
+      const j = d8.normals.findIndex((m) => n[0] * m[0] + n[1] * m[1] + n[2] * m[2] + n[3] * m[3] < -0.999);
+      if (j < 0 || d8.nums[i] + d8.nums[j] !== 9) pairsOk = false;
+    });
+    tick(900);
+    out.dice = { pairsOk, results: pgx.dice.map((d) => d.result), sizes: pgx.dice.map((d) => d.nums.length) };
+
+    // mirror puzzle: solved only by the mirror-image pose
+    pgx.loadPreset('mirror');
+    const piece = pgx.mirror.piece.body, tgt = pgx.mirrorTarget;
+    const before = pgx._mirrorSolved();
+    piece.x.splice(0, 4, ...tgt.pos);
+    piece.R.set(tgt.R);
+    const atTarget = pgx._mirrorSolved();
+    // the same pose without the half-turn through w: a proper 3D rotation
+    const flipXW = new Float64Array([-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1]);
+    const R3 = new Float64Array(16);
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) { let v = 0; for (let k = 0; k < 4; k++) v += tgt.R[r * 4 + k] * flipXW[k * 4 + c]; R3[r * 4 + c] = v; }
+    piece.R.set(R3);
+    const unmirrored = pgx._mirrorSolved();
+    out.mirror = { before, atTarget, unmirrored };
+
+    // orbits: 4D gravity has no stable orbits, 3D gravity does
+    pgx.gravity4 = true;
+    pgx.loadPreset('orbits');
+    tick(72 * 16);
+    const g4 = { orbiting: pgx.moons.length, ...pgx.orbitStats };
+    pgx.gravity4 = false;
+    pgx.launchMoons();
+    tick(72 * 16);
+    const g3 = { orbiting: pgx.moons.length, ...pgx.orbitStats };
+    pgx.gravity4 = true;
+    out.orbits = { g4, g3 };
+
+    // worldline: one ball per path in a slice of constant w, stacks of disks in a tilted one
+    pgx.loadPreset('worldline');
+    pgx.playing = false;
+    pgx.setW(0.1);
+    tick(1);
+    const straightBalls = pgx.worldline.balls.geo.instanceCount;
+    pgx.view.setAngles(0.5, 0);
+    tick(1);
+    const tiltedDisks = pgx.worldline.disks.geo.instanceCount, tiltedBalls = pgx.worldline.balls.geo.instanceCount;
+    // record the (desktop) mouse for 4 s
+    pgx.startRecording();
+    const mouse = app.input.mouse;
+    for (let i = 0; i < 72 * 7.2; i++) {
+      const a = i / 20;
+      mouse.grabPos.copy(pgx.stage.localToWorld(new THREE.Vector3(Math.cos(a) * 0.15, 0.15, Math.sin(a) * 0.15)));
+      pgx.update(1 / 72, app.time += 1 / 72);
+    }
+    out.worldline = { straightBalls, tiltedDisks, tiltedBalls, recorded: pgx.worldline.chains.length, samples: pgx.worldline.chains[0]?.n || 0 };
+    pgx.loadPreset('sandbox');
+
+    // ---------------- Flatland ----------------
+    app.setScene('flatland', true);
+    const fl = app.activeScene;
+    fl.reset();
+    fl.update(1 / 72, app.time);
+    const fh = fakeHand();
+    const onBoard = (x, y, z) => fl.board.localToWorld(new THREE.Vector3(x, y, z));
+    // take the gem out of the sealed vault: up out of the plane, across, back down
+    fh.grabPos.copy(onBoard(fl.gem.x, 0.002, fl.gem.z));
+    step(fh, 1);
+    press(fh.pinch, true); step(fh, 1);
+    const gemGrabbed = fh.grabbed === fl.gem;
+    for (let i = 0; i < 20; i++) { fh.grabPos.y += 0.005; step(fh, 1); }
+    for (let i = 0; i < 20; i++) { fh.grabPos.x -= 0.008; step(fh, 1); }
+    press(fh.pinch, false); step(fh, 40);
+    // turn the Triangle over
+    const tri = fl.flatlanders[1];
+    fh.grabPos.copy(onBoard(tri.x, 0.002, tri.z));
+    step(fh, 1);
+    press(fh.pinch, true); step(fh, 1);
+    const triGrabbed = fh.grabbed === tri;
+    const turn = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 30);
+    for (let i = 0; i < 30; i++) { fh.grabPos.y += 0.002; fh.grabQuat.premultiply(turn); step(fh, 1); }
+    press(fh.pinch, false); step(fh, 40);
+    out.flatland = { gemGrabbed, gemOut: !fl.gemInVault, triGrabbed, triFlipped: tri.flipped, triBack: !tri.lifted };
+
+    // ---------------- Klein Room ----------------
+    app.setScene('klein', true);
+    const kl = app.activeScene;
+    kl.reset();
+    kl.update(1 / 72, app.time);
+    // the head starts 0.6 m from the room's centre; moving the room 2.5 m back walks through the pink wall ahead
+    kl._moveRoom(0, 2.5); kl.update(1 / 72, app.time);
+    const afterPink = kl.mirrored;
+    kl._moveRoom(0, -2.5); kl.update(1 / 72, app.time);
+    const afterBack = kl.mirrored;
+    kl._moveRoom(2.4, 0); kl.update(1 / 72, app.time);
+    const afterCyan = kl.mirrored;
+    const head = app.headPosition.clone().applyMatrix4(kl.Minv);
+    out.klein = { afterPink, afterBack, afterCyan, crossings: kl.crossings - 1, inside: Math.abs(head.x) <= 1.6 && Math.abs(head.z) <= 1.6 };
+    kl.reset();
+
+    // ---------------- Quasicrystals ----------------
+    // A tiling has no gaps or overlaps when every edge (face in 3D) away from the
+    // rim belongs to exactly two tiles.
+    app.setScene('quasicrystal', true);
+    const qc = app.activeScene;
+    qc.reset();
+    const r3 = (x) => Math.round(x * 1e4);
+    const floorCheck = () => {
+      const f = qc.floor, P = f.geo.attributes.position.array, count = new Map();
+      let thick = 0;
+      for (let t = 0; t < f.count; t++) {
+        const c = [0, 1, 2, 3].map((k) => [P[(t * 4 + k) * 3], P[(t * 4 + k) * 3 + 2]]);
+        const a = (c[1][0] - c[0][0]) * (c[3][1] - c[0][1]) - (c[1][1] - c[0][1]) * (c[3][0] - c[0][0]);
+        if (Math.abs(a) / (f.edge * f.edge) > 0.8) thick++;
+        for (let k = 0; k < 4; k++) {
+          const p = c[k], q = c[(k + 1) % 4];
+          const key = [`${r3(p[0])},${r3(p[1])}`, `${r3(q[0])},${r3(q[1])}`].sort().join('|');
+          const mid = Math.hypot((p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
+          const e = count.get(key) || { n: 0, mid };
+          e.n++;
+          count.set(key, e);
+        }
+      }
+      let bad = 0, checked = 0;
+      for (const e of count.values()) if (e.mid < f.radius - 3 * f.edge) { checked++; if (e.n !== 2) bad++; }
+      return { tiles: f.count, checked, bad, ratio: +(thick / (f.count - thick)).toFixed(3) };
+    };
+    const floor0 = floorCheck();
+    const flips0 = qc.flipCount;
+    for (let i = 0; i < 20; i++) { qc.shift(0.013, 0.007, 0); qc.rebuild(app.time += 0.1); }
+    const after = floorCheck();
+    qc.setMode('crystal');
+    const cr = qc.crystal, F = cr.faceGeo.attributes.position.array, faces = new Map();
+    for (let t = 0; t < cr.count; t++) for (let f = 0; f < 6; f++) {
+      const base = (t * 36 + f * 6) * 3;
+      const pts = [0, 1, 2, 5].map((k) => [F[base + k * 3], F[base + k * 3 + 1], F[base + k * 3 + 2]]);
+      const key = pts.map((p) => p.map(r3).join(',')).sort().join('|');
+      const c = pts.reduce((s, p) => [s[0] + p[0] / 4, s[1] + p[1] / 4, s[2] + p[2] / 4], [0, 0, 0]);
+      const e = faces.get(key) || { n: 0, r: Math.hypot(...c) };
+      e.n++;
+      faces.set(key, e);
+    }
+    let cbad = 0, cchecked = 0;
+    for (const e of faces.values()) if (e.r < cr.radius - 3 * cr.edge) { cchecked++; if (e.n !== 2) cbad++; }
+    qc.setMode('floor');
+    out.quasi = { floor: floor0, after, flips: qc.flipCount - flips0, crystal: { tiles: cr.count, checked: cchecked, bad: cbad } };
   } catch (e) {
     out.errors.push(String(e && e.stack || e));
   }

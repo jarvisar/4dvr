@@ -12,7 +12,6 @@ export class SceneBase {
     this.short = 'Scene';
     this.mood = 'studio';
     this.desktopView = { position: new THREE.Vector3(0, 1.6, 0.6), target: new THREE.Vector3(0, 1.1, -0.6) };
-    this.shadows = false; // only scenes with shadow receivers pay for the shadow pass
   }
 
   enter() { this.app.scene.add(this.root); }

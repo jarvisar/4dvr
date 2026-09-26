@@ -10,6 +10,12 @@
 //
 // An object's pose is two uniforms (a mat4 and a vec4), so moving it costs no
 // geometry updates.
+//
+// The same shader, compiled with SHADOW4, draws 4D shadows: each corner is
+// first projected along the 4D sun direction onto the floor hyperplane y = 0
+// (a 3-space), and the projected tetrahedron is then cut by w = 0, giving the
+// part of the shadow that lies in the viewer's slice as flat polygons on the
+// floor. They are drawn top-down into a mask texture (see shadow4.js).
 
 import * as THREE from 'three';
 import { TEX_WIDTH, TEXELS_PER_TET } from './tetmesh.js';
@@ -51,12 +57,17 @@ uniform sampler2D uTets;
 uniform mat4 uRot;        // object -> slice space, linear part (includes scale)
 uniform vec4 uPos;        // object origin in slice space; w = offset from the slice
 uniform float uLineScale; // object-units -> metres, for edge line width
+#ifdef SHADOW4
+uniform vec4 uSun;        // unit direction towards the sun, slice space (y > 0)
+uniform float uExtent;    // half-size of the square mask, metres
+#endif
 
 varying vec3 vNormalW;
 varying vec3 vPosW;
 varying vec3 vColor;
 varying float vRidge;
 varying vec4 vObj;
+varying vec4 vCellN;
 
 const int CASES[64] = int[64](${CASES.join(',')});
 const int EA[6] = int[6](0, 0, 0, 1, 1, 2);
@@ -65,6 +76,11 @@ const int EB[6] = int[6](1, 2, 3, 2, 3, 3);
 vec4 fetchTexel(int i) {
   return texelFetch(uTets, ivec2(i % ${TEX_WIDTH}, i / ${TEX_WIDTH}), 0);
 }
+
+#ifdef SHADOW4
+// slide a point along the sun direction down to the floor hyperplane y = 0
+vec4 toFloor(vec4 q) { return q - (q.y / uSun.y) * uSun; }
+#endif
 
 vec3 corner(int c, int mask, vec4 q0, vec4 q1, vec4 q2, vec4 q3) {
   int e = CASES[mask * 4 + c];
@@ -86,6 +102,12 @@ void main() {
   vec4 q0 = uRot * p0 + uPos;
   float reach = fetchTexel(base + 9).x;
   float wRow = length(vec4(uRot[0][3], uRot[1][3], uRot[2][3], uRot[3][3]));
+#ifdef SHADOW4
+  // projecting adds (Δy / sun.y) sun.w to each corner's w
+  float yRow = length(vec4(uRot[0][1], uRot[1][1], uRot[2][1], uRot[3][1]));
+  wRow += yRow * abs(uSun.w / uSun.y);
+  q0 = toFloor(q0);
+#endif
   if (abs(q0.w) > wRow * reach * 1.001 + 1e-5) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     return;
@@ -97,6 +119,9 @@ void main() {
   vec4 q1 = uRot * p1 + uPos;
   vec4 q2 = uRot * p2 + uPos;
   vec4 q3 = uRot * p3 + uPos;
+#ifdef SHADOW4
+  q1 = toFloor(q1); q2 = toFloor(q2); q3 = toFloor(q3);
+#endif
 
   int mask = (q0.w > 0.0 ? 1 : 0) | (q1.w > 0.0 ? 2 : 0) | (q2.w > 0.0 ? 4 : 0) | (q3.w > 0.0 ? 8 : 0);
   if (mask == 0 || mask == 15) {
@@ -104,6 +129,15 @@ void main() {
     return;
   }
 
+#ifdef SHADOW4
+  // flat on the floor: any winding will do (drawn double-sided)
+  int eS = CASES[mask * 4 + cornerId];
+  vec4 qa0 = EA[eS] == 0 ? q0 : (EA[eS] == 1 ? q1 : q2);
+  vec4 qb0 = EB[eS] == 1 ? q1 : (EB[eS] == 2 ? q2 : q3);
+  vec3 sp = mix(qa0.xyz, qb0.xyz, qa0.w / (qa0.w - qb0.w));
+  gl_Position = vec4(sp.x / uExtent, sp.z / uExtent, 0.0, 1.0);
+  return;
+#endif
   vec4 n0 = fetchTexel(base + 4);
   vec4 n1 = fetchTexel(base + 5);
   vec4 n2 = fetchTexel(base + 6);
@@ -136,6 +170,7 @@ void main() {
   if (dot(n, n) < 1e-10) n = flip ? -gn : gn;
 
   vObj = mix(pa, pb, t);
+  vCellN = mix(na, nb, t);
   vColor = extra.rgb;
   vRidge = extra.w > 0.0 ? (a == 0 ? (1.0 - t) : 0.0) * extra.w * uLineScale : 1000.0;
 
@@ -181,12 +216,15 @@ uniform vec3 uHighlightColor;
 uniform float uLineWidth;
 uniform float uGloss;
 uniform float uOpacity;
+uniform vec4 uCellHi;     // object-space normal of a cell to highlight (polytope dice)
+uniform float uCellHiAmount;
 
 varying vec3 vNormalW;
 varying vec3 vPosW;
 varying vec3 vColor;
 varying float vRidge;
 varying vec4 vObj;
+varying vec4 vCellN;
 
 void main() {
   vec3 N = normalize(vNormalW);
@@ -196,6 +234,8 @@ void main() {
 
   vec3 albedo = mix(vColor, uTint, uTintAmount);
   albedo *= mix(1.0, 0.72, patternMask(vObj));
+  float cellHi = uCellHiAmount * step(0.999, dot(vCellN, uCellHi));
+  albedo = mix(albedo, vec3(1.0, 0.84, 0.3), cellHi * 0.8);
 
   float fw = fwidth(vRidge);
   float line = 1.0 - smoothstep(uLineWidth - fw, uLineWidth + fw, vRidge);
@@ -204,6 +244,7 @@ void main() {
   vec3 col = shade(albedo, N, V, uGloss);
   float rim = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.0);
   col += uHighlightColor * uHighlight * (0.18 + 0.9 * rim);
+  col += vec3(1.0, 0.7, 0.2) * cellHi * 0.35;
   // translucent objects are more opaque at grazing angles and on edges
   float alpha = uOpacity < 1.0 ? mix(uOpacity, 1.0, rim * 0.7 + line * 0.6) : 1.0;
   gl_FragColor = vec4(col, alpha);
@@ -246,13 +287,9 @@ export const PREMULTIPLIED_BLEND = {
   blendDst: THREE.OneMinusSrcAlphaFactor,
 };
 
-const DEPTH_FRAGMENT = /* glsl */ `
-void main() { gl_FragColor = vec4(1.0); }
-`;
-
 /**
- * Per-object uniform bundle. The solid, ghost and shadow-depth materials
- * share the uniforms that describe the object's pose.
+ * Per-object uniform bundle. The solid and ghost materials (and the 4D
+ * shadow in shadow4.js) share the uniforms that describe the object's pose.
  */
 export function createSliceMaterials(tetMesh, { pattern = 0, gloss = 0.5 } = {}) {
   const shared = {
@@ -275,12 +312,13 @@ export function createSliceMaterials(tetMesh, { pattern = 0, gloss = 0.5 } = {})
       uHighlightColor: { value: new THREE.Color('#9ff3ff') },
       uGloss: { value: gloss },
       uOpacity: { value: 1 },
+      uCellHi: { value: new THREE.Vector4() },
+      uCellHiAmount: { value: 0 },
     },
     vertexShader: SLICE_VERTEX_GLSL,
     fragmentShader: SOLID_FRAGMENT,
     side: THREE.FrontSide,
   });
-  solid.shadowSide = THREE.DoubleSide;
 
   const ghostUniforms = {
     ...shared,
@@ -300,12 +338,5 @@ export function createSliceMaterials(tetMesh, { pattern = 0, gloss = 0.5 } = {})
     side: THREE.DoubleSide,
   });
 
-  const depth = new THREE.ShaderMaterial({
-    name: 'slice-depth',
-    uniforms: shared,
-    vertexShader: SLICE_VERTEX_GLSL,
-    fragmentShader: DEPTH_FRAGMENT,
-  });
-
-  return { solid, ghost, depth, shared };
+  return { solid, ghost, shared };
 }

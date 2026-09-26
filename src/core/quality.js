@@ -5,7 +5,7 @@
 //   and of the device pixel ratio (up to 2) on desktop.
 // foveation: fixed foveation in VR, 0 (off) to 1 (high). The edges of the view are
 //   rendered at lower resolution, where the lenses blur them anyway.
-// shadows: the light's shadow on the table.
+// shadows: the 4D shadows on the Hyperplay table.
 //
 // Antialiasing (4x MSAA) is always on. It is cheap on the Quest's tiled GPU and
 // can't be changed without recreating the WebGL context.
