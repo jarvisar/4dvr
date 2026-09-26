@@ -487,15 +487,28 @@ export class App {
         const info = this.renderer.info.render;
         const eye = this.presenting ? this.renderer.xr.getCamera().cameras[0]?.viewport : null;
         const hz = this.presenting ? this.renderer.xr.getSession()?.frameRate : null;
-        Object.assign(this.stats, { fps: this.fps, hz, cpu: this._cpuAcc / this._fpsN, calls: info.calls, tris: info.triangles, eye: eye ? `${eye.z}×${eye.w}` : '' });
+        Object.assign(this.stats, { fps: this.fps, hz, cpu: this._cpuAcc / this._fpsN, calls: info.calls, tris: info.triangles, eye: eye ? `${eye.z}×${eye.w}` : '', msaa: this._msaaPath() });
         this.onStats?.(this.stats);
       }
       this._fpsT = 0; this._fpsN = 0; this._cpuAcc = 0;
     }
   }
 
+  /**
+   * How the XR framebuffer's 4x MSAA is resolved, for ?stats. On the Quest's
+   * tiled GPU a resolve in tile memory is almost free. When the compositor
+   * uses the depth buffer, three.js renders to separate multisampled buffers
+   * and resolves them with a full-screen blit every frame, which is not.
+   */
+  _msaaPath() {
+    const rt = this.presenting ? this.renderer.getRenderTarget() : null;
+    if (!rt?.isXRRenderTarget || !rt.samples) return '';
+    const inTile = this.renderer.extensions.has('WEBGL_multisampled_render_to_texture') && rt.resolveDepthBuffer === false;
+    return inTile ? 'MSAA in tile' : 'MSAA blit';
+  }
+
   get statsText() {
     const s = this.stats;
-    return `${s.fps.toFixed(0)}${s.hz ? `/${s.hz}` : ''} fps · ${s.cpu.toFixed(1)} ms cpu · ${s.calls} draws · ${(s.tris / 1000).toFixed(0)}k tris${s.eye ? ` · ${s.eye} per eye` : ''}`;
+    return `${s.fps.toFixed(0)}${s.hz ? `/${s.hz}` : ''} fps · ${s.cpu.toFixed(1)} ms cpu · ${s.calls} draws · ${(s.tris / 1000).toFixed(0)}k tris${s.eye ? ` · ${s.eye} per eye` : ''}${s.msaa ? ` · ${s.msaa}` : ''}`;
   }
 }

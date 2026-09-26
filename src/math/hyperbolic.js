@@ -15,12 +15,14 @@ export function hdist(a, b) {
   return Math.acosh(Math.max(1, -mdot(a, b)));
 }
 
+const _n = [0, 0, 0];
 /** Boost (translation) moving the origin by distance |v| in direction v. */
 export function boost(out, v) {
   const d = Math.hypot(v[0], v[1], v[2]);
   R4.identity(out);
   if (d < 1e-12) return out;
-  const n = [v[0] / d, v[1] / d, v[2] / d];
+  const n = _n;
+  n[0] = v[0] / d; n[1] = v[1] / d; n[2] = v[2] / d;
   const c = Math.cosh(d), s = Math.sinh(d);
   for (let i = 0; i < 3; i++) {
     for (let j = 0; j < 3; j++) out[i * 4 + j] = (i === j ? 1 : 0) + (c - 1) * n[i] * n[j];

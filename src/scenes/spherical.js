@@ -409,6 +409,7 @@ const _B = R4.mat4();
 const _fwd = new THREE.Vector3();
 const _yaw = new THREE.Quaternion();
 const _up = new THREE.Vector3(0, 1, 0);
+const _head = [0, 0, 0, 0];
 const HAND_COLOR = new THREE.Color('#dfe6ff');
 const MAX_JOINTS = 60;
 const MAX_BONES = BONES.length * 2;
@@ -508,15 +509,23 @@ export class SphericalScene extends SceneBase {
   setTiling(key) {
     this.tilingKey = key;
     const def = TILINGS[key];
-    const t0 = performance.now();
-    this.tiling = buildTiling(def);
     // thickness in S³ units, chosen for about 1.8 cm tubes at the tiling's default size
     const k = 1.6 / def.L;
-    const geo = buildGeometry(this.tiling, { tube: 0.0105 * k, node: 0.02 * k, lantern: 0.024 * k });
+    // Each tiling is built once and kept: the 120-cell takes long enough to
+    // stall the headset, so switching back to it shouldn't build it again.
+    this._built ??= new Map();
+    let built = this._built.get(key);
+    if (!built) {
+      const t0 = performance.now();
+      const tiling = buildTiling(def);
+      built = { tiling, geo: buildGeometry(tiling, { tube: 0.0105 * k, node: 0.02 * k, lantern: 0.024 * k }) };
+      this._built.set(key, built);
+      console.info(`[spherical] ${def.label}: ${tiling.cells.length} cells, ${tiling.edges.length} edges, ${built.geo.attributes.aKind.count} verts in ${(performance.now() - t0).toFixed(0)} ms`);
+    }
+    this.tiling = built.tiling;
     for (const mesh of this.tilingMeshes || []) { mesh.removeFromParent(); }
-    this.tilingMeshes?.[0].geometry.dispose();
     this.tilingMeshes = this.tilingMats.map((mat) => {
-      const mesh = new THREE.Mesh(geo, mat);
+      const mesh = new THREE.Mesh(built.geo, mat);
       mesh.frustumCulled = false;
       mesh.onBeforeRender = (r, s, camera) => this._setEye(camera, mat, false);
       this.root.add(mesh);
@@ -538,7 +547,6 @@ export class SphericalScene extends SceneBase {
       return mesh;
     });
     this.goHome();
-    console.info(`[spherical] ${def.label}: ${this.tiling.cells.length} cells, ${this.tiling.edges.length} edges, ${geo.attributes.aKind.count} verts in ${(performance.now() - t0).toFixed(0)} ms`);
     if (this.app.activeScene === this) this.app.menu.rebuild();
   }
 
@@ -673,8 +681,8 @@ export class SphericalScene extends SceneBase {
     this.avatar.visible = this.showSelf;
     if (this.showSelf) this._updateHands();
 
-    const head = [this.Hm[3], this.Hm[7], this.Hm[11], this.Hm[15]];
-    this.homeDistance = S.sdist(head, this.home);
+    _head[0] = this.Hm[3]; _head[1] = this.Hm[7]; _head[2] = this.Hm[11]; _head[3] = this.Hm[15];
+    this.homeDistance = S.sdist(_head, this.home);
     for (const b of this.beacons) b.visible = this.showBeacon && this.homeDistance > this.beaconRadius * 3;
   }
 

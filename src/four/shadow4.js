@@ -19,12 +19,20 @@ import { SLICE_VERTEX_GLSL } from './sliceMaterial.js';
 
 const MASK_FRAG = /* glsl */ `void main() { gl_FragColor = vec4(1.0); }`;
 
+// A floor point p can only be in the shadow if it is within r / sun.y of c',
+// where the line from the centre towards the sun meets the floor: the line is
+// at least |p - c'| sun.y from p. So the quad covers that square of the mask
+// instead of all of it, and the fragment shader decides the exact shape.
 const SPHERE_VERT = /* glsl */ `
+uniform vec4 uPos;
+uniform float uRadius;
+uniform vec4 uSun;
 uniform float uExtent;
 varying vec2 vXZ;
 void main() {
-  vXZ = position.xy * uExtent;
-  gl_Position = vec4(position.xy, 0.0, 1.0);
+  vec4 c = uPos - (uPos.y / uSun.y) * uSun;
+  vXZ = c.xz + position.xy * (uRadius / uSun.y);
+  gl_Position = vec4(vXZ / uExtent, 0.0, 1.0);
 }
 `;
 
@@ -56,10 +64,17 @@ uniform float uTexel;
 uniform float uStrength;
 varying vec2 vUv;
 void main() {
+  // The blur below reads texels up to 2.4 away. A texel of mip level 3 covers
+  // 8x8 of them, so if level 3 is 0 here, so is every texel the blur reads:
+  // most of the table has no shadow nearby and skips the other 9 reads.
+  if (textureLod(uMask, vUv, 3.0).r == 0.0) {
+    gl_FragColor = vec4(1.0);
+    return;
+  }
   // small blur for soft edges
   float m = 0.0;
   for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) {
-    m += texture2D(uMask, vUv + vec2(float(i), float(j)) * uTexel * 1.4).r;
+    m += textureLod(uMask, vUv + vec2(float(i), float(j)) * uTexel * 1.4, 0.0).r;
   }
   m /= 9.0;
   gl_FragColor = vec4(vec3(1.0 - uStrength * m), 1.0); // multiplied into the table colour
@@ -71,7 +86,8 @@ const _clear = new THREE.Color();
 export class Shadow4 {
   /** extent: half-size (m) of the square area of floor the mask covers, centred on the origin. */
   constructor({ extent = 0.64, size = 512, strength = 0.42 } = {}) {
-    this.rt = new THREE.WebGLRenderTarget(size, size, { depthBuffer: false, magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter });
+    // mipmapped for the overlay's quick "no shadow nearby" test
+    this.rt = new THREE.WebGLRenderTarget(size, size, { depthBuffer: false, magFilter: THREE.LinearFilter, minFilter: THREE.LinearMipmapNearestFilter, generateMipmaps: true });
     this.scene = new THREE.Scene();
     this.camera = new THREE.Camera(); // the mask shaders ignore the camera
     this.uniforms = { uSun: { value: new THREE.Vector4(0, 1, 0, 0) }, uExtent: { value: extent } };
@@ -136,16 +152,28 @@ export class Shadow4 {
   remove(obj) {
     const mesh = this.proxies.get(obj);
     if (!mesh) return;
-    mesh.removeFromParent();
-    mesh.material.dispose();
+    mesh.removeFromParent(); // material not disposed, to keep its shader program (see Object4D.dispose)
     this.proxies.delete(obj);
     this.dirty = true;
+  }
+
+  /**
+   * Can the object's shadow reach the slice? Projecting a point q towards the
+   * floor gives it w = q.w − q.y k, with k = sun.w / sun.y, and points within r
+   * of the centre c get within r √(1 + k²) of c.w − c.y k. Skipping the others
+   * saves drawing every tetrahedron of objects far along w.
+   */
+  _reachesSlice(obj) {
+    const s = this.uniforms.uSun.value, c = obj.slicePos;
+    const k = s.w / s.y;
+    return Math.abs(c[3] - c[1] * k) <= obj.radius * Math.sqrt(1 + k * k) * 1.001;
   }
 
   /** Redraw the mask if anything changed. Call before the frame is rendered. */
   render(renderer) {
     if (!this.dirty) return;
     this.dirty = false;
+    for (const [obj, mesh] of this.proxies) mesh.visible = this._reachesSlice(obj);
     // render-to-texture during an XR frame: turn XR off so three.js uses our camera and target
     const xr = renderer.xr.enabled;
     const prev = renderer.getRenderTarget();

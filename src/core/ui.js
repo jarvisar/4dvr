@@ -17,6 +17,8 @@ const LEGEND_GAP = 0.005; // between the entries of a legend row
 const LABEL = { size: 0.0122, small: 0.0108, min: 0.0068, pad: 0.004 };
 // toggles: checkbox size and left inset, and where the label starts (m)
 const CHECK = { size: 0.0115, x: 0.009, textX: 0.0275 };
+// widgets draw at most this far above or below their box (hover rings), in m
+const BAND_PAD = 0.004;
 
 // Same colours and fonts as style.css: slate panels with rounded corners, grey
 // buttons, blue for whatever is selected. Pink (ana, +w) and cyan (kata, −w)
@@ -50,6 +52,18 @@ function setFont(ctx, weight, size, family) {
   ctx.font = `${weight} ${size}px ${family}`;
 }
 
+/** A unit plane whose v runs down the canvas, for textures uploaded without a flip. */
+function panelGeometry() {
+  const g = new THREE.PlaneGeometry(1, 1);
+  const uv = g.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
+  return g;
+}
+
+const isLabelled = (w) => w.type === 'button' || w.type === 'tab' || w.type === 'toggle';
+const _band = new THREE.Box2();
+const _bandAt = new THREE.Vector2();
+
 export class UIPanel {
   /**
    * `anchor: 'top'` puts the group's origin at the middle of the top edge
@@ -63,11 +77,11 @@ export class UIPanel {
     this.height = 0.1;
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d');
-    this.texture = new THREE.CanvasTexture(this.canvas);
-    this.texture.colorSpace = THREE.SRGBColorSpace;
-    this.texture.anisotropy = 4;
+    this.texture = this._makeTexture();
+    // the same canvas as the source of partial uploads (see _uploadRows); never uploaded itself
+    this._source = new THREE.Texture(this.canvas);
     this.material = new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, toneMapped: false, depthWrite: false, opacity: 1 });
-    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.material);
+    this.mesh = new THREE.Mesh(panelGeometry(), this.material);
     this.mesh.renderOrder = 20;
     this.group = new THREE.Group();
     this.group.add(this.mesh);
@@ -78,9 +92,22 @@ export class UIPanel {
     this.pokeZ = new Map();
     this.opacity = 1;
     this.interactive = true;
-    this._sig = '';
+    this._drawn = [];         // what each widget showed when last drawn (see _changedBand)
+    this._fit = new Map();    // row -> { key, size }: label font size (see _fitRow)
+    this._hovered = new Set();
+    this._pressed = new Set();
     this._lastDraw = 0;
     this.setRows(rows);
+  }
+
+  _makeTexture() {
+    const t = new THREE.CanvasTexture(this.canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
+    // Canvas row 0 is texture row 0 (the plane's v is flipped instead), so a
+    // band of rows can be uploaded by its canvas coordinates.
+    t.flipY = false;
+    return t;
   }
 
   get visible() {
@@ -141,40 +168,66 @@ export class UIPanel {
     this.mesh.scale.set(this.width, this.height, 1);
     this.mesh.position.y = this.anchorTop ? -this.height / 2 : 0;
     this.texture.dispose();
-    this.texture = new THREE.CanvasTexture(this.canvas);
-    this.texture.colorSpace = THREE.SRGBColorSpace;
-    this.texture.anisotropy = 4;
+    this.texture = this._makeTexture();
     this.material.map = this.texture;
-    this._sig = '';
-    this.draw(true);
+    this._rowWidgets = new Map();
+    for (const w of this.widgets) {
+      if (!this._rowWidgets.has(w.row)) this._rowWidgets.set(w.row, []);
+      this._rowWidgets.get(w.row).push(w);
+    }
+    this._fit.clear();
+    this._drawn.length = 0;
+    this._changedBand(); // record what the widgets show now
+    this.draw();
   }
 
-  _signature() {
+  /** What a widget shows, as a string that changes when it has to be redrawn. */
+  _state(w, hovered, pressed) {
+    const r = w.row;
     let s = '';
-    for (const w of this.widgets) {
-      const r = w.row;
-      if (w.item && typeof w.item.label === 'function') s += w.item.label(); // e.g. Play / Pause
-      if (w.type === 'tab') s += r.get() === w.item.value ? '1' : '0';
-      else if (w.type === 'toggle') s += w.item.get() ? '1' : '0';
-      else if (w.type === 'button' && w.item.active) s += w.item.active() ? '1' : '0';
-      else if (w.type === 'slider') s += r.get().toFixed(3);
-      else if (w.type === 'text' && typeof r.text === 'function') s += r.text();
-      else if (w.type === 'title' && typeof r.text === 'function') s += r.text();
-      s += '|';
-    }
-    for (const w of this.hover.values()) s += 'h' + this.widgets.indexOf(w);
-    for (const w of this.pressed.values()) s += 'p' + this.widgets.indexOf(w);
+    if (w.item && typeof w.item.label === 'function') s += w.item.label(); // e.g. Play / Pause
+    if (w.type === 'tab') s += r.get() === w.item.value ? '1' : '0';
+    else if (w.type === 'toggle') s += w.item.get() ? '1' : '0';
+    else if (w.type === 'button' && w.item.active) s += w.item.active() ? '1' : '0';
+    else if (w.type === 'slider') s += r.get().toFixed(3);
+    else if (w.type === 'text' && typeof r.text === 'function') s += r.text();
+    else if (w.type === 'title' && typeof r.text === 'function') s += r.text();
+    if (hovered) s += 'h';
+    if (pressed) s += 'p';
     return s;
+  }
+
+  /**
+   * The widgets that show something different since the last draw, as a band
+   * of the canvas { y0, y1 } in metres, or null when nothing changed.
+   */
+  _changedBand() {
+    const hovered = this._hovered, pressed = this._pressed;
+    hovered.clear();
+    pressed.clear();
+    for (const w of this.hover.values()) hovered.add(w);
+    for (const w of this.pressed.values()) pressed.add(w);
+    let y0 = Infinity, y1 = -Infinity;
+    for (let i = 0; i < this.widgets.length; i++) {
+      const w = this.widgets[i];
+      const s = this._state(w, hovered.has(w), pressed.has(w));
+      if (s === this._drawn[i]) continue;
+      this._drawn[i] = s;
+      y0 = Math.min(y0, w.y - BAND_PAD);
+      y1 = Math.max(y1, w.y + w.h + BAND_PAD);
+    }
+    return y0 <= y1 ? { y0, y1 } : null;
   }
 
   update(time) {
     if (!this.group.visible) return;
-    const sig = this._signature();
-    if (sig !== this._sig && time - this._lastDraw > 0.03) {
-      this._sig = sig;
-      this._lastDraw = time;
-      this.draw();
-      if (this._relayout) this.setRows(this.rows); // a text row outgrew its space
+    if (time - this._lastDraw > 0.03) {
+      const band = this._changedBand();
+      if (band) {
+        this._lastDraw = time;
+        this.draw(band);
+        if (this._relayout) this.setRows(this.rows); // a text row outgrew its space
+      }
     }
     this.material.opacity = this.opacity;
   }
@@ -191,15 +244,20 @@ export class UIPanel {
   }
 
   /**
-   * Font size (px) for each button row's labels: the largest that fits every
-   * label in the row, so a row never mixes sizes.
+   * Font size (px) for a button row's labels: the largest that fits every
+   * label in the row, so a row never mixes sizes. Measured again only when a
+   * label changes.
    */
-  _fitLabels() {
+  _fitRow(row) {
+    const ws = this._rowWidgets.get(row);
+    let key = '';
+    for (const w of ws) key += labelText(w.item) + '\n';
+    const known = this._fit.get(row);
+    if (known && known.key === key) return known.size;
     const ctx = this.ctx;
     const S = PX_PER_M;
-    const fit = new Map();
-    for (const w of this.widgets) {
-      if (w.type !== 'button' && w.type !== 'tab' && w.type !== 'toggle') continue;
+    let fit = Infinity;
+    for (const w of ws) {
       const label = labelText(w.item);
       const maxW = (w.type === 'toggle' ? w.w - CHECK.textX - LABEL.pad : w.w - 2 * LABEL.pad) * S;
       let size = (w.item.small ? LABEL.small : LABEL.size) * S;
@@ -208,16 +266,44 @@ export class UIPanel {
         size = Math.max(LABEL.min * S, size * 0.95);
         setFont(ctx, 600, size, FONTS.sans);
       }
-      fit.set(w.row, Math.min(fit.get(w.row) ?? Infinity, size));
+      fit = Math.min(fit, size);
     }
+    this._fit.set(row, { key, size: fit });
     return fit;
   }
 
-  draw() {
+  /**
+   * Draw the panel. With a band ({ y0, y1 } in metres) only that strip of the
+   * canvas is redrawn, clipped, and uploaded: the plate and every widget that
+   * reaches into it are drawn again, so it ends up exactly as a full redraw
+   * would. A live value (a slider, a distance) then costs a small upload
+   * instead of the whole panel texture.
+   */
+  draw(band = null) {
     const ctx = this.ctx;
     const S = PX_PER_M;
     const W = this.canvas.width, H = this.canvas.height;
-    ctx.clearRect(0, 0, W, H);
+    let y0 = 0, y1 = H;
+    if (band) {
+      y0 = Math.max(0, Math.floor(band.y0 * S));
+      y1 = Math.min(H, Math.ceil(band.y1 * S));
+    }
+    const reaches = (w) => (w.y + w.h + BAND_PAD) * S > y0 && (w.y - BAND_PAD) * S < y1;
+    // Draw and upload it whole when the band is most of it, or when a new label
+    // changes its row's font size (the row can reach outside the band).
+    if (band && (y1 - y0 > H * 0.6 || this.widgets.some((w) => isLabelled(w) && reaches(w) && this._fit.get(w.row)?.size !== this._fitRow(w.row)))) {
+      band = null;
+      y0 = 0;
+      y1 = H;
+    }
+
+    ctx.save();
+    if (band) {
+      ctx.beginPath();
+      ctx.rect(0, y0, W, y1 - y0);
+      ctx.clip();
+    }
+    ctx.clearRect(0, y0, W, y1 - y0);
 
     // panel: plate with a hairline frame
     const inset = 2;
@@ -228,12 +314,12 @@ export class UIPanel {
     ctx.strokeStyle = COLORS.frame;
     ctx.stroke();
 
-    const hovered = new Set(this.hover.values());
-    const pressed = new Set(this.pressed.values());
-    const labelFit = this._fitLabels();
+    const hovered = this._hovered;
+    const pressed = this._pressed;
     this._relayout = false;
 
     for (const w of this.widgets) {
+      if (band && !reaches(w)) continue;
       const x = w.x * S, y = w.y * S, ww = w.w * S, hh = w.h * S;
       const r = w.row;
       if (w.type === 'title') {
@@ -290,7 +376,7 @@ export class UIPanel {
           ctx.textAlign = 'left';
         }
         ctx.fillStyle = selected ? '#fff' : (w.type === 'toggle' && !on ? '#c3c8d0' : COLORS.ink);
-        setFont(ctx, 600, labelFit.get(r), FONTS.sans);
+        setFont(ctx, 600, this._fitRow(r), FONTS.sans);
         ctx.textBaseline = 'middle';
         ctx.fillText(labelText(w.item), tx, y + hh / 2 + 0.0006 * S);
       } else if (w.type === 'slider') {
@@ -368,8 +454,18 @@ export class UIPanel {
         }
       }
     }
+    ctx.restore();
     setFont(ctx, 400, 10, FONTS.sans);
-    this.texture.needsUpdate = true;
+    if (band) this._uploadRows(y0, y1);
+    else this.texture.needsUpdate = true;
+  }
+
+  /** Copy canvas rows y0..y1 (pixels) into the texture, instead of uploading all of it. */
+  _uploadRows(y0, y1) {
+    _band.min.set(0, y0);
+    _band.max.set(this.canvas.width, y1);
+    _bandAt.set(0, y0);
+    this.ui.app.renderer.copyTextureToTexture(this._source, this.texture, _band, _bandAt);
   }
 
   /** Panel-local point (metres, origin at top-left, y down) for a world point. */

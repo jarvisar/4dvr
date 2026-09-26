@@ -302,6 +302,13 @@ const _mv = new THREE.Vector3();
 const _qi = new THREE.Quaternion();
 const _B = R4.mat4();
 const _v3 = [0, 0, 0];
+const _p4 = [0, 0, 0, 0];
+
+/** The head's position (the last column of its pose). */
+function headPoint(out, Hm) {
+  out[0] = Hm[3]; out[1] = Hm[7]; out[2] = Hm[11]; out[3] = Hm[15];
+  return out;
+}
 
 export class HyperbolicScene extends SceneBase {
   constructor(app) {
@@ -389,17 +396,25 @@ export class HyperbolicScene extends SceneBase {
 
   setHoneycomb(key) {
     this.hcKey = key;
-    const t0 = performance.now();
-    this.hc = buildHoneycomb(HONEYCOMBS[key]);
-    const geo = buildGeometry(this.hc);
-    if (this.mesh) { this.root.remove(this.mesh); this.mesh.geometry.dispose(); }
-    this.mesh = new THREE.Mesh(geo, this.material);
+    // Each honeycomb is built once and kept: building one takes long enough to
+    // stall the headset, so switching back to it shouldn't build it again.
+    this._built ??= new Map();
+    let built = this._built.get(key);
+    if (!built) {
+      const t0 = performance.now();
+      const hc = buildHoneycomb(HONEYCOMBS[key]);
+      built = { hc, geo: buildGeometry(hc) };
+      this._built.set(key, built);
+      console.info(`[hyperbolic] ${HONEYCOMBS[key].label}: ${hc.cells.length} cells, ${hc.edges.length} edges, ${hc.nodes.length} nodes, ${built.geo.attributes.aKind.count} verts in ${(performance.now() - t0).toFixed(0)} ms`);
+    }
+    this.hc = built.hc;
+    if (this.mesh) this.root.remove(this.mesh);
+    this.mesh = new THREE.Mesh(built.geo, this.material);
     this.mesh.frustumCulled = false;
     this.mesh.onBeforeRender = (r, s, camera) => this._setEye(camera, this.material, null);
     this.root.add(this.mesh);
     this.uniforms.uL.value = HONEYCOMBS[key].scale;
     this.goHome();
-    console.info(`[hyperbolic] ${HONEYCOMBS[key].label}: ${this.hc.cells.length} cells, ${this.hc.edges.length} edges, ${this.hc.nodes.length} nodes, ${geo.attributes.aKind.count} verts in ${(performance.now() - t0).toFixed(0)} ms`);
     if (this.app.activeScene === this) this.app.menu.rebuild();
   }
 
@@ -461,7 +476,7 @@ export class HyperbolicScene extends SceneBase {
   _recenter() {
     // keep the head inside the central cell using symmetries of the honeycomb
     for (let iter = 0; iter < 4; iter++) {
-      const p = [this.Hm[3], this.Hm[7], this.Hm[11], this.Hm[15]];
+      const p = headPoint(_p4, this.Hm);
       let worst = -1, wv = 1e-9;
       for (let f = 0; f < this.hc.faceN.length; f++) {
         const s = H.mdot(p, this.hc.faceN[f]);
@@ -561,10 +576,11 @@ export class HyperbolicScene extends SceneBase {
 
     // start marker: translate the base sphere to the original origin
     const hd = Math.acosh(Math.max(1, this.home[3]));
-    const dir = hd > 1e-9 ? [this.home[0], this.home[1], this.home[2]].map((x) => (x / Math.sinh(hd)) * hd) : [0, 0, 0];
-    H.boost(this.beaconModel, dir);
+    const k = hd > 1e-9 ? hd / Math.sinh(hd) : 0;
+    _v3[0] = this.home[0] * k; _v3[1] = this.home[1] * k; _v3[2] = this.home[2] * k;
+    H.boost(this.beaconModel, _v3);
     this.beacon.visible = this.showBeacon && hd < 7;
-    this.homeDistance = H.hdist([this.Hm[3], this.Hm[7], this.Hm[11], this.Hm[15]], this.home);
+    this.homeDistance = H.hdist(headPoint(_p4, this.Hm), this.home);
   }
 
   menuRows() {

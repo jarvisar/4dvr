@@ -166,6 +166,10 @@ loadExtraScenes().then(() => {
   prebuildShapes(() => !app.presenting, (shape) => {
     if (shape.tetMesh) app.renderer.initTexture(shape.tetMesh.texture);
   });
+  // Compile the shaders of things that are hidden until VR (tracked hands,
+  // pointer rays, the comfort vignette, the scene fade) now, so they don't
+  // stall the headset the first time they appear.
+  if (!app.presenting) app.renderer.compileAsync(app.scene, app.camera).catch(() => {});
 }).catch((e) => console.error('Failed to load scenes', e));
 
 // --- HUD toggles ------------------------------------------------------------------

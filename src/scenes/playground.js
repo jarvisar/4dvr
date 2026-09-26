@@ -63,6 +63,7 @@ const _hp = new THREE.Vector3();
 const _hq = new THREE.Quaternion();
 const _oc = new THREE.Vector3();
 const _rp = new THREE.Vector3();
+const _head = new THREE.Vector3();
 const _n4 = [0, 0, 0, 0];
 const EW = [0, 0, 0, 1];
 
@@ -307,8 +308,7 @@ class Trail {
 
   dispose() {
     this.line.removeFromParent();
-    this.line.geometry.dispose();
-    this.line.material.dispose();
+    this.line.geometry.dispose(); // material not disposed, to keep its shader program (see Object4D.dispose)
   }
 }
 
@@ -656,7 +656,7 @@ export class PlaygroundScene extends SceneBase {
   }
 
   _updateDice(dt) {
-    const head = this.stage.worldToLocal(this.app.headPosition.clone());
+    const head = this.stage.worldToLocal(_head.copy(this.app.headPosition));
     for (const d of this.dice) {
       const b = d.toy.body;
       const moving = d.toy.grabbedBy || (!b.sleeping && (V.length(b.v) > 0.03 || R4.bivNorm(b.w) > 0.4));
@@ -975,7 +975,7 @@ export class PlaygroundScene extends SceneBase {
     if (this.messageT > 0) {
       this.messageT -= dt;
       this.message.visible = true;
-      const head = this.stage.worldToLocal(this.app.headPosition.clone());
+      const head = this.stage.worldToLocal(_head.copy(this.app.headPosition));
       this.message.lookAt(this.stage.localToWorld(head.setY(this.message.position.y)));
       this.message.material.opacity = Math.min(1, this.messageT * 2);
     } else this.message.visible = false;

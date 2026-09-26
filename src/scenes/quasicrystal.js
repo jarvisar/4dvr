@@ -200,6 +200,16 @@ const THICK = new THREE.Color('#f2cc8f'), THIN = new THREE.Color('#81b29a');
 const PROLATE = new THREE.Color('#ff8fb1'), OBLATE = new THREE.Color('#7fd1ff');
 const _c = new THREE.Color();
 
+/** Mark the first `count` vertices of each attribute for upload (the buffers are sized for the most tiles). */
+function uploadFirst(attrs, count) {
+  if (count <= 0) return;
+  for (const a of Object.values(attrs)) {
+    a.clearUpdateRanges(); // replaces a pending range: nothing past `count` is drawn
+    a.addUpdateRange(0, count * a.itemSize);
+    a.needsUpdate = true;
+  }
+}
+
 function dynamicGeometry(verts, attrs) {
   const g = new THREE.BufferGeometry();
   for (const [name, size] of attrs) g.setAttribute(name, new THREE.BufferAttribute(new Float32Array(verts * size), size).setUsage(THREE.DynamicDrawUsage));
@@ -262,7 +272,7 @@ class PenroseFloor {
       }
     }
     this.births = births;
-    for (const at of Object.values(A)) at.needsUpdate = true;
+    uploadFirst(A, n * 4);
     this.geo.setDrawRange(0, n * 6);
     this.count = n;
     return flips;
@@ -298,6 +308,7 @@ class IcosaCrystal {
     this.faces = new THREE.Mesh(this.faceGeo, new THREE.ShaderMaterial({
       uniforms: { uTime: this.uniforms.uTime, uAlpha: { value: 0.012 }, uGlowOnly: { value: 1 } }, vertexShader: CRYSTAL_VERT, fragmentShader: CRYSTAL_FRAG,
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      forceSinglePass: true, // additive, so back and front faces needn't be drawn in separate passes
     }));
     this.lines = new THREE.LineSegments(this.lineGeo, new THREE.ShaderMaterial({
       uniforms: { uTime: this.uniforms.uTime, uAlpha: { value: 1 }, uGlowOnly: { value: 0 } }, vertexShader: CRYSTAL_VERT, fragmentShader: CRYSTAL_FRAG,
@@ -342,7 +353,8 @@ class IcosaCrystal {
       for (const cc of EDGES) put(L, lv++, corner(cc, q[0]));
     }
     this.births = births;
-    for (const A of [F, L]) for (const at of Object.values(A)) at.needsUpdate = true;
+    uploadFirst(F, fv);
+    uploadFirst(L, lv);
     this.faceGeo.setDrawRange(0, fv);
     this.lineGeo.setDrawRange(0, lv);
     this.count = n;

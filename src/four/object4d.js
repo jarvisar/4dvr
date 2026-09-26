@@ -132,8 +132,10 @@ export class Object4D {
   }
 
   dispose() {
-    this.mats.solid.dispose();
-    this.mats.ghost.dispose();
+    // The materials aren't disposed. That would release their shader programs
+    // as soon as no other object uses them, and the next object (e.g. after a
+    // preset change) would compile them again: a visible stall in VR. They
+    // hold no other GPU resources, and the geometry and texture are per shape.
     this.group.removeFromParent();
   }
 }

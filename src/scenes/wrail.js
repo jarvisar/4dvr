@@ -92,7 +92,7 @@ export class WRail {
     this.ring = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.0035, 12, 40).rotateX(Math.PI / 2), this.ringMat);
     this.disc = new THREE.Mesh(
       new THREE.CircleGeometry(0.02, 40).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, toneMapped: false }),
     );
     this.ring.add(this.disc);
     this.group.add(this.ring);

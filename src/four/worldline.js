@@ -86,6 +86,17 @@ function instanced(base, count, attrs, defines) {
   return { mesh, geo: g, attrs: out };
 }
 
+/** Mark the first `count` instances of each attribute for upload (the buffers are sized for the most). */
+function uploadFirst(attrs, count) {
+  if (count <= 0) return;
+  for (const name in attrs) {
+    const a = attrs[name];
+    a.clearUpdateRanges(); // replaces a pending range: nothing past `count` is drawn
+    a.addUpdateRange(0, count * a.itemSize);
+    a.needsUpdate = true;
+  }
+}
+
 const _s = [0, 0, 0, 0];
 const _c = new THREE.Color();
 const _m = [0, 0, 0];
@@ -222,8 +233,8 @@ export class Worldline {
     this.disks.geo.instanceCount = nd;
     this.balls.mesh.visible = nb > 0;
     this.disks.mesh.visible = nd > 0;
-    for (const a of Object.values(B)) a.needsUpdate = true;
-    for (const a of Object.values(D)) a.needsUpdate = true;
+    uploadFirst(B, nb);
+    uploadFirst(D, nd);
 
     const pk = `${view.angleXW},${view.angleZW},${this.chains.length}`;
     if (pk !== this._pathKey) this._updatePaths(pk);

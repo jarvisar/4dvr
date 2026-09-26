@@ -220,8 +220,14 @@ try {
   const turned = await ev(headNow);
   await ev(`__xrDevice.controllers.left.updateAxes('thumbstick', 0, -1)`); await sleep(400);
   const vignetteMoving = await ev(`__app._vignette.level`);
-  await ev(`__xrDevice.controllers.left.updateAxes('thumbstick', 0, 0)`); await sleep(1500);
-  const vignetteStill = await ev(`__app._vignette.level`);
+  await ev(`__xrDevice.controllers.left.updateAxes('thumbstick', 0, 0)`);
+  // dt is capped per frame, so on a slow CI renderer the vignette opens slower than
+  // wall time: poll for it rather than sleeping a fixed amount
+  let vignetteStill = 1;
+  for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+    vignetteStill = await ev(`__app._vignette.level`);
+    if (vignetteStill < 0.05) break;
+  }
   await headPose(`__xrDevice.position.set(0, 1.6, 0); __xrDevice.quaternion.set(-0.1736, 0, 0, 0.9848);`);
   await sleep(300);
 

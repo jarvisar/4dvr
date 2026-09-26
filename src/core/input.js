@@ -306,8 +306,9 @@ export class InputSystem {
         ix.grip.set(ix.grip.pressed ? sq > 0.35 : sq > 0.6, sq);
         ix.btnA.set(!!gp.buttons[4]?.pressed);
         ix.btnB.set(!!gp.buttons[5]?.pressed);
-        const ax = gp.axes.length >= 4 ? [gp.axes[2], gp.axes[3]] : [gp.axes[0] || 0, gp.axes[1] || 0];
-        ix.stick.set(Math.abs(ax[0]) > 0.12 ? ax[0] : 0, Math.abs(ax[1]) > 0.12 ? ax[1] : 0);
+        const a = gp.axes.length >= 4 ? 2 : 0; // the thumbstick (xr-standard), else the only axes
+        const ax = gp.axes[a] || 0, ay = gp.axes[a + 1] || 0;
+        ix.stick.set(Math.abs(ax) > 0.12 ? ax : 0, Math.abs(ay) > 0.12 ? ay : 0);
       }
       ix.palmFacingHead = 0;
     }

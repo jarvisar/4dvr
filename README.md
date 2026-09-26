@@ -102,7 +102,7 @@ Pushing to `main` builds the site, runs the smoke tests, and deploys it to GitHu
 - `?quality=low|medium|high` uses a graphics preset for this visit without changing the saved one
 - `?scale=1` sets the XR framebuffer scale directly, overriding the preset's resolution
 - `?hz=90` sets a fixed refresh rate
-- `?stats` shows the frame rate, CPU time, draw calls, triangle count, and resolution per eye in VR. In VR the frame rate is shown as measured/target.
+- `?stats` shows the frame rate, CPU time, draw calls, triangle count, and resolution per eye in VR. In VR the frame rate is shown as measured/target, along with whether 4x MSAA is resolved in tile memory or with a full-screen blit.
 - `?iwer` emulates a Quest 3 with [IWER](https://github.com/meta-quest/immersive-web-emulation-runtime) so VR mode can be tested in a desktop browser. `?iwer=headless` loads it without the control panel.
 
 ## Implementation
@@ -179,8 +179,11 @@ See [quasicrystal.js](src/scenes/quasicrystal.js). The tilings are built with de
 - The refresh rate starts at the highest rate the headset supports and drops a step if the scene cannot keep up. Switching scenes goes back to the highest rate.
 - No post-processing
 - Scenes are loaded when first opened, and the 4D shapes are built before VR starts so choosing a preset in the headset does not stall
+- Shader programs are kept when objects are removed, so switching presets doesn't compile them again, and the shaders of things only shown in VR (hands, pointer rays, the vignette) are compiled before VR starts
 - Per-frame code avoids allocations to prevent garbage collection pauses on the headset
 - Hyperplay's 4D shadows are drawn into a 512x512 mask only on frames where something moved. The three.js shadow map isn't used.
+- Menus redraw and upload only the rows that changed, so a live value (a slider during playback, a distance) doesn't upload the whole panel texture
+- Dynamic geometry (tilings, projections, worldlines) uploads only the part of its buffers in use
 - Quasicrystal tilings are rebuilt at most about 15 times a second while the slice moves
 
 ## References

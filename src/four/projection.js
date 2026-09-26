@@ -165,6 +165,19 @@ void main() {
 }
 `;
 
+/**
+ * Mark the first `count` items of a dynamic attribute for upload. The buffers
+ * are sized for the largest shape, so uploading all of them every time (several
+ * MB) would cost far more than the data in use. A pending range from an earlier
+ * call is replaced: nothing past `count` is drawn.
+ */
+function uploadFirst(attr, count) {
+  if (count <= 0) return;
+  attr.clearUpdateRanges();
+  attr.addUpdateRange(0, count * attr.itemSize);
+  attr.needsUpdate = true;
+}
+
 function edgeTubeGeometry(segments, radial) {
   const pos = [];
   const index = [];
@@ -264,6 +277,7 @@ export class ProjectedWire {
       blending: THREE.CustomBlending,
       blendSrc: THREE.OneFactor,
       blendDst: THREE.OneFactor,
+      forceSinglePass: true, // additive, so back and front faces needn't be drawn in separate passes
     });
     this.faces = new THREE.Mesh(this.faceGeo, this.faceMat);
     this.faces.frustumCulled = false;
@@ -283,12 +297,12 @@ export class ProjectedWire {
       this.aEC.setXYZ(i, c[0], c[1], c[2]);
     }
     this.edgeGeo.instanceCount = this.edgeGeoStraight.instanceCount = nE;
-    this.aA.needsUpdate = this.aB.needsUpdate = this.aEC.needsUpdate = true;
+    for (const a of [this.aA, this.aB, this.aEC]) uploadFirst(a, nE);
 
     const nV = Math.min(vertices.length, this.aP.count);
     for (let i = 0; i < nV; i++) this.aP.setXYZW(i, ...vertices[i]);
     this.vertGeo.instanceCount = nV;
-    this.aP.needsUpdate = true;
+    uploadFirst(this.aP, nV);
 
     let t = 0;
     const put = (p, c) => {
@@ -316,7 +330,8 @@ export class ProjectedWire {
       }
     });
     this.faceGeo.setDrawRange(0, t);
-    this.a4.needsUpdate = this.aFC.needsUpdate = true;
+    uploadFirst(this.a4, t);
+    uploadFirst(this.aFC, t);
   }
 
   set mode(m) {
