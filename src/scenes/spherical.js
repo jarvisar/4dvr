@@ -422,6 +422,7 @@ export class SphericalScene extends SceneBase {
     this.subtitle = 'Regular polytopes as tilings of the 3-sphere';
     this.mood = 'spherical';
     this.noOrbit = true;
+    this.locomotion = true; // snap turn and the comfort vignette (see App)
 
     this.uniforms = {
       uEyeInv: { value: new THREE.Matrix4() },
@@ -604,6 +605,7 @@ export class SphericalScene extends SceneBase {
     const d = _mv.copy(ix.grabPos).sub(this.pull.last);
     this.pull.last.copy(ix.grabPos);
     const gain = (ix.isMouse ? 2.5 : 3.0) / this.uniforms.uL.value;
+    this.app.addMotion(d.length() * gain * this.uniforms.uL.value);
     d.multiplyScalar(-gain).applyQuaternion(_qi.copy(this.app.headQuaternion).invert());
     this._translateLocal(d.x, d.y, d.z);
   }
@@ -650,6 +652,7 @@ export class SphericalScene extends SceneBase {
     for (const ix of app.input.xr) {
       if (ix.kind !== 'controller' || (!ix.stick.x && !ix.stick.y)) continue;
       const v = _mv.set(ix.stick.x, 0, ix.stick.y).multiplyScalar((dt * 0.9) / L);
+      app.addMotion(v.length() * L);
       v.applyQuaternion(ix.rayQuat).applyQuaternion(_qi.copy(quat).invert());
       this._translateLocal(v.x, v.y, v.z);
     }
@@ -748,7 +751,8 @@ export class SphericalScene extends SceneBase {
     const blurb = TILINGS[this.tilingKey].blurb;
     const far = 'Light also reaches you the long way round, so straight ahead, far away, is the back of your own head.';
     if (mode === 'desktop') return `${blurb} ${far}`;
-    if (mode === 'controllers') return `${blurb} Walk, or use the stick to move. ${far}`;
+    const sticks = this.app.comfort.snapTurn ? 'Walk, or use the left stick to move and the right stick to turn.' : 'Walk, or use the sticks to move.';
+    if (mode === 'controllers') return `${blurb} ${sticks} ${far}`;
     return `${blurb} Walk, or pinch empty space and pull to move. ${far}`;
   }
 

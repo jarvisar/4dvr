@@ -432,13 +432,17 @@ export class QuasicrystalScene extends SceneBase {
     const k = ix.isMouse ? 2.5 : 3.0;
     if (this.mode === 'floor') this.shift(d.x * k, d.z * k, 0);
     else this.shift(d.x * k, d.y * k, d.z * k);
+    this.app.hands.readout(ix, `${this.flipCount} tiles flipped`);
   }
 
   onEmptyGrabEnd() { this.pull = null; }
 
   update(dt, time) {
     for (const ix of this.app.input.xr) {
-      if (ix.kind === 'controller' && (ix.stick.x || ix.stick.y)) this.shift(ix.stick.x * dt * 0.6, ix.stick.y * dt * 0.6, 0);
+      if (ix.kind === 'controller' && (ix.stick.x || ix.stick.y)) {
+        this.shift(ix.stick.x * dt * 0.6, ix.stick.y * dt * 0.6, 0);
+        this.app.hands.readout(ix, `${this.flipCount} tiles flipped`);
+      }
     }
     if (this.drift) {
       // a slow loop through the hidden directions

@@ -17,6 +17,13 @@ import { screwCenters, SCREW_EDGE } from '../four/shapes.js';
 const TABLE_R = 0.6;
 const W_RANGE = 0.55;
 const W_GRADIENT = ['#33c3ff', '#ff4f9a']; // kata (−w) → ana (+w)
+// A pinch in empty space has to move this far (metres) before it moves the
+// slice, so a pinch that just missed an object doesn't nudge it.
+const AIR_DEADZONE = 0.012;
+
+const fmtW = (v) => (Math.abs(v) < 0.005 ? '0' : `${v > 0 ? 'ana' : 'kata'} ${Math.abs(v * 100).toFixed(0)} cm`);
+const wColor = (v) => (v > 0.005 ? '#ff8fbf' : v < -0.005 ? '#7fd8ff' : '#ffffff');
+const deg = (a) => `${Math.round(THREE.MathUtils.radToDeg(a))}°`;
 const MAX_TOYS = 32; // collision is O(n²); spawning past this recycles the oldest toy
 
 // 4D dice: the regular polytopes. Opposite cells add up to N + 1, like the
@@ -168,6 +175,7 @@ class Toy {
 
     if (this.mode === 'secondary') {
       // 4D trackball: pushing the hand along d rolls the object in the (d, w) plane
+      this.pg.app.hands.readout(ix, 'turning through w');
       const d = hand.clone().sub(this.startHand);
       const len = d.length();
       if (len > 1e-4) {
@@ -835,24 +843,39 @@ export class PlaygroundScene extends SceneBase {
   // Middle-finger pinching empty space and dragging rotates the slice (xw / zw).
 
   onEmptyGrabStart(ix, mode) {
-    this._air = { start: ix.grabPos.clone(), w: this.view.w, xw: this.view.angleXW, zw: this.view.angleZW, mode };
-    if (mode === 'primary') this.playing = false;
+    this._air = { start: ix.grabPos.clone(), w: this.view.w, xw: this.view.angleXW, zw: this.view.angleZW, mode, live: false };
     return true;
   }
 
   onEmptyGrabUpdate(ix, mode) {
     const a = this._air;
     if (!a) return;
-    const d = ix.grabPos.clone().sub(a.start);
+    const d = _hp.copy(ix.grabPos).sub(a.start);
+    if (!a.live) {
+      if (d.length() < AIR_DEADZONE) return;
+      a.live = true; // from here on, starting where the hand is now so nothing jumps
+      a.start.copy(ix.grabPos);
+      if (mode === 'primary') this.playing = false;
+      return;
+    }
     if (mode === 'primary') {
       const gain = ix.isMouse ? 1.0 : 1.6;
       this.setW(a.w + d.y * gain);
+      this.app.hands.readout(ix, `w ${fmtW(this.view.w)}`, wColor(this.view.w));
     } else {
       const k = ix.isMouse ? 2.5 : 4.0;
       const xw = THREE.MathUtils.clamp(a.xw + d.x * k, -Math.PI / 2, Math.PI / 2);
       const zw = THREE.MathUtils.clamp(a.zw - d.z * k, -Math.PI / 2, Math.PI / 2);
       this.view.setAngles(xw, zw);
+      this.app.hands.readout(ix, `xw ${deg(xw)}  zw ${deg(zw)}`);
     }
+  }
+
+  /** Back to the straight slice at w = 0. */
+  resetSlice() {
+    this.playing = false;
+    this.setW(0);
+    this.view.setAngles(0, 0);
   }
 
   onEmptyGrabEnd() { this._air = null; }
@@ -871,7 +894,7 @@ export class PlaygroundScene extends SceneBase {
     if (k === 'r') this.loadPreset(this.preset);
     if (k === 'g') this.ghosts = !this.ghosts;
     if (k === ' ' && this.preset === 'worldline') this.playing = !this.playing;
-    if (k === '0') { this.view.setW(0); this.view.setAngles(0, 0); }
+    if (k === '0') this.resetSlice();
   }
 
   // ---------------------------------------------------------------------------
@@ -880,9 +903,14 @@ export class PlaygroundScene extends SceneBase {
     // controllers: thumbstick moves the slice along W and rotates it
     for (const ix of this.app.input.xr) {
       if (ix.kind !== 'controller') continue;
-      if (Math.abs(ix.stick.y) > 0) { this.playing = false; this.setW(this.view.w - ix.stick.y * dt * 0.45); }
+      if (Math.abs(ix.stick.y) > 0) {
+        this.playing = false;
+        this.setW(this.view.w - ix.stick.y * dt * 0.45);
+        this.app.hands.readout(ix, `w ${fmtW(this.view.w)}`, wColor(this.view.w));
+      }
       if (Math.abs(ix.stick.x) > 0 && !ix.grabbed) {
         this.view.setAngles(THREE.MathUtils.clamp(this.view.angleXW + ix.stick.x * dt * 1.0, -Math.PI / 2, Math.PI / 2), this.view.angleZW);
+        this.app.hands.readout(ix, `xw ${deg(this.view.angleXW)}`);
       }
     }
 
@@ -957,11 +985,11 @@ export class PlaygroundScene extends SceneBase {
     const p = this.view.toSlice([0, 0, 0, 0], x4);
     this.burst.fire(new THREE.Vector3(p[0], p[1], p[2]));
     this.app.audio.spawn(this.stage.localToWorld(new THREE.Vector3(p[0], p[1], p[2])));
+    for (const ix of this.app.input.xr) ix.pulse(0.7, 120);
     this._say(text, 4);
   }
 
   menuRows() {
-    const fmtW = (v) => (Math.abs(v) < 0.005 ? '0' : `${v > 0 ? 'ana' : 'kata'} ${Math.abs(v * 100).toFixed(0)} cm`);
     const preset = (label, key) => ({ label, onClick: () => this.loadPreset(key), active: () => this.preset === key });
     const rows = [
       {
@@ -975,7 +1003,14 @@ export class PlaygroundScene extends SceneBase {
       { type: 'slider', label: 'Slice position (w)', min: this.view.wMin, max: this.view.wMax, center: 0, get: () => this.view.w, set: (v) => { this.playing = false; this.setW(v); }, format: fmtW, gradient: W_GRADIENT },
       {
         type: 'slider', label: 'Slice rotation (xw)', min: -Math.PI / 2, max: Math.PI / 2, center: 0,
-        get: () => this.view.angleXW, set: (v) => this.view.setAngles(v, this.view.angleZW), format: (v) => `${Math.round((v * 180) / Math.PI)}°`,
+        get: () => this.view.angleXW, set: (v) => this.view.setAngles(v, this.view.angleZW), format: deg,
+      },
+      {
+        type: 'buttons', columns: 2,
+        items: [
+          { label: 'Reset slice', small: true, onClick: () => this.resetSlice() },
+          { label: 'Restart preset', small: true, onClick: () => this.loadPreset(this.preset) },
+        ],
       },
     ];
     if (this.preset === 'orbits') {
@@ -1012,11 +1047,13 @@ export class PlaygroundScene extends SceneBase {
         ],
       });
     }
-    rows.push(
-      {
+    if (this.preset === 'shadows') {
+      rows.push({
         type: 'slider', label: 'Sun angle towards ana', min: -THREE.MathUtils.degToRad(60), max: THREE.MathUtils.degToRad(60), center: 0,
-        get: () => this.sunW, set: (v) => { this.sunW = v; }, format: (v) => `${Math.round(THREE.MathUtils.radToDeg(v))}°`, gradient: W_GRADIENT,
-      },
+        get: () => this.sunW, set: (v) => { this.sunW = v; }, format: deg, gradient: W_GRADIENT,
+      });
+    }
+    rows.push(
       {
         type: 'toggles', columns: 3,
         items: [
@@ -1030,7 +1067,7 @@ export class PlaygroundScene extends SceneBase {
   }
 
   hint(mode) {
-    const move = { hands: 'with your other hand', controllers: 'with the stick', desktop: 'with the scroll wheel' }[mode];
+    const move = { hands: 'by pinching empty space with your other hand', controllers: 'with the stick', desktop: 'with the scroll wheel' }[mode];
     const turn4 = { hands: 'middle-finger pinch it and move your hand', controllers: 'grip it and move the controller', desktop: 'right-drag it' }[mode];
     if (this.preset === 'box') {
       return `The box walls only extend a short distance in w. Hold the ball, move the slice along w ${move} until the walls are gone, move the ball out, then move the slice back.`;
@@ -1050,9 +1087,9 @@ export class PlaygroundScene extends SceneBase {
     if (this.preset === 'worldline') {
       return `A motion recorded with time as w, so moving the slice along w replays it. Rotating the slice in xw mixes time with space: each x shows a different moment, like a slit-scan photo. Record your own ${mode === 'desktop' ? 'mouse movements' : 'hands'} from the menu.`;
     }
-    if (mode === 'controllers') return 'Trigger to grab and throw. Grip an object and move the controller to rotate it through 4D. Stick up/down moves the slice along w, left/right rotates it.';
+    if (mode === 'controllers') return 'Trigger to grab and throw. Grip an object and move the controller to turn it through 4D. Stick up/down moves the slice along w and left/right tilts it. Faint ghosts are objects just outside the slice. The menu has puzzles.';
     if (mode === 'desktop') return 'Each object is shown as its 3D cross-section. Move the slice along w to see the cross-sections change.';
-    return 'Pinch to grab and throw. Middle-finger pinch an object and move your hand to rotate it through 4D. Pinch empty space and move up/down to move the slice along w. Middle-finger pinch empty space to rotate the slice.';
+    return 'Pinch to grab and throw, middle-finger pinch to turn an object through 4D. In empty space, pinch and move up or down to move the slice along w, or middle-finger pinch to tilt it. The ring on the w rail moves it too. Faint ghosts are objects just outside the slice.';
   }
 
   desktopHelp({ touch } = {}) {

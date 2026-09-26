@@ -1,9 +1,10 @@
 import { App } from './core/app.js';
+import { pref } from './core/prefs.js';
 import { PlaygroundScene } from './scenes/playground.js';
 import { prebuildShapes } from './four/shapes.js';
 
 const SCENES = [
-  { key: 'playground', short: 'Hyperplay', create: (app) => new PlaygroundScene(app) },
+  { key: 'playground', short: 'Hyperplay', title: 'Hyperplay', create: (app) => new PlaygroundScene(app) },
 ];
 
 async function loadExtraScenes() {
@@ -18,13 +19,13 @@ async function loadExtraScenes() {
     import('./scenes/quasicrystal.js'),
   ]);
   SCENES.push(
-    { key: 'gallery', short: 'Polytopes', create: (app) => new GalleryScene(app) },
-    { key: 'knots', short: 'Knots', create: (app) => new KnotScene(app) },
-    { key: 'hopf', short: 'Hopf', create: (app) => new HopfScene(app) },
-    { key: 'hyperbolic', short: 'Hyperbolic', create: (app) => new HyperbolicScene(app) },
-    { key: 'spherical', short: 'Spherical', create: (app) => new SphericalScene(app) },
-    { key: 'klein', short: 'Klein', create: (app) => new KleinScene(app) },
-    { key: 'quasicrystal', short: 'Penrose', create: (app) => new QuasicrystalScene(app) },
+    { key: 'gallery', short: 'Polytopes', title: 'Polytope Lab', create: (app) => new GalleryScene(app) },
+    { key: 'knots', short: 'Knots', title: 'Knot Lab', create: (app) => new KnotScene(app) },
+    { key: 'hopf', short: 'Hopf', title: 'Hopf Garden', create: (app) => new HopfScene(app) },
+    { key: 'hyperbolic', short: 'Hyperbolic', title: 'Hyperbolic Space', create: (app) => new HyperbolicScene(app) },
+    { key: 'spherical', short: 'Spherical', title: 'Spherical Space', create: (app) => new SphericalScene(app) },
+    { key: 'klein', short: 'Klein', title: 'Klein Room', create: (app) => new KleinScene(app) },
+    { key: 'quasicrystal', short: 'Penrose', title: 'Quasicrystals', create: (app) => new QuasicrystalScene(app) },
   );
 }
 
@@ -69,12 +70,6 @@ try {
 }
 window.__app = app; // for debugging from the console and for tools/ci-smoke.mjs
 
-// small per-browser preferences; storage can be unavailable (private mode)
-const pref = {
-  get(k, d) { try { const v = localStorage.getItem(`4dvr.${k}`); return v === null ? d : v === '1'; } catch { return d; } },
-  set(k, v) { try { localStorage.setItem(`4dvr.${k}`, v ? '1' : '0'); } catch { /* ignore */ } },
-};
-
 // --- scenes ---------------------------------------------------------------------
 let pendingScene = null;
 function requestScene(key) {
@@ -102,7 +97,7 @@ function renderTabs() {
     .split(' · ')
     .map((item) => `<li>${item}</li>`)
     .join('');
-  for (const b of index.querySelectorAll('button')) b.classList.toggle('selected', b.dataset.scene === app.sceneKey);
+  markSelected((b) => b.dataset.scene === app.sceneKey);
   if (active && !hud.hidden) {
     // keep the current scene's tab in view when the bar scrolls (phones)
     const t = tabs.getBoundingClientRect(), a = active.getBoundingClientRect();
@@ -110,6 +105,15 @@ function renderTabs() {
   }
   updateTabFade();
   measureHud();
+}
+
+// the start screen's scene list: which scene VR will start in
+function markSelected(test) {
+  for (const b of index.querySelectorAll('button')) {
+    const on = test(b);
+    b.classList.toggle('selected', on);
+    b.setAttribute('aria-pressed', String(on));
+  }
 }
 
 function updateTabFade() {
@@ -260,7 +264,7 @@ index.addEventListener('click', (e) => {
   const b = e.target.closest('button[data-scene]');
   if (!b) return;
   requestScene(b.dataset.scene);
-  for (const x of index.querySelectorAll('button')) x.classList.toggle('selected', x === b);
+  markSelected((x) => x === b);
   if (!xrOk) enterDesktop();
 });
 

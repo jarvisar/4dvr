@@ -8,6 +8,13 @@ import { UISystem } from './ui.js';
 import { HandMenu, WelcomePanel } from './menu.js';
 import { HandVisuals } from './handVisuals.js';
 import { QUALITY, initialQuality, saveQuality } from './quality.js';
+import { pref } from './prefs.js';
+
+const UP = new THREE.Vector3(0, 1, 0);
+const SNAP_ANGLE = Math.PI / 6; // 30°
+const _v = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+const _m = new THREE.Matrix4();
 
 export class App {
   constructor(container, sceneList) {
@@ -50,6 +57,11 @@ export class App {
     this.welcome = new WelcomePanel(this);
     this.desktopMenu = window.innerWidth >= 720; // phones start with the menu closed
     this.hudActive = false; // set by main.js once the start screen is dismissed
+    // comfort options for scenes you move through (see setComfort)
+    this.comfort = { vignette: pref.get('vignette', true), snapTurn: pref.get('snapturn', true) };
+    this._motion = 0;      // metres of artificial movement this frame (addMotion)
+    this._vignette = this._makeVignette();
+    this._snapArmed = true;
     this.statsEnabled = this.params.has('stats');
     this.stats = { fps: 0, cpu: 0, calls: 0, tris: 0 };
     this._cpuAcc = 0;
@@ -136,6 +148,101 @@ export class App {
     return m;
   }
 
+  /**
+   * Comfort vignette: darkens the edges of the view while a scene moves the
+   * person artificially (stick or pinch-and-pull locomotion), which reduces
+   * motion sickness. Only the periphery is covered, so the centre of the view
+   * costs nothing extra.
+   */
+  _makeVignette() {
+    const open = 0.5; // radians around the view direction that are never covered
+    const geo = new THREE.SphereGeometry(0.2, 40, 12, 0, Math.PI * 2, open, Math.PI - open).rotateX(-Math.PI / 2);
+    const m = new THREE.Mesh(geo, new THREE.ShaderMaterial({
+      uniforms: { uStrength: { value: 0 } },
+      vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `
+        uniform float uStrength;
+        varying vec3 vDir;
+        void main() {
+          float a = acos(clamp(-normalize(vDir).z, -1.0, 1.0));
+          float r0 = mix(1.25, 0.55, uStrength); // the clear area shrinks as the movement gets faster
+          gl_FragColor = vec4(0.02, 0.02, 0.035, smoothstep(r0, r0 + 0.3, a));
+        }`,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.BackSide,
+    }));
+    m.renderOrder = 999; // under the scene fade
+    m.visible = false;
+    m.level = 0;
+    this.camera.add(m);
+    return m;
+  }
+
+  /** Scenes report artificial movement (metres this frame) for the comfort vignette. */
+  addMotion(metres) {
+    this._motion += metres;
+  }
+
+  _updateVignette(dt) {
+    const v = this._vignette;
+    const speed = this._motion / Math.max(dt, 1e-3);
+    this._motion = 0;
+    const target = this.presenting && this.comfort.vignette ? THREE.MathUtils.clamp((speed - 0.05) / 1.2, 0, 1) : 0;
+    // closes quickly when movement starts, opens gently when it stops
+    v.level += (target - v.level) * Math.min(1, dt * (target > v.level ? 10 : 3));
+    v.visible = v.level > 0.01;
+    v.material.uniforms.uStrength.value = v.level;
+  }
+
+  setComfort(key, on) {
+    this.comfort[key] = on;
+    pref.set(key.toLowerCase(), on);
+  }
+
+  /** Right stick left/right turns in 30° steps in scenes you move through. */
+  _updateSnapTurn() {
+    if (!this.presenting || !this.activeScene?.locomotion || !this.comfort.snapTurn) return;
+    for (const ix of this.input.xr) {
+      if (ix.kind !== 'controller' || ix.handedness !== 'right') continue;
+      const x = ix.stick.x;
+      if (this._snapArmed && Math.abs(x) > 0.7) {
+        this._turn(-Math.sign(x) * SNAP_ANGLE);
+        this._snapArmed = false;
+      } else if (Math.abs(x) < 0.3) this._snapArmed = true;
+      ix.stick.x = 0; // the scene doesn't also strafe with it
+    }
+  }
+
+  /** Turn the person about the vertical through their head. */
+  _turn(angle) {
+    _q.setFromAxisAngle(UP, angle);
+    this.rig.position.sub(this.headPosition).applyQuaternion(_q).add(this.headPosition);
+    this.rig.quaternion.premultiply(_q);
+    this.rig.updateMatrixWorld(true);
+    this.audio.click();
+  }
+
+  /**
+   * Move the rig so the head is over the scene's origin, facing −z, which is
+   * where every scene expects the person to start. Scenes are laid out in
+   * front of that spot, so a new scene opens in front of the person wherever
+   * they have walked or turned to. Returns the change, as a world transform.
+   */
+  recenter() {
+    this.rig.updateMatrixWorld(true);
+    const before = _m.copy(this.rig.matrixWorld).invert();
+    // the head in the rig's own space
+    const local = this.camera.position;
+    _v.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    const yaw = Math.atan2(-_v.x, -_v.z);
+    this.rig.quaternion.setFromAxisAngle(UP, -yaw);
+    this.rig.position.set(-local.x, 0, -local.z).applyQuaternion(this.rig.quaternion);
+    this.rig.updateMatrixWorld(true);
+    return before.premultiply(this.rig.matrixWorld);
+  }
+
   _resize() {
     if (this.presenting) return;
     this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -174,6 +281,13 @@ export class App {
     if (!def) return;
     this.interaction.releaseAll();
     if (this.activeScene) this.activeScene.exit();
+    // in VR, start the new scene from its usual spot, in front of the person
+    const inVR = this.presenting && !this._sessionJustStarted;
+    if (inVR) {
+      const moved = this.recenter();
+      this.menu.sceneChanged();
+      if (this.menu.pinned) this.menu.panel.group.applyMatrix4(moved); // a pinned menu stays where it was relative to the person
+    }
     let scene = this.scenes.get(key);
     if (!scene) {
       scene = def.create(this);
@@ -184,7 +298,10 @@ export class App {
     this.env.setMood(scene.mood);
     scene.enter();
     if (this._rates) this._setFrameRate(this._rates.length - 1); // happens during the fade
-    if (this.presenting && !this._sessionJustStarted) scene.onUserReady?.(); // fit to the person's height
+    if (inVR) {
+      scene.onUserReady?.(); // fit to the person's height
+      this._guidePending = true; // the scene's tips, placed once the head pose is up to date
+    }
     this.menu.rebuild();
     if (!this.presenting && scene.desktopView) {
       this.camera.position.copy(scene.desktopView.position);
@@ -243,6 +360,10 @@ export class App {
 
   _onSessionEnd() {
     this._rates = null;
+    this.rig.position.set(0, 0, 0); // undo snap turns and recentring for the desktop camera
+    this.rig.quaternion.identity();
+    this._vignette.level = 0;
+    this._vignette.visible = false;
     this._xrScaleUsed = null;
     this._applyQuality(); // three.js restored the pixel ratio from before the session
     this.orbit.enabled = true;
@@ -330,6 +451,10 @@ export class App {
       this.welcome.show();
       this.menu.rebuild();
     }
+    if (this._guidePending) {
+      this._guidePending = false;
+      this.welcome.showSceneTips();
+    }
 
     // scene fade
     this.fade += (this.fadeTarget - this.fade) * Math.min(1, dt * 10);
@@ -342,11 +467,13 @@ export class App {
     this._fader.material.opacity = Math.min(1, this.fade * 1.05);
 
     this.input.update(dt, this.time);
+    this._updateSnapTurn();
     this.interaction.update(dt);
     this.activeScene?.update(dt, this.time);
     this.menu.update(dt);
     this.ui.update(this.time);
     this.hands.update();
+    this._updateVignette(dt);
     this.audio.updateListener(this.camera);
 
     this.renderer.render(this.scene, this.camera);

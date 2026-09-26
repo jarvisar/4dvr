@@ -12,6 +12,7 @@ import * as P from '../four/polytopes.js';
 import { tesseractNet } from '../four/tesseractNet.js';
 import { raySphere } from '../core/interaction.js';
 import { GHOST_STYLE } from '../four/sliceMaterial.js';
+import { REDUCED_MOTION } from '../core/prefs.js';
 
 const POLYS = {
   simplex: { label: '5-cell', get: P.simplex, blurb: '4D simplex. 5 tetrahedral cells.' },
@@ -33,6 +34,7 @@ const SMOOTH = {
 const LABELS = { duocylinder: 'Duocylinder', tiger: 'Tiger', spheritorus: 'Spheritorus', torisphere: 'Torisphere', cubinder: 'Cubinder', spherinder: 'Spherinder' };
 
 const EW = [0, 0, 0, 1];
+const AIR_DEADZONE = 0.012; // metres a pinch in empty space moves before it does anything
 const _E = R4.mat4();
 const _M = R4.mat4();
 const _M2 = R4.mat4();
@@ -55,7 +57,7 @@ export class GalleryScene extends SceneBase {
     this.R = R4.mat4();
     R4.multiply(this.R, R4.planeRotation(R4.mat4(), 0, 3, 0.35), R4.planeRotation(R4.mat4(), 1, 2, 0.5));
     this.spin = R4.biv();
-    this.auto = true;
+    this.auto = !REDUCED_MOTION;
     this.mode = 'perspective';
     this.showFaces = true;
     this.showSlice = true;
@@ -204,7 +206,10 @@ export class GalleryScene extends SceneBase {
         scene.grab.startQInv = _hq.clone().invert();
         scene.spin.fill(0);
       },
-      onGrabUpdate(ix, dt) { scene._grabUpdate(ix, dt); },
+      onGrabUpdate(ix, dt) {
+        scene._grabUpdate(ix, dt);
+        if (scene.grab?.mode === 'secondary') scene.app.hands.readout(ix, 'turning through w');
+      },
       onGrabEnd() { scene.grab = null; },
     };
   }
@@ -244,25 +249,41 @@ export class GalleryScene extends SceneBase {
 
   onEmptyGrabStart(ix, mode) {
     ix.pose('near', _hp, _hq);
+    this.pending = { mode, start: _hp.clone() };
+    return true;
+  }
+
+  // The gesture starts once the hand has moved a little, from where it is
+  // then, so a pinch that just missed the shape changes nothing.
+  _beginAir(ix, mode) {
+    ix.pose('near', _hp, _hq);
     if (mode === 'primary') {
       this.air = { ix, start: _hp.clone(), w: this.sliceW };
     } else {
       this.grab = { ix, mode, kind: 'near', air: true, startR: R4.copy(R4.mat4(), this.R), startHand: _hp.clone(), startQInv: _hq.clone().invert() };
       this.spin.fill(0);
     }
-    return true;
   }
 
   onEmptyGrabUpdate(ix, mode, dt) {
+    if (this.pending) {
+      ix.pose('near', _hp, _hq);
+      if (_hp.distanceTo(this.pending.start) < AIR_DEADZONE) return;
+      this.pending = null;
+      this._beginAir(ix, mode);
+      return;
+    }
     if (mode === 'primary' && this.air) {
       ix.pose('near', _hp, _hq);
       this.sliceW = THREE.MathUtils.clamp(this.air.w + (_hp.y - this.air.start.y) * (ix.isMouse ? 3 : 5), -1.05, 1.05);
+      this.app.hands.readout(ix, `slice w ${this.sliceW >= 0 ? '+' : '−'}${Math.abs(this.sliceW).toFixed(2)}`, this.sliceW > 0.005 ? '#ff8fbf' : this.sliceW < -0.005 ? '#7fd8ff' : '#ffffff');
     } else if (this.grab) {
       this._grabUpdate(ix, dt);
+      this.app.hands.readout(ix, 'turning through w');
     }
   }
 
-  onEmptyGrabEnd() { this.air = null; if (this.grab?.air) this.grab = null; }
+  onEmptyGrabEnd() { this.pending = null; this.air = null; if (this.grab?.air) this.grab = null; }
 
   onWheel(delta) { this.sliceW = THREE.MathUtils.clamp(this.sliceW - delta * 0.001, -1.05, 1.05); }
 
@@ -398,8 +419,8 @@ export class GalleryScene extends SceneBase {
   hint(mode) {
     const blurb = POLYS[this.shapeKey]?.blurb || SMOOTH[this.shapeKey] || 'The 8 cells of a tesseract, unfolded into 3D. Use the fold slider to fold them back into a tesseract.';
     if (mode === 'desktop') return blurb;
-    if (mode === 'controllers') return `${blurb} Trigger to rotate it, grip to rotate it through 4D. Stick up/down moves the slicing hyperplane.`;
-    return `${blurb} Pinch it to rotate it. Middle-finger pinch and move your hand to rotate it through 4D. Pinch empty space next to it and move up/down to move the slicing hyperplane.`;
+    if (mode === 'controllers') return `${blurb} Trigger to turn it, grip to turn it through 4D. Stick up/down moves the slicing hyperplane, left/right turns it in xw.`;
+    return `${blurb} Pinch it to turn it. Middle-finger pinch it and move your hand to turn it through 4D. Pinch empty space next to it and move up or down to move the slicing hyperplane.`;
   }
 
   desktopHelp({ touch } = {}) {

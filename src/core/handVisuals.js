@@ -1,8 +1,10 @@
 // Tracked hand rendering (joints and bones as two instanced meshes), pinch
-// indicators, pointer rays and cursors.
+// indicators, pointer rays and cursors, the fingertip cursor on panels, and
+// short readouts next to the hand while a gesture changes something.
 
 import * as THREE from 'three';
 import { J } from './input.js';
+import { FONTS } from './ui.js';
 
 const CHAINS = [
   ['wrist', 'thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip'],
@@ -64,6 +66,51 @@ const TINT_PINCH = new THREE.Color('#33c3ff');
 const TINT_GRIP = new THREE.Color('#ff4f9a');
 const TINT_POKE = new THREE.Color('#eceef4');
 const RING_IDLE = new THREE.Color('#ffffff');
+const POKE_PRESS = new THREE.Color('#1a9fff');
+const READOUT_HOLD = 0.12; // seconds a readout stays up after its last update
+
+/**
+ * A one-line label on a dark plate that hugs the text, redrawn in place
+ * (fixed canvas size, so updates allocate nothing).
+ */
+class Readout {
+  constructor() {
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = 640; this.canvas.height = 88;
+    this.ctx = this.canvas.getContext('2d');
+    this.texture = new THREE.CanvasTexture(this.canvas);
+    this.texture.colorSpace = THREE.SRGBColorSpace;
+    this.texture.anisotropy = 4;
+    const h = 0.02;
+    this.mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(h * (640 / 88), h),
+      new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }),
+    );
+    this.mesh.renderOrder = 35;
+    this.mesh.visible = false;
+    this.text = null;
+    this.ix = null;
+    this.t = -1;
+  }
+
+  set(text, color) {
+    if (text === this.text && color === this.color) return;
+    this.text = text; this.color = color;
+    const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = `600 44px ${FONTS.mono}`;
+    const tw = Math.min(W - 4, ctx.measureText(text).width + 40);
+    ctx.fillStyle = 'rgba(27, 31, 38, 0.92)';
+    ctx.beginPath();
+    ctx.roundRect((W - tw) / 2, 4, tw, H - 8, 18);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, W / 2, H / 2 + 2);
+    this.texture.needsUpdate = true;
+  }
+}
 
 export class HandVisuals {
   constructor(app) {
@@ -112,6 +159,38 @@ export class HandVisuals {
       this.group.add(ray, cursor);
       return { ray, cursor };
     });
+
+    // fingertip cursor on a panel: a ring under the finger that closes as it
+    // approaches the surface, so it's clear where a press will land
+    this.pokeCursors = [0, 1].map(() => {
+      const m = new THREE.Mesh(
+        new THREE.RingGeometry(0.0035, 0.0055, 32),
+        new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false, toneMapped: false }),
+      );
+      m.renderOrder = 34; // after the panels (20); still hidden behind the finger itself
+      m.visible = false;
+      this.group.add(m);
+      return m;
+    });
+
+    // one readout per interactor (two hands or controllers, and the mouse)
+    this.readouts = [0, 1, 2].map(() => {
+      const r = new Readout();
+      this.group.add(r.mesh);
+      return r;
+    });
+  }
+
+  /**
+   * Show a short readout next to an interactor's hand, e.g. the slice position
+   * while a pinch in empty space moves it. Call it every frame the value is live.
+   */
+  readout(ix, text, color = '#ffffff') {
+    const r = this.readouts[ix.index];
+    if (!r) return;
+    r.set(text, color);
+    r.ix = ix;
+    r.t = this.app.time;
   }
 
   update() {
@@ -146,19 +225,50 @@ export class HandVisuals {
         tintB.setXYZ(bi, 0, 0, 0);
         bi++;
       }
-      // pinch ring
-      if (ix.pinchStrength > 0.25 && !ix.uiEngaged) {
+      // pinch ring, between the thumb and whichever finger is closing on it,
+      // shrinking as they close, so both pinches show before they trigger
+      const middle = ix.grip.pressed || (!ix.pinch.pressed && ix.gripStrength > ix.pinchStrength);
+      const strength = middle ? ix.gripStrength : ix.pinchStrength;
+      if (strength > 0.25 && !ix.uiEngaged) {
         const thumb = ix.joints[J['thumb-tip']].pos;
-        const other = ix.joints[ix.grip.pressed ? J['middle-finger-tip'] : J['index-finger-tip']].pos;
+        const other = ix.joints[middle ? J['middle-finger-tip'] : J['index-finger-tip']].pos;
         ring.visible = true;
         ring.position.addVectors(thumb, other).multiplyScalar(0.5);
         ring.lookAt(app.headPosition);
-        const s = 0.006 + 0.012 * (1 - ix.pinchStrength);
+        const s = 0.006 + 0.012 * (1 - strength);
         ring.scale.setScalar(ix.pinch.pressed || ix.grip.pressed ? 0.007 : s);
         ring.material.color.copy(ix.grip.pressed ? TINT_GRIP : ix.pinch.pressed ? TINT_PINCH : RING_IDLE);
-        ring.material.opacity = 0.35 + 0.6 * ix.pinchStrength;
+        ring.material.opacity = 0.35 + 0.6 * strength;
       }
     });
+
+    // fingertip cursors on panels (hands and controller tips)
+    app.input.xr.forEach((ix, h) => {
+      const c = this.pokeCursors[h];
+      const hit = ix.pokeHit;
+      c.visible = app.presenting && ix.active && !!hit.panel && hit.z > -0.01;
+      if (!c.visible) return;
+      const p = hit.panel;
+      p.fromPanel(hit.x, hit.y, 0.0015, c.position);
+      p.group.getWorldQuaternion(c.quaternion);
+      const t = THREE.MathUtils.clamp(hit.z / 0.045, 0, 1); // 0 at the surface, 1 at the edge of hover range
+      const pressing = p.pressed.has(ix);
+      c.scale.setScalar(pressing ? 0.9 : 0.9 + 1.4 * t);
+      c.material.color.copy(pressing ? POKE_PRESS : RING_IDLE);
+      c.material.opacity = (pressing ? 1 : 0.3 + 0.6 * (1 - t)) * p.opacity;
+    });
+
+    // readouts sit just above the hand (or the mouse's drag point) and face the head,
+    // at the size they would have half a metre away
+    for (const r of this.readouts) {
+      const on = !!r.ix && app.time - r.t < READOUT_HOLD;
+      r.mesh.visible = on;
+      if (!on) continue;
+      const s = Math.max(1, r.ix.grabPos.distanceTo(app.headPosition) / 0.5);
+      r.mesh.position.copy(r.ix.grabPos).addScaledVector(_up, 0.045 * s);
+      r.mesh.scale.setScalar(s);
+      r.mesh.lookAt(app.headPosition);
+    }
     this.joints.count = ji;
     this.bones.count = bi;
     this.joints.instanceMatrix.needsUpdate = true;

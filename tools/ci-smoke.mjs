@@ -107,7 +107,17 @@ try {
     ['release restores dynamics', r.released],
     ['middle-pinch rotates through 4D', r.rotated4D?.changed > 0.5, JSON.stringify(r.rotated4D)],
     ['air pinch scrubs W', r.wScrub > 0.1, r.wScrub],
+    ['a tiny air-pinch wobble leaves W alone', r.airDeadzone === 0, r.airDeadzone],
     ['fingertip poke presses a menu button', r.pokedTower],
+    ['the poke cursor tracks the fingertip on the panel', r.pokeCursor],
+    ['a panel appearing under a fingertip is not pressed', r.appearUnderFinger === 'tower', r.appearUnderFinger],
+    ['pressing through it afterwards works', r.pressAfterAppear === 'balls', r.pressAfterAppear],
+    ['every scene tip fits the menu in both input modes', r.hintLines && Object.values(r.hintLines).every((n) => n <= 5), JSON.stringify(Object.entries(r.hintLines || {}).filter(([, n]) => n > 5))],
+    ['index pinch', r.pinchKinds?.index.pinch && !r.pinchKinds.index.grip, JSON.stringify(r.pinchKinds)],
+    ['middle pinch with the index resting near the thumb', r.pinchKinds?.middleWithIndexNear.grip && !r.pinchKinds.middleWithIndexNear.pinch, JSON.stringify(r.pinchKinds)],
+    ['a held middle pinch survives the index brushing the thumb', r.pinchKinds?.middleHeldIndexBrushes.grip && !r.pinchKinds.middleHeldIndexBrushes.pinch, JSON.stringify(r.pinchKinds)],
+    ['thumb touching both fingers is an index pinch', r.pinchKinds?.bothTouching.pinch && !r.pinchKinds.bothTouching.grip, JSON.stringify(r.pinchKinds)],
+    ['opening past 3 cm releases', !r.pinchKinds?.released.pinch && !r.pinchKinds?.released.grip, JSON.stringify(r.pinchKinds)],
     ['glass walls stop a held ball', r.boxBlocksDrag < 0.1, r.boxBlocksDrag],
     ['sealed-box puzzle solvable through W', r.boxSolved],
     ['polytope turns in 4D', r.galleryRotated > 0.5, r.galleryRotated],
@@ -180,6 +190,10 @@ try {
   for (const scene of SCENES) {
     await ev(`__app.setScene('${scene}', true); __app.menu.pinned = false; __app.menu.shown = false;`);
     await sleep(500);
+    // the first visit to each scene shows its tips (the first scene's were in the welcome panel)
+    const tips = await ev(`__app.welcome.panel.group.visible`);
+    if (tips) await vr.screenshot({ path: path.join(OUT, `vr-tips-${scene}.png`) });
+    await ev(`__app.welcome.hide()`);
     await ev(`__xrDevice.controllers.right.updateButtonValue('a-button', 1)`); await sleep(250);
     await ev(`__xrDevice.controllers.right.updateButtonValue('a-button', 0)`); await sleep(900);
     menus[scene] = await ev(`(() => {
@@ -187,22 +201,88 @@ try {
       const texts = p.widgets.filter((w) => w.type === 'text');
       return { shown: __app.menu.shown, height: p.height, truncated: texts.filter((w) => p._wrap(w.row, w.w).length > w.lines).length };
     })()`);
+    menus[scene].tips = tips;
     await vr.screenshot({ path: path.join(OUT, `vr-menu-${scene}.png`) });
   }
+
+  // A new scene opens in front of the person wherever they've walked and turned to:
+  // stand 1 m to the side facing +x, then switch scenes.
+  const headPose = (js) => ev(`(() => { ${js} })()`);
+  const headNow = `(() => { const f = new (__app.headPosition.constructor)(0, 0, -1).applyQuaternion(__app.headQuaternion); const p = __app.headPosition; return { x: +p.x.toFixed(3), y: +p.y.toFixed(3), z: +p.z.toFixed(3), fx: +f.x.toFixed(3), fz: +f.z.toFixed(3) }; })()`;
+  await headPose(`__xrDevice.position.set(0.8, 1.6, 0.5); __xrDevice.quaternion.set(0, -0.7071, 0, 0.7071);`);
+  await sleep(300);
+  await ev(`__app.setScene('hyperbolic', true)`);
+  await sleep(300);
+  const recentred = await ev(headNow);
+  // snap turn: the right stick turns 30° about the head; the left stick moves (and closes the vignette)
+  await ev(`__xrDevice.controllers.right.updateAxes('thumbstick', 1, 0)`); await sleep(250);
+  await ev(`__xrDevice.controllers.right.updateAxes('thumbstick', 0, 0)`); await sleep(250);
+  const turned = await ev(headNow);
+  await ev(`__xrDevice.controllers.left.updateAxes('thumbstick', 0, -1)`); await sleep(400);
+  const vignetteMoving = await ev(`__app._vignette.level`);
+  await ev(`__xrDevice.controllers.left.updateAxes('thumbstick', 0, 0)`); await sleep(1500);
+  const vignetteStill = await ev(`__app._vignette.level`);
+  await headPose(`__xrDevice.position.set(0, 1.6, 0); __xrDevice.quaternion.set(-0.1736, 0, 0, 0.9848);`);
+  await sleep(300);
+
   // switch to tracked hands and turn the left palm towards the face
   await ev(`__app.setScene('playground', true); __app.menu.pinned = false; __app.menu.shown = false; __xrDevice.primaryInputMode = 'hand';`);
   await sleep(600);
+  const tipsOnReturn = await ev(`__app.welcome.panel.group.visible`);
   await ev(`(() => { const L = __xrDevice.hands.left; L.position.set(-0.04, 1.2, -0.28); L.quaternion.set(1, 0, 0, 0); })()`);
   await sleep(1200);
   const hand = await ev(`({ shown: __app.menu.shown, owner: __app.menu.owner?.handedness, mode: __app.inputMode })`);
   await vr.screenshot({ path: path.join(OUT, 'vr-hand-menu.png') });
+
+  // Bring the right index fingertip 5 cm in front of the menu, then move the left
+  // hand: the menu holds still while it's about to be pressed, and follows again after.
+  const menuPos = `(() => { const p = __app.menu.panel.group.position; return [p.x, p.y, p.z]; })()`;
+  await ev(`(() => {
+    const R = __xrDevice.hands.right, ix = __app.input.xr.find((i) => i.handedness === 'right');
+    const tip = ix.joints[9].pos, p = __app.menu.panel;
+    const target = p.fromPanel(p.width / 2, p.height / 2, 0.05);
+    R.position.set(R.position.x + target.x - tip.x, R.position.y + target.y - tip.y, R.position.z + target.z - tip.z);
+  })()`);
+  await sleep(500);
+  const held0 = await ev(menuPos);
+  await ev(`__xrDevice.hands.left.position.set(-0.16, 1.2, -0.28)`);
+  await sleep(600);
+  const held = await ev(`({ pos: ${menuPos}, shown: __app.menu.shown, inUse: __app.menu.inUse })`);
+  await ev(`__xrDevice.hands.right.position.set(0.45, 0.9, -0.1)`);
+  await sleep(800);
+  const released = await ev(`({ pos: ${menuPos}, shown: __app.menu.shown })`);
+  // poke the "Scenes" page button with the right index fingertip: the page
+  // changes and the menu's top row stays where it was
+  const pokeAt = (label, z) => ev(`(() => {
+    const R = __xrDevice.hands.right, ix = __app.input.xr.find((i) => i.handedness === 'right');
+    const p = __app.menu.panel, tip = ix.joints[9].pos;
+    const w = p.widgets.find((w) => w.item && (typeof w.item.label === 'function' ? w.item.label() : w.item.label) === '${label}');
+    const target = p.fromPanel(w.x + w.w / 2, w.y + w.h / 2, ${z});
+    R.position.set(R.position.x + target.x - tip.x, R.position.y + target.y - tip.y, R.position.z + target.z - tip.z);
+  })()`);
+  await pokeAt('Scenes', 0.03); await sleep(400);
+  const top0 = await ev(menuPos);
+  await pokeAt('Scenes', -0.004); await sleep(400);
+  await pokeAt('Scenes', 0.05); await sleep(400);
+  const paged = await ev(`({ page: __app.menu.page, pos: ${menuPos}, sceneButtons: __app.menu.panel.widgets.filter((w) => w.type === 'tab').length })`);
+  await vr.screenshot({ path: path.join(OUT, 'vr-hand-menu-scenes.png') });
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  const turnDeg = Math.round((Math.atan2(-turned.fx, -turned.fz) - Math.atan2(-recentred.fx, -recentred.fz)) * 180 / Math.PI);
   const vrChecks = [
     ['enters an immersive session', started.presenting, JSON.stringify(started)],
     ['shows the controls panel on entry', started.welcome, JSON.stringify(started)],
     ['controller ray presses a panel button', closed],
     ['A button opens the menu in every scene', Object.values(menus).every((m) => m.shown), JSON.stringify(menus)],
     ['menu text is never cut off', Object.values(menus).every((m) => m.truncated === 0), JSON.stringify(menus)],
+    ['each new scene shows its tips once', SCENES.slice(1).every((s) => menus[s].tips) && !tipsOnReturn, JSON.stringify({ menus, tipsOnReturn })],
+    ['a new scene opens in front of the person', Math.abs(recentred.x) < 0.02 && Math.abs(recentred.z) < 0.02 && recentred.fz < -0.99, JSON.stringify(recentred)],
+    ['right stick snap-turns 30° about the head', turnDeg === -30 && Math.abs(turned.x - recentred.x) < 0.01 && Math.abs(turned.z - recentred.z) < 0.01, JSON.stringify({ recentred, turned, turnDeg })],
+    ['stick movement closes the comfort vignette, and it opens when stopped', vignetteMoving > 0.3 && vignetteStill < 0.05, JSON.stringify({ vignetteMoving, vignetteStill })],
     ['palm towards the face opens the hand menu', hand.shown && hand.owner === 'left' && hand.mode === 'hands', JSON.stringify(hand)],
+    ['the hand menu holds still while the other hand reaches for it', held.inUse && held.shown && dist(held.pos, held0) < 0.005, JSON.stringify({ held0, held })],
+    ['and follows the hand again afterwards', released.shown && dist(released.pos, held.pos) > 0.06, JSON.stringify({ held, released })],
+    ['a fingertip poke switches the menu to its Scenes page', paged.page === 'scenes' && paged.sceneButtons === SCENES.length, JSON.stringify(paged)],
+    ['switching pages leaves the top of the menu in place', dist(paged.pos, top0) < 0.005, JSON.stringify({ top0, paged })],
   ];
   for (const [name, ok, detail] of vrChecks) (ok ? pass(name) : fail(`${name} (${detail})`));
 } catch (e) {

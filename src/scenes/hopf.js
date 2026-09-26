@@ -12,6 +12,7 @@ import * as R4 from '../math/rot4.js';
 import { SceneBase, makeLabel } from './base.js';
 import { LIGHT, LIGHTING_GLSL } from '../core/lighting.js';
 import { raySphere } from '../core/interaction.js';
+import { REDUCED_MOTION } from '../core/prefs.js';
 
 const MAX_FIBERS = 360;
 const SEGMENTS = 96;
@@ -210,7 +211,7 @@ export class HopfScene extends SceneBase {
     this.globeR = 0.085;
     this.scale = 0.3;
     this.flow = true;
-    this.spin4 = true;
+    this.spin4 = !REDUCED_MOTION;
     this.fibers = [];
     this.viewR = R4.mat4();
     this.viewSpin = R4.biv();
@@ -438,6 +439,7 @@ export class HopfScene extends SceneBase {
     if (len < 1e-4) return;
     const M = R4.rotationInPlane(R4.mat4(), EW, [d.x / len, d.y / len, d.z / len, 0], len / (ix.isMouse ? 0.3 : 0.18));
     R4.multiply(this.viewR, M, this.air.startR);
+    this.app.hands.readout(ix, 'turning S³ through w');
     // spin estimate
     const T = R4.transpose(R4.mat4(), this.air.prevR);
     R4.multiply(T, this.viewR, T);

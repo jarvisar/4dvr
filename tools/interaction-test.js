@@ -78,6 +78,10 @@
     press(hand.pinch, true);
     step(hand, 1);
     out.emptyGrab = !!hand.emptyGrab;
+    // a small wobble (a pinch that just missed an object) leaves the slice alone
+    hand.grabPos.y += 0.008; step(hand, 1);
+    out.airDeadzone = +(pg.view.w - wBefore).toFixed(4);
+    hand.grabPos.y -= 0.008; step(hand, 1);
     for (let i = 0; i < 10; i++) { hand.grabPos.y += 0.01; step(hand, 1); }
     out.wScrub = +(pg.view.w - wBefore).toFixed(3);
     press(hand.pinch, false);
@@ -87,18 +91,60 @@
     const menu = app.menu.panel;
     menu.group.visible = true; menu.opacity = 1; menu.group.updateMatrixWorld(true);
     const btn = menu.widgets.find((w) => w.item && w.item.label === 'Tower');
-    const local = new THREE.Vector3(btn.x + btn.w / 2 - menu.width / 2, menu.height / 2 - (btn.y + btn.h / 2), 0.03);
+    const onButton = (b, z) => menu.fromPanel(b.x + b.w / 2, b.y + b.h / 2, z, hand.pokePos);
     hand.hasPoke = true;
-    hand.pokePos.copy(menu.group.localToWorld(local.clone()));
+    onButton(btn, 0.03);
     step(hand, 1);
-    local.z = 0.0;
-    hand.pokePos.copy(menu.group.localToWorld(local.clone()));
+    onButton(btn, 0.0);
     step(hand, 1);
     out.pokedTower = pg.preset === 'tower';
-    local.z = 0.05;
-    hand.pokePos.copy(menu.group.localToWorld(local.clone()));
+    out.pokeCursor = hand.pokeHit.panel === menu;
+    onButton(btn, 0.05);
     step(hand, 1);
+
+    // a panel that appears with a fingertip already at its surface isn't pressed,
+    // and pressing through it afterwards still works
+    const balls = menu.widgets.find((w) => w.item && w.item.label === 'Hyperballs');
+    const at = (z) => onButton(balls, z);
+    menu.group.visible = false;
+    at(0.002); step(hand, 1);
+    menu.group.visible = true; menu.group.updateMatrixWorld(true);
+    step(hand, 2);
+    out.appearUnderFinger = pg.preset; // still 'tower'
+    at(0.03); step(hand, 1);
+    at(0.0); step(hand, 1);
+    out.pressAfterAppear = pg.preset; // now 'balls'
+    at(0.05); step(hand, 1);
     hand.hasPoke = false;
+
+    // every scene's tips (every Hyperplay preset, hands and controllers) fit the
+    // 5 lines the menu gives them
+    const hintW = app.menu.panel.width - 2 * 0.014;
+    const hintLines = {};
+    for (const def of app.sceneList) {
+      app.setScene(def.key, true);
+      const sc = app.activeScene;
+      const presets = def.key === 'playground' ? ['sandbox', 'box', 'mirror', 'dice', 'orbits', 'shadows', 'worldline'] : [null];
+      for (const p of presets) {
+        if (p) sc.loadPreset(p);
+        for (const mode of ['hands', 'controllers']) {
+          hintLines[`${def.key}${p ? `/${p}` : ''}/${mode}`] = app.menu.panel._wrapString(sc.hint(mode), hintW, 500).length;
+        }
+      }
+    }
+    out.hintLines = hintLines;
+    app.setScene('playground', true);
+    pg.loadPreset('tower');
+
+    // pinch classification (thumb–index and thumb–middle distances, metres)
+    const classify = app.input.constructor.classifyPinch;
+    out.pinchKinds = {
+      index: classify(0.015, 0.045, false, false),
+      middleWithIndexNear: classify(0.026, 0.015, false, false),
+      middleHeldIndexBrushes: classify(0.012, 0.021, false, true),
+      bothTouching: classify(0.015, 0.016, false, false),
+      released: classify(0.031, 0.05, true, false),
+    };
 
     // sealed box puzzle: ball can't be dragged through glass
     pg.loadPreset('box');

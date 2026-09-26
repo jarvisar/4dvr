@@ -218,6 +218,7 @@ export class KleinScene extends SceneBase {
     this.subtitle = 'A room glued to itself with a flip';
     this.mood = 'klein';
     this.noOrbit = true;
+    this.locomotion = true; // snap turn and the comfort vignette (see App)
     this.showSelf = true;
 
     this.copies = [];
@@ -319,6 +320,7 @@ export class KleinScene extends SceneBase {
     const d = _v.copy(ix.grabPos).sub(this.pull.last);
     this.pull.last.copy(ix.grabPos);
     const gain = ix.isMouse ? 2.5 : 3.0;
+    this.app.addMotion(Math.hypot(d.x, d.z) * gain);
     this._moveRoom(d.x * gain, d.z * gain); // pulling the room towards you moves you forwards
   }
 
@@ -358,6 +360,7 @@ export class KleinScene extends SceneBase {
     for (const ix of app.input.xr) {
       if (ix.kind !== 'controller' || (!ix.stick.x && !ix.stick.y)) continue;
       _v2.set(ix.stick.x, 0, ix.stick.y).applyQuaternion(ix.rayQuat).setY(0).multiplyScalar(-dt * 1.2);
+      app.addMotion(_v2.length());
       this._moveRoom(_v2.x, _v2.z);
     }
     this._wrap();
@@ -455,7 +458,8 @@ export class KleinScene extends SceneBase {
   }
 
   hint(mode) {
-    const move = { hands: 'Walk, or pinch empty space and pull', controllers: 'Walk, or use the stick', desktop: 'Use WASD' }[mode];
+    const sticks = this.app.comfort.snapTurn ? 'Walk, or use the left stick (the right stick turns)' : 'Walk, or use the sticks';
+    const move = { hands: 'Walk, or pinch empty space and pull', controllers: sticks, desktop: 'Use WASD' }[mode];
     return `${move} to move. The cyan walls are glued straight across. The pink walls are glued with a flip, so crossing one leaves you mirror-reversed: text reads backwards and your left hand fits the right-hand print.`;
   }
 

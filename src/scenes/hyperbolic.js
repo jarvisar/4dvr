@@ -312,6 +312,7 @@ export class HyperbolicScene extends SceneBase {
     this.subtitle = 'Regular honeycombs in hyperbolic space';
     this.mood = 'hyperbolic';
     this.noOrbit = true;
+    this.locomotion = true; // snap turn and the comfort vignette (see App)
 
     this.uniforms = {
       uEyeInv: { value: new THREE.Matrix4() },
@@ -485,6 +486,7 @@ export class HyperbolicScene extends SceneBase {
     this.pull.last.copy(ix.grabPos);
     // move the viewer opposite to the hand motion, in head-local units
     const gain = (ix.isMouse ? 2.5 : 3.0) / this.uniforms.uL.value;
+    this.app.addMotion(d.length() * gain * this.uniforms.uL.value);
     _v.copy(d).multiplyScalar(-gain).applyQuaternion(this.app.headQuaternion.clone().invert());
     this._translateLocal([_v.x, _v.y, _v.z]);
   }
@@ -538,6 +540,7 @@ export class HyperbolicScene extends SceneBase {
     for (const ix of app.input.xr) {
       if (ix.kind !== 'controller' || (!ix.stick.x && !ix.stick.y)) continue;
       const v = _mv.set(ix.stick.x, 0, ix.stick.y).multiplyScalar(dt * 0.9);
+      app.addMotion(v.length() * L);
       v.applyQuaternion(ix.rayQuat).applyQuaternion(_qi.copy(quat).invert());
       _v3[0] = v.x; _v3[1] = v.y; _v3[2] = v.z;
       this._translateLocal(_v3);
@@ -588,7 +591,8 @@ export class HyperbolicScene extends SceneBase {
   hint(mode) {
     const blurb = HONEYCOMBS[this.hcKey].blurb;
     if (mode === 'desktop') return `${blurb} Moving in a loop leaves you rotated (holonomy).`;
-    if (mode === 'controllers') return `${blurb} Walk around, or use the stick to move. Walking in a loop leaves you rotated (holonomy).`;
+    const sticks = this.app.comfort.snapTurn ? 'Walk, or use the left stick to move and the right stick to turn.' : 'Walk, or use the sticks to move.';
+    if (mode === 'controllers') return `${blurb} ${sticks} You move where the controller points. Walking in a loop leaves you rotated (holonomy).`;
     return `${blurb} Walk around, or pinch empty space and pull to move. Walking in a loop leaves you rotated (holonomy).`;
   }
 

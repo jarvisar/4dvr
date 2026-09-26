@@ -12,6 +12,7 @@ const GAP = 0.007;
 const ROW_H = { title: 0.054, tabs: 0.036, buttons: 0.036, toggles: 0.036, slider: 0.054, text: 0.0 };
 const TEXT_SIZE = 0.0108;
 const LINE_H = 0.0158;
+const LEGEND_GAP = 0.005; // between the entries of a legend row
 // button labels: default and minimum font size (m), padding on each side
 const LABEL = { size: 0.0122, small: 0.0108, min: 0.0068, pad: 0.004 };
 // toggles: checkbox size and left inset, and where the label starts (m)
@@ -50,10 +51,15 @@ function setFont(ctx, weight, size, family) {
 }
 
 export class UIPanel {
-  constructor(ui, { width = 0.3, rows = [], name = 'panel' } = {}) {
+  /**
+   * `anchor: 'top'` puts the group's origin at the middle of the top edge
+   * instead of the centre, so rows below can change without moving the top.
+   */
+  constructor(ui, { width = 0.3, rows = [], name = 'panel', anchor = 'center' } = {}) {
     this.ui = ui;
     this.name = name;
     this.width = width;
+    this.anchorTop = anchor === 'top';
     this.height = 0.1;
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d');
@@ -110,6 +116,19 @@ export class UIPanel {
         const h = lines * LINE_H + 0.004;
         this.widgets.push({ type: 'text', row, x: PAD, y, w, h, lines });
         y += h;
+      } else if (row.type === 'legend') {
+        // two columns: a gesture or button, then what it does
+        setFont(this.ctx, 600, TEXT_SIZE * PX_PER_M, FONTS.sans);
+        const widest = Math.max(...row.items.map(([key]) => this.ctx.measureText(key).width)) / PX_PER_M;
+        const kw = Math.min(w * 0.4, widest + 0.014);
+        const items = row.items.map(([key, text]) => {
+          const k = this._wrapString(key, kw - 0.008, 600);
+          const t = this._wrapString(text, w - kw, 500);
+          return { k, t, n: Math.max(k.length, t.length) };
+        });
+        const h = items.reduce((s, it) => s + it.n * LINE_H, 0) + (items.length - 1) * LEGEND_GAP + 0.004;
+        this.widgets.push({ type: 'legend', row, x: PAD, y, w, h, items, kw });
+        y += h;
       } else if (row.type === 'spacer') {
         y += row.h || 0.006;
         continue;
@@ -120,6 +139,7 @@ export class UIPanel {
     this.canvas.width = Math.round(this.width * PX_PER_M);
     this.canvas.height = Math.round(this.height * PX_PER_M);
     this.mesh.scale.set(this.width, this.height, 1);
+    this.mesh.position.y = this.anchorTop ? -this.height / 2 : 0;
     this.texture.dispose();
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
@@ -133,6 +153,7 @@ export class UIPanel {
     let s = '';
     for (const w of this.widgets) {
       const r = w.row;
+      if (w.item && typeof w.item.label === 'function') s += w.item.label(); // e.g. Play / Pause
       if (w.type === 'tab') s += r.get() === w.item.value ? '1' : '0';
       else if (w.type === 'toggle') s += w.item.get() ? '1' : '0';
       else if (w.type === 'button' && w.item.active) s += w.item.active() ? '1' : '0';
@@ -161,7 +182,11 @@ export class UIPanel {
   /** Lines of a text row wrapped to `w` metres. */
   _wrap(row, w) {
     const text = typeof row.text === 'function' ? row.text() : row.text;
-    setFont(this.ctx, row.bold ? 600 : 500, TEXT_SIZE * PX_PER_M, FONTS.sans);
+    return this._wrapString(text, w, row.bold ? 600 : 500);
+  }
+
+  _wrapString(text, w, weight) {
+    setFont(this.ctx, weight, TEXT_SIZE * PX_PER_M, FONTS.sans);
     return wrapText(this.ctx, text, w * PX_PER_M);
   }
 
@@ -328,6 +353,19 @@ export class UIPanel {
         ctx.textBaseline = 'alphabetic';
         const ax = r.align === 'center' ? x + ww / 2 : x;
         lines.slice(0, w.lines).forEach((line, i) => ctx.fillText(line, ax, y + (0.0125 + i * LINE_H) * S));
+      } else if (w.type === 'legend') {
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        let yy = y;
+        for (const it of w.items) {
+          ctx.fillStyle = COLORS.ink;
+          setFont(ctx, 600, TEXT_SIZE * S, FONTS.sans);
+          it.k.forEach((line, i) => ctx.fillText(line, x, yy + (0.0125 + i * LINE_H) * S));
+          ctx.fillStyle = COLORS.muted;
+          setFont(ctx, 500, TEXT_SIZE * S, FONTS.sans);
+          it.t.forEach((line, i) => ctx.fillText(line, x + w.kw * S, yy + (0.0125 + i * LINE_H) * S));
+          yy += (it.n * LINE_H + LEGEND_GAP) * S;
+        }
       }
     }
     setFont(ctx, 400, 10, FONTS.sans);
@@ -339,13 +377,19 @@ export class UIPanel {
     out.copy(world);
     this.group.worldToLocal(out);
     out.x += this.width / 2;
-    out.y = this.height / 2 - out.y;
+    out.y = (this.anchorTop ? 0 : this.height / 2) - out.y;
     return out; // z = distance in front of the panel
+  }
+
+  /** World point for a panel-local point (the inverse of toPanel). */
+  fromPanel(x, y, z = 0, out = new THREE.Vector3()) {
+    out.set(x - this.width / 2, (this.anchorTop ? 0 : this.height / 2) - y, z);
+    return this.group.localToWorld(out);
   }
 
   widgetAt(px, py, pad = 0.004) {
     for (const w of this.widgets) {
-      if (w.type === 'title' || w.type === 'text') continue;
+      if (w.type === 'title' || w.type === 'text' || w.type === 'legend') continue;
       if (px >= w.x - pad && px <= w.x + w.w + pad && py >= w.y - pad && py <= w.y + w.h + pad) return w;
     }
     return null;
@@ -426,14 +470,19 @@ export class UISystem {
 
   /** Fingertip poke. Returns true when the finger is engaged with a panel. */
   updatePoke(ix) {
+    ix.pokeHit.panel = null;
     if (!ix.hasPoke) return false;
     let engaged = false;
     for (const p of this.panels) {
       if (!p.visible || !p.interactive || p.ownerIx === ix) { p.hover.delete(ix); p.pokeZ.delete(ix); continue; }
       p.toPanel(ix.pokePos, _p);
       const inside = _p.x > -0.01 && _p.x < p.width + 0.01 && _p.y > -0.01 && _p.y < p.height + 0.01;
-      const prevZ = p.pokeZ.has(ix) ? p.pokeZ.get(ix) : 1;
+      // A press needs the finger to move through the surface while the panel is
+      // shown. A panel that appears with a finger already at its surface doesn't
+      // count, so there's no previous depth on its first frame.
+      const prevZ = p.pokeZ.has(ix) ? p.pokeZ.get(ix) : _p.z;
       p.pokeZ.set(ix, _p.z);
+      const hit = ix.pokeHit;
       const pressedW = p.pressed.get(ix);
       if (pressedW) {
         if (_p.z > 0.018 || !inside) {
@@ -442,11 +491,13 @@ export class UISystem {
           if (pressedW.type === 'slider') p.dragSlider(pressedW, _p.x);
           engaged = true;
           ix.uiEngaged = true;
+          hit.panel = p; hit.x = _p.x; hit.y = _p.y; hit.z = _p.z;
           continue;
         }
       }
       if (inside && _p.z < 0.045 && _p.z > -0.03) {
         engaged = true;
+        hit.panel = p; hit.x = _p.x; hit.y = _p.y; hit.z = _p.z;
         const w = p.widgetAt(_p.x, _p.y);
         if (w !== p.hover.get(ix)) {
           if (w) { this.app.audio.hover(); ix.pulse(0.1, 8); }

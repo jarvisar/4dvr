@@ -35,6 +35,27 @@ const HIST = 10;
 // Hand tracking often drops out for a few frames (hands overlapping, fast
 // motion). Keep the pinch state through short gaps so held objects aren't dropped.
 const TRACKING_GRACE = 0.2;
+
+// Pinch thresholds: distance between the thumb tip and a fingertip joint (metres).
+// A pinch starts at 2 cm and ends past 3 cm, so tracking noise can't flicker it.
+const PINCH_ON = 0.02;
+const PINCH_OFF = 0.03;
+
+/**
+ * Which pinch the thumb is making, from its distance to the index (dI) and
+ * middle (dM) fingertips. Only one pinch can be held at a time, so a middle
+ * pinch that brushes the index finger doesn't drop what it's holding. A middle
+ * pinch has to be clearly closer than the index, which often rests near the
+ * thumb during one.
+ */
+export function classifyPinch(dI, dM, pinchHeld, gripHeld) {
+  if (pinchHeld) return { pinch: dI < PINCH_OFF, grip: false };
+  if (gripHeld) return { pinch: false, grip: dM < PINCH_OFF + 0.004 };
+  const pinch = dI < PINCH_ON && dI <= dM + 0.002;
+  return { pinch, grip: !pinch && dM < PINCH_ON && dM < dI - 0.006 };
+}
+
+const strength = (d) => 1 - THREE.MathUtils.clamp((d - 0.012) / 0.05, 0, 1);
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _q = new THREE.Quaternion();
@@ -52,7 +73,8 @@ export class Interactor {
     this.btnA = new Button();
     this.btnB = new Button();
     this.stick = new THREE.Vector2();
-    this.pinchStrength = 0;
+    this.pinchStrength = 0; // 0 (fingers apart) to 1 (touching): thumb and index
+    this.gripStrength = 0;  // the same for the thumb and middle finger
 
     this.grabPos = new THREE.Vector3();
     this.grabQuat = new THREE.Quaternion();
@@ -61,6 +83,8 @@ export class Interactor {
     this.rayQuat = new THREE.Quaternion();
     this.pokePos = new THREE.Vector3();
     this.hasPoke = false;
+    // the panel under the fingertip this frame (set by UISystem.updatePoke), for the poke cursor
+    this.pokeHit = { panel: null, x: 0, y: 0, z: 0 };
     this.palmNormal = new THREE.Vector3();
     this.palmFacingHead = 0;
 
@@ -151,6 +175,8 @@ class Smoother {
 }
 
 export class InputSystem {
+  static classifyPinch = classifyPinch; // for tools/interaction-test.js
+
   constructor(app) {
     this.app = app;
     const r = app.renderer;
@@ -234,6 +260,9 @@ export class InputSystem {
         ix.pinch.set(hold && ix.pinch.pressed, ix.pinch.value);
         ix.grip.set(hold && ix.grip.pressed, ix.grip.value);
         ix.hasPoke = false;
+        // after a longer gap, start the filter afresh where the hand reappears
+        // instead of sweeping across from where it was lost
+        if (!hold) smoother.reset();
         return;
       }
       ix._lostT = 0;
@@ -243,13 +272,11 @@ export class InputSystem {
       const middle = ix.joints[J['middle-finger-tip']].pos;
       const dI = thumb.distanceTo(index);
       const dM = thumb.distanceTo(middle);
-      ix.pinchStrength = 1 - THREE.MathUtils.clamp((dI - 0.012) / 0.05, 0, 1);
-
-      // hysteresis thresholds (metres)
-      const pinchOn = ix.pinch.pressed ? dI < 0.032 : dI < 0.017;
-      const gripOn = !pinchOn && (ix.grip.pressed ? dM < 0.036 : (dM < 0.019 && dI > 0.03));
-      ix.pinch.set(pinchOn, ix.pinchStrength);
-      ix.grip.set(gripOn);
+      ix.pinchStrength = strength(dI);
+      ix.gripStrength = strength(dM);
+      const p = classifyPinch(dI, dM, ix.pinch.pressed, ix.grip.pressed);
+      ix.pinch.set(p.pinch, ix.pinchStrength);
+      ix.grip.set(p.grip, ix.gripStrength);
 
       // grab point: between thumb and the pinching finger
       const other = ix.grip.pressed ? middle : index;

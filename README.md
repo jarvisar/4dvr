@@ -25,15 +25,25 @@ Visit the [GitHub Pages site](https://ajarvis.co/anakata/) to access the latest 
 
 ### Hand Tracking
 
-Pinch with the thumb and index finger to grab, move, and throw objects. Pinch with the middle finger and move the hand to rotate an object through 4D. The object rotates in the plane made by the hand's direction and W.
+Pinch with the thumb and index finger to grab, move, and throw objects. Pinch with the middle finger and move the hand to rotate an object through 4D. The object rotates in the plane made by the hand's direction and W. A ring between the thumb and the closing finger shrinks as they close, so it shows which pinch is about to start.
 
-Pinch empty space and move up or down to move the slice along W. Middle-finger pinch empty space and move sideways to rotate the slice.
+Pinch empty space and move up or down to move the slice along W. Middle-finger pinch empty space and move sideways to rotate the slice. A readout next to the hand shows the value while it changes.
 
-Turn a palm towards your face to open the menu and press buttons with the other index finger. The menu has tabs for switching scenes and a Help button that shows the controls. Point and pinch to use distant UI.
+Look at a palm turned towards your face to open the menu next to that hand, and press buttons with the other index finger. A ring under the fingertip shows where the press will land, and the menu holds still while the other hand reaches for it. The menu has pages for the current scene, all scenes, and settings, and a Pin button that leaves it floating in place. Point and pinch to use distant UI.
 
 ### Controllers
 
 Use the trigger to grab, move, and throw objects, and the grip to rotate them through 4D. Push either stick up or down to move the slice along W, or left and right to rotate it. Press A or X to open the menu. Point and pull the trigger to use distant UI.
+
+In Hyperbolic Space, Spherical Space, and the Klein Room, the left stick moves and the right stick turns in 30° steps. With snap turning off, both sticks move.
+
+### Comfort and Accessibility
+
+- The first time each scene opens in VR, a panel explains its controls. How to play, in the menu's settings, shows them again.
+- A new scene opens in front of you, wherever you have walked or turned to.
+- Moving with the sticks, or by pinching empty space and pulling, darkens the edges of the view (a comfort vignette). The vignette and snap turning can be switched off in the menu's settings.
+- The slice position and rotation also have sliders in the menu, and Reset slice returns to the straight slice at w = 0.
+- Desktop browsers set to reduce motion start with auto-rotation off in Polytope Lab and Hopf Garden.
 
 ### Desktop
 
