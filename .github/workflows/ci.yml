@@ -1,0 +1,44 @@
+# Checks pull requests and non-main branches: production build plus a headless
+# Chrome smoke test that loads every scene and drives fake tracked hands
+# through the interaction code (see tools/ci-smoke.mjs).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main] # main is covered by the deploy workflow
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Smoke test (headless Chrome, SwiftShader WebGL)
+        run: node tools/ci-smoke.mjs
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-artifacts
+          path: smoke-artifacts/
+          if-no-files-found: ignore

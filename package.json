@@ -1,0 +1,25 @@
+{
+  "name": "ana-kata",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "WebXR app for viewing and interacting with 4D objects, higher-dimensional geometry and hyperbolic space (Three.js, Meta Quest hand tracking).",
+  "scripts": {
+    "dev": "vite",
+    "dev:http": "vite --mode http",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:smoke": "vite build && node tools/ci-smoke.mjs"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "puppeteer-core": "^25.12.0",
+    "vite": "^8.3.1"
+  },
+  "engines": {
+    "node": ">=20.19"
+  }
+}
