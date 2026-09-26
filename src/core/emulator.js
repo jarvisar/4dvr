@@ -11,6 +11,6 @@ export async function installEmulator(mode) {
     const { DevUI } = await import('@iwer/devui');
     device.installDevUI(DevUI);
   }
-  window.__xrDevice = device; // for tools/vr-test.js and the console
+  window.__xrDevice = device; // for tools/ci-smoke.mjs and the console
   return device;
 }

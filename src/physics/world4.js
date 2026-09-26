@@ -3,7 +3,8 @@
 // Each body has a position x (vec4), velocity v, rotation R (4x4) and angular
 // momentum L (a bivector with 6 rotation planes). Angular velocity is
 // ω = I⁻¹L, with the inertia tensor diagonal in the body's bivector basis
-// (I_ij = m(E[x_i²] + E[x_j²])).
+// (I_ij = m(E[x_i²] + E[x_j²])) when the body axes are principal axes, and a
+// full 6×6 matrix otherwise (see inertiaMatrix).
 //
 // Contacts come from colliders.js and are solved with sequential impulses,
 // friction, restitution and a separate position correction pass.
@@ -32,8 +33,15 @@ export class Body4 {
     const m = this.collider.moments;
     this.inertia = R4.PLANES.map(([i, j]) => mass * (m[i] + m[j]));
     this.invInertia = this.inertia.map((I) => (I > 0 ? 1 / I : 0));
+    // full 6×6 map for bodies whose axes aren't principal axes (the tetracube)
+    this.inertiaMat = null;
+    this.invInertiaMat = null;
+    if (this.collider.products && mass > 0) {
+      this.inertiaMat = inertiaMatrix(mass, m, this.collider.products);
+      this.invInertiaMat = invert6(this.inertiaMat);
+    }
     const i0 = this.inertia[0];
-    this.isotropic = this.inertia.every((I) => Math.abs(I - i0) < i0 * 1e-3);
+    this.isotropic = !this.inertiaMat && this.inertia.every((I) => Math.abs(I - i0) < i0 * 1e-3);
     this.sleeping = false;
     this.sleepTimer = 0;
     this.kinematic = false; // immovable, optionally driven along target (fixed scenery)
@@ -52,13 +60,35 @@ export class Body4 {
   /** ω = I⁻¹ L, evaluated in the body frame. */
   updateOmega() {
     if (this.kinematic) return;
+    this.omegaAt(this.w, this.R);
+  }
+
+  /** Angular velocity the body would have with its angular momentum at orientation R. */
+  omegaAt(out, R) {
     if (this.isotropic) {
-      for (let k = 0; k < 6; k++) this.w[k] = this.L[k] * this.invInertia[0];
-      return;
+      for (let k = 0; k < 6; k++) out[k] = this.L[k] * this.invInertia[0];
+      return out;
     }
-    const b = R4.bivRotateInv(_b1, this.R, this.L);
-    for (let k = 0; k < 6; k++) b[k] *= this.invInertia[k];
-    R4.bivRotate(this.w, this.R, b);
+    const b = R4.bivRotateInv(_b1, R, this.L);
+    this._inertiaBody(b, true);
+    return R4.bivRotate(out, R, b);
+  }
+
+  /** Apply I (or I⁻¹) to a body-frame bivector, in place. */
+  _inertiaBody(b, inverse) {
+    const K = inverse ? this.invInertiaMat : this.inertiaMat;
+    if (K) {
+      for (let r = 0; r < 6; r++) {
+        let s = 0;
+        for (let c = 0; c < 6; c++) s += K[r * 6 + c] * b[c];
+        _b5[r] = s;
+      }
+      for (let k = 0; k < 6; k++) b[k] = _b5[k];
+    } else {
+      const d = inverse ? this.invInertia : this.inertia;
+      for (let k = 0; k < 6; k++) b[k] *= d[k];
+    }
+    return b;
   }
 
   /** Apply I⁻¹ (world) to a bivector. */
@@ -69,7 +99,7 @@ export class Body4 {
       return out;
     }
     const b = R4.bivRotateInv(_b2, this.R, B);
-    for (let k = 0; k < 6; k++) b[k] *= this.invInertia[k];
+    this._inertiaBody(b, true);
     return R4.bivRotate(out, this.R, b);
   }
 
@@ -102,18 +132,64 @@ export class Body4 {
       for (let k = 0; k < 6; k++) this.L[k] = B[k] * this.inertia[0];
     } else {
       const b = R4.bivRotateInv(_b1, this.R, B);
-      for (let k = 0; k < 6; k++) b[k] *= this.inertia[k];
+      this._inertiaBody(b, false);
       R4.bivRotate(this.L, this.R, b);
     }
     this.updateOmega();
   }
 }
 
-const _b1 = R4.biv(), _b2 = R4.biv(), _b3 = R4.biv(), _b4 = R4.biv();
+const _b1 = R4.biv(), _b2 = R4.biv(), _b3 = R4.biv(), _b4 = R4.biv(), _b5 = R4.biv();
+
+/**
+ * Inertia as a 6×6 matrix on body-frame bivectors, for second moments
+ * S = E[x xᵀ] with off-diagonal terms: L = m (S Ω + Ω S) (see rot4.js for Ω).
+ * With a diagonal S this reduces to I_ij = m (S_ii + S_jj).
+ */
+function inertiaMatrix(mass, diag, products) {
+  const S = [0, 1, 2, 3].map((i) => [0, 1, 2, 3].map((j) => (i === j ? diag[i] : 0)));
+  R4.PLANES.forEach(([i, j], k) => { S[i][j] = S[j][i] = products[k]; });
+  const K = new Float64Array(36);
+  for (let l = 0; l < 6; l++) {
+    const [p, q] = R4.PLANES[l]; // Ω = e_p e_qᵀ − e_q e_pᵀ
+    for (let k = 0; k < 6; k++) {
+      const [i, j] = R4.PLANES[k];
+      // (S Ω + Ω S)_ij = S_ip δ_qj − S_iq δ_pj + δ_ip S_qj − δ_iq S_pj
+      const v = (j === q ? S[i][p] : 0) - (j === p ? S[i][q] : 0) + (i === p ? S[q][j] : 0) - (i === q ? S[p][j] : 0);
+      K[k * 6 + l] = mass * v;
+    }
+  }
+  return K;
+}
+
+/** Inverse of a 6×6 matrix (Gauss–Jordan with partial pivoting). */
+function invert6(K) {
+  const a = Float64Array.from(K), inv = new Float64Array(36);
+  for (let i = 0; i < 6; i++) inv[i * 7] = 1;
+  for (let c = 0; c < 6; c++) {
+    let piv = c;
+    for (let r = c + 1; r < 6; r++) if (Math.abs(a[r * 6 + c]) > Math.abs(a[piv * 6 + c])) piv = r;
+    if (piv !== c) {
+      for (let k = 0; k < 6; k++) {
+        [a[c * 6 + k], a[piv * 6 + k]] = [a[piv * 6 + k], a[c * 6 + k]];
+        [inv[c * 6 + k], inv[piv * 6 + k]] = [inv[piv * 6 + k], inv[c * 6 + k]];
+      }
+    }
+    const d = 1 / a[c * 6 + c];
+    for (let k = 0; k < 6; k++) { a[c * 6 + k] *= d; inv[c * 6 + k] *= d; }
+    for (let r = 0; r < 6; r++) {
+      if (r === c) continue;
+      const f = a[r * 6 + c];
+      if (f === 0) continue;
+      for (let k = 0; k < 6; k++) { a[r * 6 + k] -= f * a[c * 6 + k]; inv[r * 6 + k] -= f * inv[c * 6 + k]; }
+    }
+  }
+  return inv;
+}
 const _pw = [0, 0, 0, 0], _pl = [0, 0, 0, 0], _n = [0, 0, 0, 0], _t = [0, 0, 0, 0];
 const _va = [0, 0, 0, 0], _vb = [0, 0, 0, 0], _rel = [0, 0, 0, 0], _J = [0, 0, 0, 0];
 const _tmp = [0, 0, 0, 0], _ps = [0, 0, 0, 0];
-const _M = R4.mat4(), _Om = R4.mat4();
+const _M = R4.mat4(), _Om = R4.mat4(), _Rh = R4.mat4(), _wh = R4.biv();
 let _minD = new Float64Array(64), _kept = new Uint8Array(64); // _reduce scratch
 
 const STATIC = { id: 0, invMass: 0, kinematic: true, x: [0, 0, 0, 0], v: [0, 0, 0, 0], w: R4.biv(), sleeping: false, friction: 0.6, restitution: 0.3,
@@ -193,7 +269,14 @@ export class World4 {
       for (let k = 0; k < 6; k++) b.L[k] *= ad;
       b.updateOmega();
       V.addScaled(b.x, b.x, b.v, dt);
-      R4.expBivector(_M, b.w, dt);
+      if (b.isotropic) R4.expBivector(_M, b.w, dt);
+      else {
+        // Midpoint rule: turn with ω at the half-step orientation. Using ω from
+        // the start of the step makes tumbling (anisotropic) bodies gain energy.
+        R4.expBivector(_M, b.w, dt * 0.5);
+        R4.multiply(_Rh, _M, b.R);
+        R4.expBivector(_M, b.omegaAt(_wh, _Rh), dt);
+      }
       R4.multiply(b.R, _M, b.R);
       b.updateOmega(); // L is conserved, ω follows the new orientation (precession)
       if (!b.held) this._sleepCheck(b, dt);
@@ -460,14 +543,19 @@ export class World4 {
     V.sub(_rel, _vb, _va);
     const vn = V.dot(_rel, c.n);
     const e = Math.max(a.restitution, b.restitution);
+    const closes = vn * dt < c.depth; // a speculative contact whose gap closes within this step
     if (c.depth < 0) {
       c.bias = c.depth / dt; // speculative: may approach by the remaining gap, no further
+      // If the gap closes within this step, bounce now. Otherwise the step
+      // before impact slows the body to gap/dt and restitution only acts on
+      // that, so bounces would depend on where the step boundary falls.
+      if (vn < -0.6 && closes) c.bias = -e * vn;
     } else {
       c.bias = vn < -0.6 ? -e * vn : 0;
       c.bias += Math.max(0, c.depth - 0.003) * 2.0; // extra push-out for deep overlaps
     }
     c.mu = Math.sqrt(a.friction * b.friction);
-    if (vn < -0.25 && c.depth > -0.002 && this.onImpact) {
+    if (vn < -0.25 && (c.depth > -0.002 || closes) && this.onImpact) {
       const t = this.time;
       if (t - (b.lastImpact || 0) > 0.07 && t - (a.lastImpact || 0) > 0.07) {
         b.lastImpact = t;

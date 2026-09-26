@@ -7,6 +7,7 @@
 // are handled separately.
 
 import { icosphere } from '../four/tetmesh.js';
+import { PLANES } from '../math/rot4.js';
 
 const hyp = Math.hypot;
 // Math.hypot is much slower than sqrt of a sum of squares (V8 does not inline
@@ -44,6 +45,7 @@ export class Collider {
     this.scale = s;
     let samples = [];
     let moments = null; // E[x_i²] per axis, for the inertia tensor
+    this.products = null; // E[x_i x_j] per plane [xy, xz, xw, yz, yw, zw], when not all zero
 
     switch (desc.type) {
       case 'sphere': {
@@ -74,7 +76,10 @@ export class Collider {
           if (!seen.has(k)) { seen.add(k); samples.push(v); }
         };
         let bound = 0;
-        const m = [0, 0, 0, 0];
+        // second moments about the body origin, which must be the centre of
+        // mass (boxes weighted by volume, assumed not to overlap)
+        const S = [0, 1, 2, 3].map(() => [0, 0, 0, 0]);
+        const vol = this.boxes.reduce((acc, { h }) => acc + h[0] * h[1] * h[2] * h[3], 0);
         for (const { c, h } of this.boxes) {
           for (let mask = 0; mask < 16; mask++) addSample([0, 1, 2, 3].map((i) => c[i] + (mask & (1 << i) ? h[i] : -h[i])));
           for (let axis = 0; axis < 4; axis++) for (let mask = 0; mask < 16; mask++) {
@@ -82,10 +87,16 @@ export class Collider {
             addSample([0, 1, 2, 3].map((i) => c[i] + (i === axis ? 0 : (mask & (1 << i) ? h[i] : -h[i]))));
           }
           bound = Math.max(bound, hyp(...c) + hyp(...h));
-          for (let i = 0; i < 4; i++) m[i] += (c[i] * c[i] + (h[i] * h[i]) / 3) / this.boxes.length;
+          const f = (h[0] * h[1] * h[2] * h[3]) / vol;
+          for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) S[i][j] += f * (c[i] * c[j] + (i === j ? (h[i] * h[i]) / 3 : 0));
         }
         this.bound = bound;
-        moments = m;
+        moments = [S[0][0], S[1][1], S[2][2], S[3][3]];
+        // A union of boxes (like the chiral tetracube) generally has
+        // E[x_i x_j] ≠ 0: its body axes aren't principal axes.
+        const products = PLANES.map(([i, j]) => S[i][j]);
+        const scaleM = moments.reduce((a, b) => a + b, 0);
+        if (products.some((p) => Math.abs(p) > scaleM * 1e-9)) this.products = products;
         break;
       }
       case 'convex': {
@@ -162,7 +173,7 @@ export class Collider {
           }
         }
         this.bound = this.R + this.r;
-        moments = [this.R ** 2 / 3, this.R ** 2 / 3, this.R ** 2 / 3, this.r ** 2 / 2];
+        moments = [this.R ** 2 / 3, this.R ** 2 / 3, this.R ** 2 / 3, this.r ** 2 / 4]; // w: a solid disc of radius r
         break;
       }
       default:

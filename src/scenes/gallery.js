@@ -26,7 +26,7 @@ const SMOOTH = {
   duocylinder: 'Product of two discs. Its two curved cells meet at a flat torus.',
   tiger: 'Points within a fixed distance of a flat torus. Its surface is a 3-torus, and its cross-sections are often two tori.',
   spheritorus: 'Points within a fixed distance of a circle. Cross-sections are tori or pairs of spheres.',
-  torisphere: 'Points within a fixed distance of a 2-sphere. Cross-sections are spherical shells or spheres.',
+  torisphere: 'Points within a fixed distance of a 2-sphere. Cross-sections are spherical shells, tori or spheres.',
   cubinder: 'Product of a disc and a square.',
   spherinder: 'Product of a ball and a line segment.',
 };
