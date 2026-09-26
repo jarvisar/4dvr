@@ -3,7 +3,7 @@
 // entering VR.
 
 import * as THREE from 'three';
-import { UIPanel } from './ui.js';
+import { UIPanel, COLORS } from './ui.js';
 import { J } from './input.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -12,8 +12,9 @@ const _to = new THREE.Vector3();
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
 
-// Desktop HUD layout, in CSS pixels (keeps clear of the HTML tab bar)
-const HUD = { top: 76, bottom: 76, right: 16, minW: 280, maxW: 360 };
+// Desktop HUD layout in CSS pixels. main.js replaces the margins with
+// app.hudInsets, measured from the HTML tab bar and buttons.
+const HUD = { top: 76, bottom: 76, right: 16, minW: 280, maxW: 440 };
 
 export class HandMenu {
   constructor(app) {
@@ -43,14 +44,15 @@ export class HandMenu {
         set: (k) => app.setScene(k),
       }] : []),
       ...scene.menuRows(),
-      {
+      // desktop has Menu and Help buttons in the HTML HUD instead
+      ...(vr ? [{
         type: 'buttons',
         items: [
-          ...(vr ? [{ label: () => (this.pinned ? 'Unpin menu' : 'Pin menu here'), onClick: () => this.togglePin(), small: true }] : []),
-          { label: 'Help', onClick: () => (vr || !app.onDesktopHelp ? app.welcome.show() : app.onDesktopHelp()), small: true },
+          { label: () => (this.pinned ? 'Unpin menu' : 'Pin menu here'), onClick: () => this.togglePin(), small: true },
+          { label: 'Help', onClick: () => app.welcome.show(), small: true },
         ],
-      },
-      { type: 'text', text: () => scene.hint(), lines: 4 },
+      }] : []),
+      { type: 'text', text: () => scene.hint(app.inputMode), lines: 5 },
     ];
     if (app.statsEnabled) rows.push({ type: 'text', text: () => app.statsText, lines: 1, color: '#eceef4' });
     this.panel.setRows(rows);
@@ -91,14 +93,15 @@ export class HandMenu {
     const W = window.innerWidth, H = window.innerHeight;
     const pw = this.panel.width, ph = this.panel.height;
     const tan = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+    const { top, bottom, right } = this.app.hudInsets || HUD;
     const narrow = W < 720;
-    let wpx = narrow ? Math.min(W - 32, HUD.maxW) : THREE.MathUtils.clamp(W * 0.27, HUD.minW, HUD.maxW);
+    let wpx = narrow ? Math.min(W - 2 * right, HUD.maxW) : THREE.MathUtils.clamp(W * 0.27, HUD.minW, HUD.maxW);
     let hpx = (wpx * ph) / pw;
-    const availH = H - HUD.top - (narrow ? 16 : HUD.bottom);
+    const availH = H - top - bottom;
     if (hpx > availH) { hpx = Math.max(120, availH); wpx = (hpx * pw) / ph; }
     const d = (ph * H) / (hpx * 2 * tan); // distance at which ph metres spans hpx pixels
-    const cx = narrow ? W / 2 : W - HUD.right - wpx / 2;
-    const cy = HUD.top + hpx / 2;
+    const cx = narrow ? W / 2 : W - right - wpx / 2;
+    const cy = top + hpx / 2;
     const g = this.panel.group;
     g.position.set((cx / W * 2 - 1) * d * tan * cam.aspect, (1 - (cy / H) * 2) * d * tan, -d);
     g.quaternion.identity();
@@ -186,14 +189,14 @@ export class WelcomePanel {
   }
 
   rebuild() {
-    const controllers = this.app.input.xr.some((ix) => ix.kind === 'controller');
+    const controllers = this.app.inputMode === 'controllers';
     const text = controllers
-      ? 'Trigger: grab and throw. Grip: rotate an object through 4D.\nStick up/down: move the slice along W. Stick left/right: rotate the slice.\nA / X: open the menu. Point at distant objects and UI and pull the trigger to use them.'
-      : 'Pinch (thumb + index) to grab and throw. Middle-finger pinch an object and move your hand to rotate it through 4D.\nPinch empty space and move up or down to move the slice along W.\nTurn a palm towards your face to open the menu.';
+      ? 'Trigger: grab and throw. Grip: rotate an object through 4D.\nStick up/down: move the slice along w. Stick left/right: rotate the slice.\nA / X: open the menu. Point at distant objects and the menu and pull the trigger to use them.'
+      : 'Pinch (thumb + index) to grab and throw. Middle-finger pinch an object and move your hand to rotate it through 4D.\nPinch empty space and move up or down to move the slice along w.\nTurn a palm towards your face to open the menu.';
     this.panel.setRows([
-      { type: 'title', text: '4D VR', sub: 'How to use' },
-      { type: 'text', text: 'The 4D scenes are shown as 3D cross-sections. Ana is the +w direction and kata is the -w direction.', lines: 3, color: '#dfe2ff' },
-      { type: 'text', text, lines: 6 },
+      { type: 'title', text: '4D VR', sub: 'Controls' },
+      { type: 'text', text: '4D objects are shown as 3D cross-sections. The fourth axis is w. The +w direction is called ana and -w is called kata.', lines: 3, color: COLORS.ink },
+      { type: 'text', text, lines: 8 },
       { type: 'buttons', items: [{ label: 'Close', onClick: () => this.hide() }], height: 0.042 },
     ]);
   }

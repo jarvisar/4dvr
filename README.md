@@ -21,11 +21,13 @@ Once GitHub Pages is enabled (see [Deploying](#deploying)), the latest deploymen
 | Move the slice along W | Pinch empty space and move up or down | Left or right stick up/down | Scroll wheel, Q/E |
 | Rotate the slice (xw/zw) | Middle-finger pinch empty space and move sideways | Stick left/right | Right drag on empty space, A/D |
 | Menu | Turn a palm towards your face, press buttons with the other index finger | A / X | Panel on the right (M toggles it) |
-| Controls help | Help button in the menu | Help button in the menu | H toggles the controls card |
+| Controls help | Help button in the menu | Help button in the menu | Help button or H toggles the controls card |
 | Switch scene | Tabs in the menu | Tabs in the menu | 1–5, or the tab bar |
 | Distant UI | Point and pinch | Point and pull the trigger | Click |
 
 In Hyperbolic Space, pinching empty space moves you through the space. On desktop, use WASD to move and drag to look. In Hopf Garden, touch the globe to add fibers and pinch it to rotate it.
+
+On touch screens, drag an object to move it and drag empty space to orbit. The menu has the slice controls. Rotating objects through 4D, changing a strand's w and moving in Hyperbolic Space need a mouse and keyboard or a headset.
 
 ## Local Installation
 
@@ -65,6 +67,7 @@ URL parameters:
 - `?scale=0.8` sets the XR framebuffer scale (lower if a Quest 2 drops frames)
 - `?hz=90` requests a 90 Hz refresh rate
 - `?stats` shows frame rate, CPU time per frame, draw calls and triangles (in the HUD on desktop, in the hand menu in VR)
+- `?iwer` emulates a Quest 3 with [IWER](https://github.com/meta-quest/immersive-web-emulation-runtime), so the VR mode can be tried in a desktop browser. Its panel moves the headset, controllers and hands. The start screen links to it when no headset is found. `?iwer=headless` loads the emulator without the panel (used by the smoke tests).
 
 ## Deploying
 
@@ -74,7 +77,7 @@ The site is deployed to GitHub Pages with GitHub Actions.
 2. Go to **Settings > Pages** and set **Source** to **GitHub Actions**.
 3. Push to `main`.
 
-[deploy.yml](.github/workflows/deploy.yml) builds the site, runs the smoke tests and deploys `dist/`. [ci.yml](.github/workflows/ci.yml) runs the build and smoke tests on pull requests and other branches, and uploads screenshots of each scene as artifacts. [dependabot.yml](.github/dependabot.yml) checks for npm and Actions updates weekly.
+[deploy.yml](.github/workflows/deploy.yml) builds the site, runs the smoke tests and deploys `dist/`. [ci.yml](.github/workflows/ci.yml) runs the build and smoke tests on pull requests and other branches, and uploads screenshots of each scene and of the in-headset menus (rendered through IWER) as artifacts. [dependabot.yml](.github/dependabot.yml) checks for npm and Actions updates weekly.
 
 ## Implementation
 

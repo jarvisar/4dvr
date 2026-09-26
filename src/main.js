@@ -24,20 +24,34 @@ async function loadExtraScenes() {
 const $ = (id) => document.getElementById(id);
 const overlay = $('overlay');
 const hud = $('hud');
+const hudTop = hud.querySelector('.hud-top');
 const tabs = $('scene-tabs');
 const helpBox = $('hud-help');
 const helpList = $('hud-help-list');
-const hudId = $('hud-id');
 const menuBtn = $('hud-menu');
 const helpBtn = $('hud-help-toggle');
+const toolsEl = hud.querySelector('.hud-tools');
 const statsEl = $('hud-stats');
 const vrBtn = $('enter-vr');
 const deskBtn = $('enter-desktop');
 const hudVr = $('hud-vr');
-const note = $('xr-note');
+const actions = $('actions');
 const status = $('xr-status');
-const statusText = $('xr-status-text');
+const note = $('xr-note');
 const index = $('scene-index');
+
+// touch screens get touch instructions in the controls card
+const touch = matchMedia('(hover: none) and (pointer: coarse)').matches;
+// below this width the controls card and the menu would overlap, so only one is open at a time
+const cramped = () => window.innerWidth < 800;
+
+const params = new URLSearchParams(location.search);
+if (params.has('iwer')) {
+  // WebXR emulation for testing and demos without a headset (see core/emulator.js)
+  await import('./core/emulator.js')
+    .then((m) => m.installEmulator(params.get('iwer')))
+    .catch((e) => console.error('Could not load the WebXR emulator', e));
+}
 
 let app;
 try {
@@ -63,23 +77,56 @@ function requestScene(key) {
 
 function renderTabs() {
   tabs.innerHTML = '';
+  let active = null;
   SCENES.forEach((s, i) => {
     const b = document.createElement('button');
     b.innerHTML = `<i>${i + 1}</i>${s.short}`;
     b.title = `${s.short} (${i + 1})`;
-    b.className = s.key === app.sceneKey ? 'active' : '';
+    if (s.key === app.sceneKey) {
+      b.className = 'active';
+      b.setAttribute('aria-current', 'true');
+      active = b;
+    }
     b.onclick = () => app.setScene(s.key);
     tabs.appendChild(b);
   });
-  const i = SCENES.findIndex((s) => s.key === app.sceneKey);
-  hudId.innerHTML = `Scene <b>${String(i + 1).padStart(2, '0')}</b> · ${app.activeScene?.title || ''}`;
   // "<b>Key</b> does something · …" → one row per control
-  helpList.innerHTML = (app.activeScene?.desktopHelp() || '')
+  helpList.innerHTML = (app.activeScene?.desktopHelp({ touch }) || '')
     .split(' · ')
     .map((item) => `<li>${item}</li>`)
     .join('');
   for (const b of index.querySelectorAll('button')) b.classList.toggle('selected', b.dataset.scene === app.sceneKey);
+  if (active && !hud.hidden) {
+    // keep the current scene's tab in view when the bar scrolls (phones)
+    const t = tabs.getBoundingClientRect(), a = active.getBoundingClientRect();
+    tabs.scrollLeft += a.left - t.left - (t.width - a.width) / 2;
+  }
+  updateTabFade();
+  measureHud();
 }
+
+function updateTabFade() {
+  const max = tabs.scrollWidth - tabs.clientWidth;
+  tabs.classList.toggle('more-left', max > 1 && tabs.scrollLeft > 1);
+  tabs.classList.toggle('more-right', max > 1 && tabs.scrollLeft < max - 1);
+}
+tabs.addEventListener('scroll', updateTabFade, { passive: true });
+
+// The desktop menu is drawn in the 3D canvas. Tell it where the HTML controls
+// are so it fits between them.
+function measureHud() {
+  if (hud.hidden) return;
+  const H = window.innerHeight;
+  const edge = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--edge')) || 16;
+  let bottom = H - edge;
+  for (const el of [hudVr, toolsEl]) {
+    if (el.hidden) continue;
+    const r = el.getBoundingClientRect();
+    if (r.height && r.top > H / 2) bottom = Math.min(bottom, r.top - 10);
+  }
+  app.hudInsets = { top: hudTop.getBoundingClientRect().bottom + 10, bottom: H - bottom, right: edge };
+}
+window.addEventListener('resize', () => { updateTabFade(); measureHud(); });
 
 app.onSceneChanged = () => {
   renderTabs();
@@ -91,10 +138,11 @@ app.onSceneChanged = () => {
 app.onSessionChange = (on) => {
   hud.hidden = on;
   app.hudActive = !on;
-  if (!on) overlay.classList.add('hidden');
+  overlay.classList.add('hidden'); // also when a session starts without the Enter VR button
+  if (!on) renderTabs();
 };
 
-const initial = new URLSearchParams(location.search).get('scene') || 'playground';
+const initial = params.get('scene') || 'playground';
 app.setScene('playground', true);
 loadExtraScenes().then(() => {
   renderTabs();
@@ -108,15 +156,24 @@ loadExtraScenes().then(() => {
 function setHelp(open) {
   helpBox.classList.toggle('closed', !open);
   helpBtn.classList.toggle('on', open);
+  helpBtn.setAttribute('aria-pressed', String(open));
   pref.set('help', open);
+  if (open && cramped() && app.desktopMenu) app.setDesktopMenu(false);
 }
 app.onDesktopHelp = () => setHelp(helpBox.classList.contains('closed'));
 helpBtn.onclick = app.onDesktopHelp;
-setHelp(pref.get('help', window.innerWidth >= 720));
 
-app.onDesktopMenuChanged = (on) => menuBtn.classList.toggle('on', on);
+function syncMenuButton(on) {
+  menuBtn.classList.toggle('on', on);
+  menuBtn.setAttribute('aria-pressed', String(on));
+}
+app.onDesktopMenuChanged = (on) => {
+  syncMenuButton(on);
+  if (on && cramped() && !helpBox.classList.contains('closed')) setHelp(false);
+};
 menuBtn.onclick = () => app.setDesktopMenu(!app.desktopMenu);
-menuBtn.classList.toggle('on', app.desktopMenu);
+syncMenuButton(app.desktopMenu);
+setHelp(pref.get('help', !cramped()));
 
 if (app.statsEnabled) {
   statsEl.hidden = false;
@@ -126,33 +183,41 @@ if (app.statsEnabled) {
 // --- WebXR availability -------------------------------------------------------
 let xrOk = false;
 function setStatus(text, state) {
-  statusText.textContent = text;
+  note.textContent = text;
   status.className = `status ${state}`;
 }
-setStatus('Checking headset', 'pending');
 
 async function checkXR() {
   if (!('xr' in navigator)) {
-    setStatus('No WebXR', 'off');
-    note.textContent = window.isSecureContext
-      ? 'This browser has no WebXR. Open the page in the Meta Quest Browser to enter VR.'
-      : 'WebXR needs HTTPS. Serve over https (npm run dev does this) and open it on your headset.';
+    setStatus(window.isSecureContext
+      ? 'This browser has no WebXR. Open the page in the Meta Quest Browser to use VR.'
+      : 'WebXR needs HTTPS. Serve over https (npm run dev does this) and open it on your headset.', 'off');
   } else {
     xrOk = await navigator.xr.isSessionSupported('immersive-vr').catch(() => false);
     if (xrOk) {
-      setStatus('Headset ready', 'ok');
-      note.textContent = 'Hand tracking and controllers are both supported.';
+      setStatus(params.has('iwer')
+        ? 'Emulated headset (IWER). Use the emulator controls to move the headset, controllers and hands.'
+        : 'Headset ready. Hands and controllers both work.', 'ok');
       hudVr.hidden = false;
     } else {
-      setStatus('No headset', 'off');
-      note.textContent = 'No VR headset detected. Every scene also works with a mouse and keyboard.';
+      setStatus('No VR headset found. Every scene also works with a mouse, keyboard or touch.', 'off');
     }
   }
-  // the available path is the primary action
+  if (!xrOk && window.isSecureContext && !params.has('iwer')) {
+    // offer the in-browser headset emulator for demos
+    const url = new URL(location.href);
+    url.searchParams.set('iwer', '');
+    const a = document.createElement('a');
+    a.href = url.search.replace('iwer=', 'iwer');
+    a.textContent = 'Try the VR emulator';
+    note.append(' ', a);
+  }
   vrBtn.disabled = !xrOk;
   vrBtn.textContent = xrOk ? 'Enter VR' : 'VR unavailable';
   vrBtn.classList.toggle('primary', xrOk);
   deskBtn.classList.toggle('primary', !xrOk);
+  actions.classList.toggle('no-xr', !xrOk);
+  measureHud();
 }
 checkXR();
 
@@ -162,7 +227,7 @@ const enterVR = async () => {
     await app.enterVR();
   } catch (e) {
     console.error(e);
-    note.textContent = `Could not start VR: ${e.message}`;
+    setStatus(`Could not start VR: ${e.message}`, 'off');
     overlay.classList.remove('hidden');
   }
 };
@@ -187,4 +252,4 @@ index.addEventListener('click', (e) => {
   if (!xrOk) enterDesktop();
 });
 
-if (new URLSearchParams(location.search).has('desktop')) enterDesktop();
+if (params.has('desktop')) enterDesktop();

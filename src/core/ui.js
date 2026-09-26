@@ -10,15 +10,17 @@ const PX_PER_M = 2000;
 const PAD = 0.014;
 const GAP = 0.007;
 const ROW_H = { title: 0.054, tabs: 0.036, buttons: 0.036, toggles: 0.036, slider: 0.054, text: 0.0 };
+const TEXT_SIZE = 0.0108;
+const LINE_H = 0.0158;
+// button labels: default and minimum font size (m), padding on each side
+const LABEL = { size: 0.0116, small: 0.0102, min: 0.0068, pad: 0.004 };
 
-// Visual language shared with style.css: near-black instrument panels,
-// chamfered top-left / bottom-right corners, hairline frames with corner
-// brackets, white-filled selection. Pink (ana, +w) and cyan (kata, −w) are
-// only used where they mean a direction along w.
+// Same colours and fonts as style.css: dark panels with a hairline frame,
+// top-left / bottom-right corners cut at 45°, white-filled selection. Pink
+// (ana, +w) and cyan (kata, −w) are only used where they mean a direction along w.
 export const COLORS = {
   bg: 'rgba(9, 10, 15, 0.94)',
   frame: 'rgba(255, 255, 255, 0.14)',
-  bracket: 'rgba(236, 238, 244, 0.8)',
   ink: '#eceef4',
   inkDark: '#0a0b10',
   muted: '#8a90a3',
@@ -110,8 +112,10 @@ export class UIPanel {
         this.widgets.push({ type: 'slider', row, x: PAD, y, w, h: ROW_H.slider });
         y += ROW_H.slider;
       } else if (row.type === 'text') {
-        const h = (row.lines || 2) * 0.0158 + 0.004;
-        this.widgets.push({ type: 'text', row, x: PAD, y, w, h });
+        // as tall as the current text needs, up to row.lines
+        const lines = Math.max(1, Math.min(row.lines || 8, this._wrap(row, w).length));
+        const h = lines * LINE_H + 0.004;
+        this.widgets.push({ type: 'text', row, x: PAD, y, w, h, lines });
         y += h;
       } else if (row.type === 'spacer') {
         y += row.h || 0.006;
@@ -156,8 +160,46 @@ export class UIPanel {
       this._sig = sig;
       this._lastDraw = time;
       this.draw();
+      if (this._relayout) this.setRows(this.rows); // a text row outgrew its space
     }
     this.material.opacity = this.opacity;
+  }
+
+  /** Lines of a text row wrapped to `w` metres. */
+  _wrap(row, w) {
+    const text = typeof row.text === 'function' ? row.text() : row.text;
+    setFont(this.ctx, row.bold ? 600 : 400, TEXT_SIZE * PX_PER_M, FONTS.sans);
+    return wrapText(this.ctx, text, w * PX_PER_M);
+  }
+
+  /**
+   * Font size and letter spacing (px) for each button row's labels: the
+   * largest that fits every label in the row, so a row never mixes sizes.
+   * Letter spacing is removed before the size is reduced.
+   */
+  _fitLabels() {
+    const ctx = this.ctx;
+    const S = PX_PER_M;
+    const fit = new Map();
+    for (const w of this.widgets) {
+      if (w.type !== 'button' && w.type !== 'tab' && w.type !== 'toggle') continue;
+      const label = labelText(w.item);
+      const maxW = (w.type === 'toggle' ? w.w - 0.027 - LABEL.pad : w.w - 2 * LABEL.pad) * S;
+      let size = (w.item.small ? LABEL.small : LABEL.size) * S;
+      let spacing = size * 0.06;
+      setFont(ctx, 600, size, FONTS.display, spacing);
+      if (ctx.measureText(label).width > maxW) {
+        spacing = 0;
+        setFont(ctx, 600, size, FONTS.display, 0);
+        while (ctx.measureText(label).width > maxW && size > LABEL.min * S) {
+          size = Math.max(LABEL.min * S, size * 0.95);
+          setFont(ctx, 600, size, FONTS.display, 0);
+        }
+      }
+      const f = fit.get(w.row);
+      fit.set(w.row, f ? { size: Math.min(f.size, size), spacing: Math.min(f.spacing, spacing) } : { size, spacing });
+    }
+    return fit;
   }
 
   draw() {
@@ -166,30 +208,19 @@ export class UIPanel {
     const W = this.canvas.width, H = this.canvas.height;
     ctx.clearRect(0, 0, W, H);
 
-    // panel: chamfered plate, hairline frame, bright brackets on the square corners
-    const c = 0.012 * S, inset = 2;
-    chamfer(ctx, inset, inset, W - 2 * inset, H - 2 * inset, c);
+    // panel: plate with a hairline frame
+    const inset = 2;
+    chamfer(ctx, inset, inset, W - 2 * inset, H - 2 * inset, 0.012 * S);
     ctx.fillStyle = COLORS.bg;
     ctx.fill();
     ctx.lineWidth = 2;
     ctx.strokeStyle = COLORS.frame;
     ctx.stroke();
-    const bl = 0.014 * S;
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = COLORS.bracket;
-    ctx.beginPath();
-    ctx.moveTo(W - inset - bl, inset); ctx.lineTo(W - inset, inset); ctx.lineTo(W - inset, inset + bl);
-    ctx.moveTo(inset, H - inset - bl); ctx.lineTo(inset, H - inset); ctx.lineTo(inset + bl, H - inset);
-    ctx.stroke();
-    // the two cut corners are the ends of the w axis: kata (−w) and ana (+w)
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = COLORS.kata;
-    ctx.beginPath(); ctx.moveTo(inset, inset + c); ctx.lineTo(inset + c, inset); ctx.stroke();
-    ctx.strokeStyle = COLORS.ana;
-    ctx.beginPath(); ctx.moveTo(W - inset, H - inset - c); ctx.lineTo(W - inset - c, H - inset); ctx.stroke();
 
     const hovered = new Set(this.hover.values());
     const pressed = new Set(this.pressed.values());
+    const labelFit = this._fitLabels();
+    this._relayout = false;
 
     for (const w of this.widgets) {
       const x = w.x * S, y = w.y * S, ww = w.w * S, hh = w.h * S;
@@ -206,14 +237,8 @@ export class UIPanel {
           setFont(ctx, 400, 0.0098 * S, FONTS.mono, 0.0006 * S);
           ctx.fillText(String(r.sub).toUpperCase(), x, y + 0.038 * S);
         }
-        setFont(ctx, 400, 10, FONTS.sans);
-        // rule with a short w-axis mark: kata | ana
-        const ry = y + hh - 0.004 * S;
         ctx.fillStyle = COLORS.frame;
-        ctx.fillRect(x, ry, ww, 2);
-        const seg = 0.012 * S;
-        ctx.fillStyle = COLORS.kata; ctx.fillRect(x, ry - 1, seg, 4);
-        ctx.fillStyle = COLORS.ana; ctx.fillRect(x + seg, ry - 1, seg, 4);
+        ctx.fillRect(x, y + hh - 0.004 * S, ww, 2);
       } else if (w.type === 'button' || w.type === 'tab' || w.type === 'toggle') {
         const on = w.type === 'tab' ? r.get() === w.item.value : w.type === 'toggle' ? w.item.get() : (w.item.active ? w.item.active() : false);
         const isHover = hovered.has(w), isPressed = pressed.has(w);
@@ -240,16 +265,10 @@ export class UIPanel {
           ctx.textAlign = 'left';
         }
         ctx.fillStyle = selected ? COLORS.inkDark : (w.type === 'toggle' && !on ? '#b9bdcb' : COLORS.ink);
-        const label = String(typeof w.item.label === 'function' ? w.item.label() : w.item.label).toUpperCase();
-        let size = (w.item.small ? 0.0102 : 0.0116) * S;
-        setFont(ctx, 600, size, FONTS.display, size * 0.06);
-        const maxW = w.type === 'toggle' ? ww - (tx - x) - 0.005 * S : ww - 0.01 * S;
-        while (ctx.measureText(label).width > maxW && size > 0.0068 * S) {
-          size *= 0.93;
-          setFont(ctx, 600, size, FONTS.display, size * 0.04);
-        }
+        const { size, spacing } = labelFit.get(r);
+        setFont(ctx, selected ? 700 : 600, size, FONTS.display, spacing); // dark-on-light text looks thinner
         ctx.textBaseline = 'middle';
-        ctx.fillText(label, tx, y + hh / 2 + 0.0009 * S);
+        ctx.fillText(labelText(w.item), tx, y + hh / 2 + 0.0009 * S);
       } else if (w.type === 'slider') {
         const v = r.get();
         const span = r.max - r.min;
@@ -292,14 +311,13 @@ export class UIPanel {
         ctx.fillStyle = COLORS.ink;
         ctx.fillRect(kx - kw / 2, ty - kh / 2, kw, kh);
       } else if (w.type === 'text') {
-        const text = typeof r.text === 'function' ? r.text() : r.text;
+        const lines = this._wrap(r, w.w);
+        if (lines.length > w.lines && w.lines < (r.lines || 8)) this._relayout = true;
         ctx.fillStyle = r.color || COLORS.muted;
-        setFont(ctx, r.bold ? 600 : 400, 0.0108 * S, FONTS.sans);
         ctx.textAlign = r.align || 'left';
         ctx.textBaseline = 'alphabetic';
-        const lines = wrapText(ctx, text, ww);
         const ax = r.align === 'center' ? x + ww / 2 : x;
-        lines.slice(0, r.lines || 2).forEach((line, i) => ctx.fillText(line, ax, y + (0.0125 + i * 0.0158) * S));
+        lines.slice(0, w.lines).forEach((line, i) => ctx.fillText(line, ax, y + (0.0125 + i * LINE_H) * S));
       }
     }
     setFont(ctx, 400, 10, FONTS.sans);
@@ -341,6 +359,10 @@ export class UIPanel {
   }
 }
 
+function labelText(item) {
+  return String(typeof item.label === 'function' ? item.label() : item.label).toUpperCase();
+}
+
 function wrapText(ctx, text, maxW) {
   const out = [];
   for (const para of String(text).split('\n')) {
@@ -366,12 +388,12 @@ export class UISystem {
     this.root = new THREE.Group();
     this.root.name = 'ui';
     app.scene.add(this.root);
-    // Canvas text only uses web fonts that have finished loading, so redraw
-    // every panel once they arrive.
+    // Canvas text only uses web fonts that have finished loading, so lay out
+    // and redraw every panel once they arrive.
     if (document.fonts?.load) {
       const faces = [`700 20px ${FONTS.display}`, `600 20px ${FONTS.display}`, `400 20px ${FONTS.sans}`, `500 20px ${FONTS.mono}`];
       Promise.all(faces.map((f) => document.fonts.load(f)))
-        .then(() => { for (const p of this.panels) { p._sig = ''; p.draw(); } })
+        .then(() => { for (const p of this.panels) p.setRows(p.rows); })
         .catch(() => {});
     }
   }

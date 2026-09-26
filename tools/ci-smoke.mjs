@@ -5,6 +5,8 @@
 //    uncaught errors or shader/WebGL errors
 // 3. runs tools/interaction-test.js, which drives fake tracked hands through
 //    the real interaction code, and checks the outcomes
+// 4. enters a real WebXR session on an emulated Quest 3 (IWER, `?iwer=headless`)
+//    and checks the controls panel, controller ray, menus and the hand menu
 // Screenshots land in smoke-artifacts/ (uploaded by the CI workflow).
 
 import { spawn } from 'node:child_process';
@@ -121,6 +123,68 @@ try {
     ['head pose stays on the hyperboloid', Math.abs(r.hyperbolic?.lorentzCheck + 1) < 1e-3, r.hyperbolic?.lorentzCheck],
   ];
   for (const [name, ok, detail] of checks) (ok ? pass(name) : fail(`${name} (${detail})`));
+  await page.close();
+
+  // A real WebXR session on an emulated Quest 3 (IWER), rendered as one view.
+  console.log('vr (IWER emulator)');
+  const vr = await browser.newPage();
+  await vr.setViewport({ width: 1000, height: 900 });
+  vr.on('pageerror', (e) => fail(`vr pageerror: ${e.message}`));
+  await vr.goto(`${BASE}?iwer=headless`, { waitUntil: 'networkidle0', timeout: 60000 });
+  await new Promise((r) => setTimeout(r, 2500));
+  const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+  const ev = (js) => vr.evaluate(js);
+  await ev(`(async () => {
+    __xrDevice.position.set(0, 1.6, 0);
+    __xrDevice.quaternion.set(-0.1736, 0, 0, 0.9848); // looking 20° down
+    await __app.enterVR();
+  })()`);
+  await sleep(2000);
+  const started = await ev(`({ presenting: __app.presenting, welcome: __app.welcome.panel.group.visible, mode: __app.inputMode })`);
+  await vr.screenshot({ path: path.join(OUT, 'vr-welcome.png') });
+  // aim the right controller at the welcome panel's Close button and pull the trigger
+  await ev(`(() => {
+    const p = __app.welcome.panel, btn = p.widgets.find((w) => w.type === 'button');
+    const target = p.mesh.localToWorld(new (p.group.position.constructor)((btn.x + btn.w / 2) / p.width - 0.5, 0.5 - (btn.y + btn.h / 2) / p.height, 0));
+    const c = __xrDevice.controllers.right;
+    c.position.set(0.15, 1.3, -0.1);
+    const d = target.clone().sub(new (target.constructor)(0.15, 1.3, -0.1)).normalize();
+    const q = new (__app.camera.quaternion.constructor)().setFromUnitVectors(new (target.constructor)(0, 0, -1), d);
+    c.quaternion.set(q.x, q.y, q.z, q.w);
+  })()`);
+  await sleep(400);
+  await ev(`__xrDevice.controllers.right.updateButtonValue('trigger', 1)`); await sleep(300);
+  await ev(`__xrDevice.controllers.right.updateButtonValue('trigger', 0)`); await sleep(300);
+  const closed = await ev(`!__app.welcome.panel.group.visible`);
+  const menus = {};
+  for (const scene of SCENES) {
+    await ev(`__app.setScene('${scene}', true); __app.menu.pinned = false; __app.menu.shown = false;`);
+    await sleep(500);
+    await ev(`__xrDevice.controllers.right.updateButtonValue('a-button', 1)`); await sleep(250);
+    await ev(`__xrDevice.controllers.right.updateButtonValue('a-button', 0)`); await sleep(900);
+    menus[scene] = await ev(`(() => {
+      const p = __app.menu.panel;
+      const texts = p.widgets.filter((w) => w.type === 'text');
+      return { shown: __app.menu.shown, height: p.height, truncated: texts.filter((w) => p._wrap(w.row, w.w).length > w.lines).length };
+    })()`);
+    await vr.screenshot({ path: path.join(OUT, `vr-menu-${scene}.png`) });
+  }
+  // switch to tracked hands and turn the left palm towards the face
+  await ev(`__app.setScene('playground', true); __app.menu.pinned = false; __app.menu.shown = false; __xrDevice.primaryInputMode = 'hand';`);
+  await sleep(600);
+  await ev(`(() => { const L = __xrDevice.hands.left; L.position.set(-0.04, 1.2, -0.28); L.quaternion.set(1, 0, 0, 0); })()`);
+  await sleep(1200);
+  const hand = await ev(`({ shown: __app.menu.shown, owner: __app.menu.owner?.handedness, mode: __app.inputMode })`);
+  await vr.screenshot({ path: path.join(OUT, 'vr-hand-menu.png') });
+  const vrChecks = [
+    ['enters an immersive session', started.presenting, JSON.stringify(started)],
+    ['shows the controls panel on entry', started.welcome, JSON.stringify(started)],
+    ['controller ray presses a panel button', closed],
+    ['A button opens the menu in every scene', Object.values(menus).every((m) => m.shown), JSON.stringify(menus)],
+    ['menu text is never cut off', Object.values(menus).every((m) => m.truncated === 0), JSON.stringify(menus)],
+    ['palm towards the face opens the hand menu', hand.shown && hand.owner === 'left' && hand.mode === 'hands', JSON.stringify(hand)],
+  ];
+  for (const [name, ok, detail] of vrChecks) (ok ? pass(name) : fail(`${name} (${detail})`));
 } catch (e) {
   fail(String(e.stack || e));
 } finally {

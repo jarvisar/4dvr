@@ -10,5 +10,14 @@ export default defineConfig(({ mode }) => ({
   plugins: mode === 'http' || process.env.NO_SSL ? [] : [basicSsl()],
   server: { host: true, port: 5173 },
   preview: { host: true, port: 4173 },
-  build: { target: 'es2022', chunkSizeWarningLimit: 1500 },
+  build: {
+    target: 'es2022',
+    chunkSizeWarningLimit: 1500,
+    rolldownOptions: {
+      // the IWER DevUI chunk (?iwer only) bundles React components marked "use client"
+      onwarn(warning, warn) {
+        if (warning.code !== 'MODULE_LEVEL_DIRECTIVE') warn(warning);
+      },
+    },
+  },
 }));

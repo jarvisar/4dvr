@@ -534,11 +534,15 @@ export class HopfScene extends SceneBase {
     ];
   }
 
-  hint() {
-    return `${this.fibers.length} fibers. Touch the globe to add the fiber for that point. Pinch the globe and rotate your hand to rotate all fibers. Pinch empty space and drag to rotate S³ in 4D.`;
+  hint(mode) {
+    const n = `${this.fibers.length} fibers.`;
+    if (mode === 'desktop') return `${n} Each point on the globe corresponds to one circle (fiber) of the 3-sphere.`;
+    if (mode === 'controllers') return `${n} Touch the globe with a controller to add the fiber for that point. Trigger on the globe and turn the controller to rotate all fibers. Trigger in empty space and drag to rotate S³ in 4D.`;
+    return `${n} Touch the globe to add the fiber for that point. Pinch the globe and rotate your hand to rotate all fibers. Pinch empty space and drag to rotate S³ in 4D.`;
   }
 
-  desktopHelp() {
+  desktopHelp({ touch } = {}) {
+    if (touch) return '<b>Drag on the globe</b> to add fibers · <b>Drag</b> empty space to orbit · <b>Menu</b>: presets and settings';
     return '<b>Drag on the globe</b> to add fibers · <b>Right-drag the globe</b> to rotate it · <b>Right-drag empty space</b> to rotate S³ in 4D · drag empty space to orbit · <b>C</b> clear · <b>F</b> pulses · <b>Space</b> auto-rotate · <b>M</b> menu';
   }
 }

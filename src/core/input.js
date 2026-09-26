@@ -295,12 +295,16 @@ export class InputSystem {
     this.ndc = new THREE.Vector2();
     this._buttons = 0;
     this._shift = false;
-    el.addEventListener('pointermove', (e) => {
+    const track = (e) => {
       const r = el.getBoundingClientRect();
       this.ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    };
+    el.addEventListener('pointermove', (e) => {
+      track(e);
       this._shift = e.shiftKey;
     });
     el.addEventListener('pointerdown', (e) => {
+      track(e); // a touch has no pointermove before it goes down
       this._buttons = e.buttons;
       this._shift = e.shiftKey;
       this.app.audio.unlock();

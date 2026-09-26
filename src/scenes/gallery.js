@@ -20,7 +20,7 @@ const POLYS = {
   icositetrachoron: { label: '24-cell', get: P.icositetrachoron, blurb: '24 octahedral cells. Self-dual, with no 3D equivalent.' },
   hecatonicosachoron: { label: '120-cell', get: P.hecatonicosachoron, blurb: '120 dodecahedral cells, three around each edge.' },
   hexacosichoron: { label: '600-cell', get: P.hexacosichoron, blurb: '600 tetrahedral cells, twenty around each vertex.' },
-  duoprism: { label: '6-6 duoprism', get: () => P.duoprism(6, 6), blurb: 'Product of two hexagons. 12 hexagonal prism cells.' },
+  duoprism: { label: '6-6 duoprism', short: 'Duoprism', get: () => P.duoprism(6, 6), blurb: 'Product of two hexagons. 12 hexagonal prism cells.' },
 };
 const SMOOTH = {
   duocylinder: 'Product of two discs. Its two curved cells meet at a flat torus.',
@@ -358,7 +358,7 @@ export class GalleryScene extends SceneBase {
   }
 
   menuRows() {
-    const polyItems = Object.entries(POLYS).map(([k, v]) => ({ label: v.label, small: true, onClick: () => this.setShape(k), active: () => this.shapeKey === k }));
+    const polyItems = Object.entries(POLYS).map(([k, v]) => ({ label: v.short || v.label, small: true, onClick: () => this.setShape(k), active: () => this.shapeKey === k }));
     polyItems.push({ label: 'Net fold', small: true, onClick: () => this.setShape('net'), active: () => this.shapeKey === 'net' });
     const smoothItems = Object.keys(SMOOTH).map((k) => ({ label: LABELS[k], small: true, onClick: () => this.setShape(k), active: () => this.shapeKey === k }));
     const rows = [
@@ -396,12 +396,15 @@ export class GalleryScene extends SceneBase {
     return rows;
   }
 
-  hint() {
+  hint(mode) {
     const blurb = POLYS[this.shapeKey]?.blurb || SMOOTH[this.shapeKey] || 'The 8 cells of a tesseract, unfolded into 3D. Use the fold slider to fold them back into a tesseract.';
+    if (mode === 'desktop') return blurb;
+    if (mode === 'controllers') return `${blurb} Trigger to rotate it, grip to rotate it through 4D. Stick up/down moves the slicing hyperplane.`;
     return `${blurb} Pinch it to rotate it. Middle-finger pinch and move your hand to rotate it through 4D. Pinch empty space next to it and move up/down to move the slicing hyperplane.`;
   }
 
-  desktopHelp() {
+  desktopHelp({ touch } = {}) {
+    if (touch) return '<b>Drag</b> the shape to rotate it · <b>Drag</b> empty space to orbit · <b>Menu</b>: slicing hyperplane and 4D rotation';
     return '<b>Drag</b> the shape to rotate it · <b>Right-drag</b> to rotate it through 4D · <b>Wheel</b> or <b>Q/E</b>: move the slicing hyperplane · <b>P</b> perspective/stereographic · <b>Space</b> auto-rotate · <b>F</b> faces · <b>M</b> menu';
   }
 }

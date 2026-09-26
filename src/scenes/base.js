@@ -46,17 +46,13 @@ export function makeLabel(text, { size = 0.02, color = '#ffffff', weight = 600, 
 function drawLabel(ctx, text, { w, h, px, font, color, bg }) {
   ctx.clearRect(0, 0, w, h);
   if (bg) {
-    // chamfered plate with a thin accent tick, matching the UI panels
+    // plate with cut corners, matching the UI panels
     const c = h * 0.28;
     ctx.fillStyle = bg;
     ctx.beginPath();
     ctx.moveTo(c, 0); ctx.lineTo(w, 0); ctx.lineTo(w, h - c); ctx.lineTo(w - c, h); ctx.lineTo(0, h); ctx.lineTo(0, c);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = color;
-    ctx.globalAlpha = 0.9;
-    ctx.fillRect(0, c + 4, 4, h - 2 * c - 8);
-    ctx.globalAlpha = 1;
   }
   ctx.font = font;
   ctx.fillStyle = color;

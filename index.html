@@ -15,54 +15,39 @@
   <body>
     <div id="app"></div>
 
-    <!-- viewfinder corners, shared by the start screen and the HUD -->
-    <div class="viewfinder" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-
     <div id="overlay">
-      <div class="gauge" aria-hidden="true">
-        <span class="gauge-end ana">+w<br />ana</span>
-        <div class="gauge-scale"><b class="gauge-mark"></b></div>
-        <span class="gauge-end kata">kata<br />−w</span>
-      </div>
-
       <main class="console">
-        <header class="console-bar">
-          <span>WebXR · 4D geometry lab</span>
-          <span class="status" id="xr-status"><i></i><span id="xr-status-text">Checking headset</span></span>
-        </header>
-
-        <h1 class="wordmark">
-          <span>4D</span><span class="vr">VR</span>
-          <span class="axis" aria-hidden="true"><i class="ana">+w ana</i><i class="kata">−w kata</i></span>
-        </h1>
+        <h1 class="wordmark">4D VR</h1>
         <p class="lede">
-          Hold, turn and cut through objects from the fourth dimension. The fourth axis is w: its two
-          directions are called ana (+w) and kata (−w), the ones you can't point to.
+          View and interact with 4D objects, higher-dimensional geometry and hyperbolic space.
+          4D objects are shown as 3D cross-sections, and you can move the cross-section along
+          the fourth axis, w.
         </p>
 
         <ol class="index" id="scene-index">
-          <li><button data-scene="playground"><span class="n">01</span><b>Hyperplay</b><span class="d">4D physics sandbox, seen as 3D cross-sections</span></button></li>
-          <li><button data-scene="gallery"><span class="n">02</span><b>Polytope Lab</b><span class="d">Regular 4-polytopes, projected and sliced</span></button></li>
-          <li><button data-scene="knots"><span class="n">03</span><b>Knot Lab</b><span class="d">Untie knots by moving strands through w</span></button></li>
-          <li><button data-scene="hopf"><span class="n">04</span><b>Hopf Garden</b><span class="d">The Hopf fibration of the 3-sphere</span></button></li>
-          <li><button data-scene="hyperbolic"><span class="n">05</span><b>Hyperbolic Space</b><span class="d">Walk inside the {5,3,4} and {4,3,5} honeycombs</span></button></li>
+          <li><button data-scene="playground"><span class="n">1</span><b>Hyperplay</b><span class="d">4D physics sandbox</span></button></li>
+          <li><button data-scene="gallery"><span class="n">2</span><b>Polytope Lab</b><span class="d">Regular 4-polytopes, projected and sliced</span></button></li>
+          <li><button data-scene="knots"><span class="n">3</span><b>Knot Lab</b><span class="d">Untie knots by moving strands through w</span></button></li>
+          <li><button data-scene="hopf"><span class="n">4</span><b>Hopf Garden</b><span class="d">The Hopf fibration of the 3-sphere</span></button></li>
+          <li><button data-scene="hyperbolic"><span class="n">5</span><b>Hyperbolic Space</b><span class="d">The {5,3,4} and {4,3,5} honeycombs</span></button></li>
         </ol>
 
-        <div class="actions">
+        <div class="actions" id="actions">
           <button id="enter-vr" class="btn primary" disabled>Enter VR</button>
           <button id="enter-desktop" class="btn">Desktop mode</button>
         </div>
-        <p id="xr-note" class="note"></p>
+        <p class="status pending" id="xr-status"><i></i><span id="xr-note">Checking for a headset</span></p>
         <p class="keys"><kbd>1</kbd>–<kbd>5</kbd> scenes <kbd>M</kbd> menu <kbd>H</kbd> help</p>
       </main>
     </div>
 
     <div id="hud" hidden>
-      <div class="hud-id" id="hud-id"></div>
-      <nav id="scene-tabs" aria-label="Scenes"></nav>
-      <div class="hud-tools">
-        <button id="hud-menu" class="btn small" title="Menu (M)">Menu <kbd>M</kbd></button>
-        <button id="hud-help-toggle" class="btn small" title="Controls (H)">Help <kbd>H</kbd></button>
+      <div class="hud-top">
+        <nav id="scene-tabs" aria-label="Scenes"></nav>
+        <div class="hud-tools">
+          <button id="hud-menu" class="btn small" title="Menu (M)" aria-pressed="false">Menu <kbd>M</kbd></button>
+          <button id="hud-help-toggle" class="btn small" title="Controls (H)" aria-pressed="false" aria-controls="hud-help">Help <kbd>H</kbd></button>
+        </div>
       </div>
       <section id="hud-help" aria-label="Controls">
         <header>Controls</header>

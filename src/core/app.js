@@ -94,6 +94,12 @@ export class App {
     return this.renderer.xr.isPresenting;
   }
 
+  /** 'hands', 'controllers' or 'desktop', for choosing which instructions to show. */
+  get inputMode() {
+    if (!this.presenting) return 'desktop';
+    return this.input.xr.some((ix) => ix.kind === 'controller') ? 'controllers' : 'hands';
+  }
+
   _installPointerGate() {
     // Decide at pointerdown whether the mouse hits UI/objects (→ interact) or
     // empty space (→ orbit the camera). Registered before OrbitControls'

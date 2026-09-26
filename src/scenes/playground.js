@@ -570,12 +570,18 @@ export class PlaygroundScene extends SceneBase {
     ];
   }
 
-  hint() {
-    if (this.preset === 'box') return 'The box walls only extend a short distance in w. Hold the ball, move the slice along W with your other hand until the walls are gone, move the ball out, then move the slice back.';
-    return 'Pinch to grab and throw. Middle-finger pinch an object and move your hand to rotate it through 4D. Pinch empty space and move up/down to move the slice along W. Middle-finger pinch empty space to rotate the slice.';
+  hint(mode) {
+    if (this.preset === 'box') {
+      const move = { hands: 'with your other hand', controllers: 'with the stick', desktop: 'with the scroll wheel' }[mode];
+      return `The box walls only extend a short distance in w. Hold the ball, move the slice along w ${move} until the walls are gone, move the ball out, then move the slice back.`;
+    }
+    if (mode === 'controllers') return 'Trigger to grab and throw. Grip an object and move the controller to rotate it through 4D. Stick up/down moves the slice along w, left/right rotates it.';
+    if (mode === 'desktop') return 'Each object is shown as its 3D cross-section. Move the slice along w to see the cross-sections change.';
+    return 'Pinch to grab and throw. Middle-finger pinch an object and move your hand to rotate it through 4D. Pinch empty space and move up/down to move the slice along w. Middle-finger pinch empty space to rotate the slice.';
   }
 
-  desktopHelp() {
-    return '<b>Drag</b> an object to move it · <b>Right-drag</b> an object to rotate it through 4D · <b>Wheel</b> or <b>Q/E</b>: move the slice along W · <b>Right-drag</b> empty space or <b>A/D</b>: rotate the slice · <b>R</b> reset · <b>G</b> ghosts · <b>M</b> menu · drag empty space to orbit';
+  desktopHelp({ touch } = {}) {
+    if (touch) return '<b>Drag</b> an object to move it · <b>Drag</b> empty space to orbit · <b>Menu</b>: move and rotate the slice';
+    return '<b>Drag</b> an object to move it · <b>Right-drag</b> an object to rotate it through 4D · <b>Wheel</b> or <b>Q/E</b>: move the slice along w · <b>Right-drag</b> empty space or <b>A/D</b>: rotate the slice · <b>R</b> reset · <b>G</b> ghosts · <b>M</b> menu · drag empty space to orbit';
   }
 }

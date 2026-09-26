@@ -12,7 +12,9 @@
     "test:smoke": "vite build && node tools/ci-smoke.mjs"
   },
   "dependencies": {
-    "three": "^0.186.1"
+    "three": "^0.186.1",
+    "iwer": "^2.5.0",
+    "@iwer/devui": "^2.5.0"
   },
   "devDependencies": {
     "@vitejs/plugin-basic-ssl": "^2.3.0",

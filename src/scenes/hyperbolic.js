@@ -578,11 +578,15 @@ export class HyperbolicScene extends SceneBase {
     ];
   }
 
-  hint() {
-    return `${HONEYCOMBS[this.hcKey].blurb} Walk around, or pinch empty space and pull to move. Walking in a loop leaves you rotated (holonomy).`;
+  hint(mode) {
+    const blurb = HONEYCOMBS[this.hcKey].blurb;
+    if (mode === 'desktop') return `${blurb} Moving in a loop leaves you rotated (holonomy).`;
+    if (mode === 'controllers') return `${blurb} Walk around, or use the stick to move. Walking in a loop leaves you rotated (holonomy).`;
+    return `${blurb} Walk around, or pinch empty space and pull to move. Walking in a loop leaves you rotated (holonomy).`;
   }
 
-  desktopHelp() {
+  desktopHelp({ touch } = {}) {
+    if (touch) return '<b>Drag</b> to look around · moving needs a keyboard or a headset';
     return '<b>WASD</b> move (<b>Shift</b> faster, <b>Q/E</b> down/up) · <b>drag</b> to look · <b>right-drag</b> to pull · <b>M</b> menu';
   }
 }
