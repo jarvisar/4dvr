@@ -66,7 +66,7 @@ export class HandMenu {
       }] : []),
       { type: 'text', text: () => scene.hint(app.inputMode), lines: 5 },
     ];
-    if (app.statsEnabled) rows.push({ type: 'text', text: () => app.statsText, lines: 2, color: '#eceef4' });
+    if (app.statsEnabled) rows.push({ type: 'text', text: () => app.statsText, lines: 2, color: COLORS.ink });
     this.panel.setRows(rows);
   }
 

@@ -13,7 +13,6 @@ Visit the [GitHub Pages site](https://ajarvis.co/anakata/) to access the latest 
   - **Orbits:** moons around a sun with 4D gravity, which falls off as 1/r³. Every circular orbit has zero energy, so a small nudge sends a moon into the sun or away for good. Switch to 1/r² to compare.
   - **Shadows:** the sun leans 50° towards ana.
   - **Worldline:** a motion with time as the W axis, so moving the slice replays it and rotating the slice in xw mixes time with space, like a slit-scan photo. Shows juggling by default, and can record 4 seconds of your hands.
-- **Flatland:** A 2D world on a sheet, for seeing 4D the way a 2D being would see 3D. Push a finger, or a sphere, cube, cone, or torus, through the sheet and it appears as its cross-section. A strip shows what A Square sees: one dimension, dimmed by distance. Flatlanders can be lifted out of the plane and put back upside down, which leaves them mirror-reversed, and the gem can be taken out of a sealed vault.
 - **Polytope Lab:** The regular 4-polytopes shown as perspective or stereographic projections, with the current cross-section drawn inside. Also includes a tesseract net that folds into a tesseract, and cross-sections of curved shapes like the spheritorus and torisphere.
 - **Knot Lab:** A rope simulated in 4D. Strands only collide when they are close in all four coordinates, so a strand moved in W can pass through another one. Includes a trefoil, figure-eight knot, Hopf link, and Borromean rings. The scene detects when a knot is untied or a link is separated.
 - **Hopf Garden:** The Hopf fibration of the 3-sphere, stereographically projected. Touch the globe to add the fiber for that point. Rotating the globe rotates all of the fibers.
@@ -40,7 +39,7 @@ Use the trigger to grab, move, and throw objects, and the grip to rotate them th
 
 Left drag to grab, move, and throw objects. Right drag to rotate them through 4D, or right drag on empty space to rotate the slice. Use the scroll wheel or Q/E to move the slice along W, and A/D to rotate it.
 
-Press 1–9 to switch scenes, M to toggle the menu, and H to toggle the controls.
+Press 1–8 to switch scenes, M to toggle the menu, and H to toggle the controls.
 
 On touch screens, drag an object to move it and drag empty space to orbit. Rotating objects through 4D, changing a strand's W, and moving in Hyperbolic Space, Spherical Space, and the Klein Room require a mouse and keyboard or a headset.
 
@@ -49,8 +48,6 @@ On touch screens, drag an object to move it and drag empty space to orbit. Rotat
 In Hyperbolic Space, Spherical Space, and the Klein Room, walk or pinch empty space to move through the space. On desktop, use WASD to move and drag to look.
 
 In Hopf Garden, touch the globe to add fibers and pinch it to rotate it.
-
-In Flatland, push a finger through the sheet, or pinch a visitor from the shelf and move it through. Pinch a Flatlander to lift it out of the plane. On desktop, drag a visitor or a Flatlander, and right-click a Flatlander to turn it over.
 
 In Quasicrystals, pinch empty space and move your hand to move the slice through the hidden dimensions. On desktop, right drag.
 
@@ -90,7 +87,7 @@ Pushing to `main` builds the site, runs the smoke tests, and deploys it to GitHu
 
 ### URL Parameters
 
-- `?scene=playground|flatland|gallery|knots|hopf|hyperbolic|spherical|klein|quasicrystal` sets the starting scene
+- `?scene=playground|gallery|knots|hopf|hyperbolic|spherical|klein|quasicrystal` sets the starting scene
 - `?desktop` skips the start screen
 - `?quality=low|medium|high` uses a graphics preset for this visit without changing the saved one
 - `?scale=1` sets the XR framebuffer scale directly, overriding the preset's resolution
@@ -142,10 +139,6 @@ See [spherical.js](src/scenes/spherical.js). Points of S³ are unit vectors in R
 
 Every geodesic is a great circle of length 2π, so light from each point reaches the eye along two arcs: the short one (direction u, distance t) and the long one (direction −u, distance 2π − t). Everything is drawn twice, once for each. Each vertex is placed in its true direction at its true distance in metres, which gives every triangle exactly the right outline on screen. Near the antipodal point a small triangle can cover a large part of the view, so depth is written per fragment from the interpolated distance. The avatar around the eyes (head, headset, body, and tracked hands) is only drawn along the long arc, where it fills the background.
 
-### Flatland
-
-See [flatland.js](src/scenes/flatland.js). Cross-sections are found per pixel from signed distance functions: the visitors, and capsules around the bones of tracked hands. From above, an object poking up through the sheet would hide its own cross-section, so visitors turn translucent while they cross it and the outlines are drawn over everything. A Square's view casts one ray per column within the plane. Walls and Flatlanders are hit analytically, and 3D intruders are sphere-traced with their 3D distance, which is never more than the distance within the plane.
-
 ### Worldlines
 
 A ball moving along p(t) sweeps out the set of points (x, w(t)) with |x − p(t)| ≤ r: at each moment, a 3D ball in the hyperplane w = w(t). A slice of constant w cuts it in the ball at that moment. A tilted slice cuts each moment's ball in a flat disk, and the cross-section is drawn as a stack of thin disks. See [worldline.js](src/four/worldline.js).
@@ -189,7 +182,6 @@ See [quasicrystal.js](src/scenes/quasicrystal.js). The tilings are built with de
 - Niles Johnson, [Hopf fibration visualizations](https://nilesjohnson.net/hopf.html)
 - Andrew Hanson, rolling ball method for 4D rotation
 - Dompierre et al., How to Subdivide Pyramids, Prisms and Hexahedra into Tetrahedra (1999)
-- Edwin A. Abbott, Flatland: A Romance of Many Dimensions (1884)
 - Jeff Weeks, [Curved Spaces](https://www.geometrygames.org/CurvedSpaces/)
 - N. G. de Bruijn, Algebraic theory of Penrose's non-periodic tilings of the plane (1981)
 - F. Gähler and J. Rhyner, Equivalence of the generalised grid and projection methods for the construction of quasiperiodic tilings (1986)

@@ -305,32 +305,6 @@
     out.worldline = { straightBalls, tiltedDisks, tiltedBalls, recorded: pgx.worldline.chains.length, samples: pgx.worldline.chains[0]?.n || 0 };
     pgx.loadPreset('sandbox');
 
-    // ---------------- Flatland ----------------
-    app.setScene('flatland', true);
-    const fl = app.activeScene;
-    fl.reset();
-    fl.update(1 / 72, app.time);
-    const fh = fakeHand();
-    const onBoard = (x, y, z) => fl.board.localToWorld(new THREE.Vector3(x, y, z));
-    // take the gem out of the sealed vault: up out of the plane, across, back down
-    fh.grabPos.copy(onBoard(fl.gem.x, 0.002, fl.gem.z));
-    step(fh, 1);
-    press(fh.pinch, true); step(fh, 1);
-    const gemGrabbed = fh.grabbed === fl.gem;
-    for (let i = 0; i < 20; i++) { fh.grabPos.y += 0.005; step(fh, 1); }
-    for (let i = 0; i < 20; i++) { fh.grabPos.x -= 0.008; step(fh, 1); }
-    press(fh.pinch, false); step(fh, 40);
-    // turn the Triangle over
-    const tri = fl.flatlanders[1];
-    fh.grabPos.copy(onBoard(tri.x, 0.002, tri.z));
-    step(fh, 1);
-    press(fh.pinch, true); step(fh, 1);
-    const triGrabbed = fh.grabbed === tri;
-    const turn = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 30);
-    for (let i = 0; i < 30; i++) { fh.grabPos.y += 0.002; fh.grabQuat.premultiply(turn); step(fh, 1); }
-    press(fh.pinch, false); step(fh, 40);
-    out.flatland = { gemGrabbed, gemOut: !fl.gemInVault, triGrabbed, triFlipped: tri.flipped, triBack: !tri.lifted };
-
     // ---------------- Klein Room ----------------
     app.setScene('klein', true);
     const kl = app.activeScene;

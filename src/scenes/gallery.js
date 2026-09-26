@@ -173,7 +173,7 @@ export class GalleryScene extends SceneBase {
     }
     this.info = info;
     disposeLabel(this.nameplate);
-    this.nameplate = makeLabel((POLYS[key]?.label || LABELS[key] || 'Tesseract net').toUpperCase(), { size: 0.024, color: '#e8eaf0' });
+    this.nameplate = makeLabel(POLYS[key]?.label || LABELS[key] || 'Tesseract net', { size: 0.024, color: '#e8eaf0' });
     this.root.add(this.nameplate);
     this._layout();
     if (this.app.activeScene === this) this.app.menu.rebuild();

@@ -221,7 +221,7 @@ export class HopfScene extends SceneBase {
     this._buildGlobe();
 
     this.labels = [];
-    const l1 = makeLabel('S²  TOUCH TO ADD FIBERS', { size: 0.016, color: '#e8eaf0', bg: 'rgba(8,9,14,0.86)' });
+    const l1 = makeLabel('S²: touch to add fibers', { size: 0.016, color: '#e8eaf0', bg: 'rgba(27,31,38,0.92)' });
     this.globeLabel = l1;
     this.root.add(l1);
 

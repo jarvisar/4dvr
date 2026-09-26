@@ -27,7 +27,7 @@ export function makeLabel(text, { size = 0.02, color = '#ffffff', weight = 600, 
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   const px = 64;
-  const font = `${weight} ${px}px ${FONTS.mono}`;
+  const font = `${weight} ${px}px ${FONTS.sans}`;
   ctx.font = font;
   const w = Math.ceil(ctx.measureText(text).width + px * pad * 2);
   const h = Math.ceil(px * (1 + pad * 2) * 0.9);
@@ -45,12 +45,10 @@ export function makeLabel(text, { size = 0.02, color = '#ffffff', weight = 600, 
 function drawLabel(ctx, text, { w, h, px, font, color, bg }) {
   ctx.clearRect(0, 0, w, h);
   if (bg) {
-    // plate with cut corners, matching the UI panels
-    const c = h * 0.28;
+    // plate with rounded corners, matching the UI panels
     ctx.fillStyle = bg;
     ctx.beginPath();
-    ctx.moveTo(c, 0); ctx.lineTo(w, 0); ctx.lineTo(w, h - c); ctx.lineTo(w - c, h); ctx.lineTo(0, h); ctx.lineTo(0, c);
-    ctx.closePath();
+    ctx.roundRect(0, 0, w, h, h * 0.22);
     ctx.fill();
   }
   ctx.font = font;

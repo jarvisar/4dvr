@@ -1,23 +1,26 @@
 /*
  * Start screen and desktop HUD. The in-headset panels (src/core/ui.js) use the
- * same colours and fonts: dark plates, hairline frames, white-filled
- * selection, and corners cut at 45°.
+ * same colours and fonts: slate panels with rounded corners, grey buttons, and
+ * blue for whatever is selected.
  */
 :root {
-  --bg: #07080c;
-  --plate: rgba(9, 10, 15, 0.92);
-  --ink: #eceef4;
-  --ink-dark: #0a0b10;
-  --muted: #8a90a3;
-  --faint: #5b6072;
-  --line: rgba(255, 255, 255, 0.12);
-  --line-strong: rgba(255, 255, 255, 0.5);
-  --ok: #7dffb2;
-  --focus: #33c3ff;
-  --cut: 10px;
+  --bg: #101318;
+  --plate: rgba(27, 31, 38, 0.94);
+  --btn: #2c323c;
+  --btn-hover: #3b4350;
+  --btn-press: #4a5362;
+  --ink: #e6e8ec;
+  --muted: #9aa3b0;
+  --faint: #6f7886;
+  --line: rgba(255, 255, 255, 0.08);
+  --select: #1f6bd1;       /* selected fill; white text on it is 5:1 */
+  --select-hover: #2a76db;
+  --accent: #1a9fff;       /* focus rings and indicators, never behind text */
+  --ok: #8bc34a;
+  --radius: 8px;
+  --radius-sm: 4px;
   --edge: 16px; /* distance of HUD elements from the window edge */
-  --display: 'Chakra Petch', 'Segoe UI', system-ui, sans-serif;
-  --sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --sans: 'Figtree', 'Segoe UI', system-ui, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
   font-family: var(--sans);
   color-scheme: dark;
@@ -45,43 +48,34 @@ html, body {
   touch-action: none;
 }
 
-/* top-left and bottom-right corners cut at 45° */
-.btn, #scene-tabs, #scene-tabs button, #hud-help, #hud-stats {
-  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
-}
-
-kbd {
-  font-family: var(--mono);
-  font-size: 0.78em;
-  font-weight: 500;
+kbd, #hud-help li b {
+  font: 600 0.8em/1.4 var(--sans);
   display: inline-block;
   min-width: 1.7em;
   padding: 0.05em 0.4em;
   text-align: center;
-  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-bottom-width: 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   color: var(--ink);
-  line-height: 1.4;
+  white-space: nowrap;
 }
 
-:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ------------------------------------------------------------------------ */
 /* Buttons                                                                    */
 
 .btn {
-  --cut: 9px;
-  font: 600 14px/1 var(--display);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font: 600 15px/1 var(--sans);
   cursor: pointer;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--btn);
   border: 0;
-  padding: 15px 24px;
-  box-shadow: inset 0 0 0 1px var(--line);
-  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  border-radius: var(--radius-sm);
+  padding: 13px 22px;
+  transition: background 0.15s, color 0.15s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -89,22 +83,17 @@ kbd {
   white-space: nowrap;
 }
 
-.btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.btn:active:not(:disabled) { background: rgba(255, 255, 255, 0.2); }
-/* clip-path hides outlines, so focus is shown inside the button */
-.btn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--focus); }
-.btn:disabled { cursor: default; color: var(--faint); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07); background: transparent; }
+.btn:hover:not(:disabled) { background: var(--btn-hover); }
+.btn:active:not(:disabled) { background: var(--btn-press); }
+.btn:disabled { cursor: default; color: var(--faint); background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
 
-.btn.primary { background: var(--ink); color: var(--ink-dark); box-shadow: none; }
-.btn.primary:hover:not(:disabled) { background: #fff; box-shadow: none; }
-.btn.primary:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
-.btn.primary:disabled { background: transparent; color: var(--faint); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
+.btn.primary, .btn.on { background: var(--select); color: #fff; }
+.btn.primary:hover:not(:disabled), .btn.on:hover:not(:disabled) { background: var(--select-hover); }
+.btn.primary:disabled { background: transparent; color: var(--faint); }
 
-.btn.small { --cut: 7px; font-size: 12px; padding: 9px 12px; gap: 8px; }
+.btn.small { font-size: 13px; padding: 8px 12px; gap: 8px; }
 .btn.small kbd { font-size: 10px; min-width: 1.6em; padding: 0 0.3em; }
-.btn.on { background: var(--ink); color: var(--ink-dark); box-shadow: none; }
-.btn.on:hover:not(:disabled) { background: #fff; box-shadow: none; }
-.btn.on kbd { color: var(--ink-dark); border-color: rgba(10, 11, 16, 0.45); }
+.btn.on kbd { color: #fff; background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.35); }
 
 /* ------------------------------------------------------------------------ */
 /* Start screen                                                               */
@@ -118,7 +107,7 @@ kbd {
   padding: 32px clamp(20px, 6vw, 88px);
   overflow-y: auto;
   /* dark on the left for the text, the live scene shows through on the right */
-  background: linear-gradient(90deg, rgba(7, 8, 12, 0.97) 0%, rgba(7, 8, 12, 0.93) 40%, rgba(7, 8, 12, 0.35) 72%, rgba(7, 8, 12, 0.15) 100%);
+  background: linear-gradient(90deg, rgba(16, 19, 24, 0.97) 0%, rgba(16, 19, 24, 0.93) 40%, rgba(16, 19, 24, 0.35) 72%, rgba(16, 19, 24, 0.15) 100%);
   transition: opacity 0.35s ease, visibility 0s linear 0s;
 }
 
@@ -128,16 +117,17 @@ kbd {
 .console { width: min(540px, 100%); margin: auto 0; }
 
 .wordmark {
-  margin: 0 0 14px;
-  font: 700 clamp(44px, min(9vw, 13vh), 88px)/1 var(--display);
-  letter-spacing: -0.01em;
+  margin: 0 0 10px;
+  font: 700 clamp(36px, min(6vw, 9vh), 56px)/1.05 var(--sans);
+  letter-spacing: -0.02em;
 }
 
 .lede { color: var(--muted); font-size: 16px; line-height: 1.6; margin: 0 0 24px; max-width: 48ch; }
 
 /* one grid shared by all rows (subgrid), so the descriptions line up */
-.index { list-style: none; margin: 0 0 24px; padding: 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: 22px max-content 1fr; }
-.index li { border-bottom: 1px solid var(--line); grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
+/* the first column includes the button's left padding */
+.index { list-style: none; margin: 0 0 24px; padding: 0; display: grid; grid-template-columns: 20px max-content 1fr; gap: 2px 12px; }
+.index li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
 
 .index button {
   all: unset;
@@ -147,33 +137,35 @@ kbd {
   display: grid;
   grid-template-columns: subgrid;
   align-items: baseline;
-  gap: 2px 14px;
-  padding: 12px 12px 12px 10px;
+  gap: 2px 12px;
+  padding: 11px 12px 11px 10px;
+  border-radius: var(--radius-sm);
   transition: background 0.15s;
 }
 
-.index .n { font: 500 12px var(--mono); color: var(--faint); }
-.index b { font: 600 17px var(--display); letter-spacing: 0.06em; text-transform: uppercase; }
+.index .n { font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.index b { font-weight: 600; font-size: 16px; }
 .index .d { font-size: 14px; color: var(--muted); }
 
 .index button:hover { background: rgba(255, 255, 255, 0.06); }
-.index button:focus-visible { background: rgba(255, 255, 255, 0.06); outline: 2px solid var(--focus); outline-offset: -2px; }
-.index button.selected { background: var(--ink); color: var(--ink-dark); }
-.index button.selected .n, .index button.selected .d { color: #3a3e4c; }
+.index button:focus-visible { background: rgba(255, 255, 255, 0.06); outline: 2px solid var(--accent); outline-offset: -2px; }
+.index button.selected { background: var(--select); color: #fff; }
+.index button.selected .n, .index button.selected .d { color: #e3ecfb; }
+.index button.selected:focus-visible { outline-color: #fff; }
 
 .actions { display: flex; gap: 10px; flex-wrap: wrap; }
 /* without a headset, desktop mode is the main action, so it goes first */
 .actions.no-xr #enter-desktop { order: -1; }
 
-.status { display: flex; align-items: baseline; gap: 10px; color: var(--muted); font-size: 13px; line-height: 1.5; margin: 16px 0 0; min-height: 1.5em; }
-.status i { flex: none; width: 7px; height: 7px; background: var(--faint); transform: translateY(-1px); }
+.status { display: flex; align-items: baseline; gap: 10px; color: var(--muted); font-size: 14px; line-height: 1.5; margin: 16px 0 0; min-height: 1.5em; }
+.status i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); transform: translateY(-1px); }
 .status.ok i { background: var(--ok); }
 .status.pending i { animation: blink 1s steps(2) infinite; }
 .status a { color: var(--ink); }
 @keyframes blink { 50% { opacity: 0.2; } }
 
-.keys { color: var(--faint); font: 500 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; margin: 12px 0 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.keys kbd { color: var(--muted); border-color: var(--faint); margin-left: 8px; }
+.keys { color: var(--muted); font-size: 13px; margin: 12px 0 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.keys kbd { margin-left: 8px; }
 .keys kbd:first-child { margin-left: 0; }
 
 /* ------------------------------------------------------------------------ */
@@ -195,13 +187,12 @@ kbd {
 .hud-top > * { pointer-events: auto; }
 
 #scene-tabs {
-  --cut: 9px;
   grid-column: 2;
   display: flex;
   gap: 2px;
-  padding: 3px;
+  padding: 4px;
   background: var(--plate);
-  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--radius);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -212,7 +203,6 @@ kbd {
 #scene-tabs.more-left.more-right { mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
 
 #scene-tabs button {
-  --cut: 7px;
   all: unset;
   flex: none;
   cursor: pointer;
@@ -220,26 +210,26 @@ kbd {
   display: inline-flex;
   align-items: baseline;
   gap: 7px;
-  padding: 9px 14px;
-  font: 600 12px var(--display);
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: #c3c7d4;
+  padding: 8px 13px;
+  border-radius: var(--radius-sm);
+  font: 600 14px var(--sans);
+  color: #c9ced6;
   transition: background 0.15s, color 0.15s;
 }
-#scene-tabs button i { font: 500 10px var(--mono); font-style: normal; color: var(--faint); }
-#scene-tabs button:hover, #scene-tabs button:focus-visible { background: rgba(255, 255, 255, 0.1); color: var(--ink); }
-#scene-tabs button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--focus); }
-#scene-tabs button.active { background: var(--ink); color: var(--ink-dark); }
-#scene-tabs button.active i { color: #4a4e5c; }
+#scene-tabs button i { font-size: 12px; font-weight: 500; font-style: normal; color: var(--faint); font-variant-numeric: tabular-nums; }
+#scene-tabs button:hover, #scene-tabs button:focus-visible { background: var(--btn-hover); color: var(--ink); }
+/* the tab bar scrolls, which would clip an outside outline */
+#scene-tabs button:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+#scene-tabs button.active { background: var(--select); color: #fff; }
+#scene-tabs button.active i { color: #d3e2f8; }
+#scene-tabs button.active:focus-visible { box-shadow: inset 0 0 0 2px #fff; }
 
 .hud-tools { grid-column: 3; justify-self: end; display: flex; gap: 6px; }
 /* solid plates so the buttons stay readable over bright scenes */
 .hud-tools .btn:not(.on) { background: var(--plate); }
-.hud-tools .btn:not(.on):hover { background: #1c1e26; }
+.hud-tools .btn:not(.on):hover { background: var(--btn-hover); }
 
 #hud-help {
-  --cut: 12px;
   position: absolute;
   left: var(--edge);
   bottom: var(--edge);
@@ -247,40 +237,28 @@ kbd {
   max-height: calc(100% - 90px);
   overflow-y: auto;
   background: var(--plate);
-  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--radius);
   padding: 12px 16px 14px;
   transition: opacity 0.2s, transform 0.2s;
 }
 #hud-help.closed { opacity: 0; transform: translateY(8px); pointer-events: none; visibility: hidden; transition: opacity 0.2s, transform 0.2s, visibility 0s linear 0.2s; }
 #hud-help header {
-  font: 500 10px var(--mono);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--muted);
+  font-weight: 600;
+  font-size: 14px;
   padding-bottom: 8px;
   margin-bottom: 8px;
   border-bottom: 1px solid var(--line);
 }
 #hud-help ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
-#hud-help li { font-size: 13px; line-height: 1.45; color: var(--muted); }
-#hud-help li b {
-  font: 500 11px var(--mono);
-  color: var(--ink);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-bottom-width: 2px;
-  border-radius: 2px;
-  padding: 0 5px;
-  margin-right: 2px;
-  white-space: nowrap;
-}
+#hud-help li { font-size: 14px; line-height: 1.45; color: var(--muted); }
+#hud-help li b { font-size: 12px; margin-right: 2px; }
 
 #hud-stats {
-  --cut: 6px;
   position: absolute;
   top: 64px; left: var(--edge);
   padding: 6px 10px;
   background: var(--plate);
-  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--radius-sm);
   font: 500 11px var(--mono);
   color: var(--ok);
   pointer-events: none !important;
@@ -292,7 +270,7 @@ kbd {
 /* Smaller screens                                                            */
 
 @media (max-width: 860px) {
-  #overlay { align-items: flex-start; background: rgba(7, 8, 12, 0.9); }
+  #overlay { align-items: flex-start; background: rgba(16, 19, 24, 0.9); }
   .console { margin: 0 auto; }
 }
 
@@ -305,13 +283,13 @@ kbd {
 @media (max-width: 720px) {
   :root { --edge: 12px; }
   .hud-top { display: block; }
-  #scene-tabs button { padding: 9px 11px; letter-spacing: 0.06em; }
+  #scene-tabs button { padding: 8px 11px; }
   #scene-tabs button i { display: none; }
   .hud-tools { position: fixed; right: var(--edge); bottom: var(--edge); }
   #hud-help { bottom: 60px; max-height: calc(100% - 136px); }
-  #hud-help li { font-size: 12px; }
+  #hud-help li { font-size: 13px; }
   #hud-vr { right: auto; left: var(--edge); }
-  .index { grid-template-columns: 22px 1fr; }
+  .index { grid-template-columns: 20px 1fr; }
   .index .d { grid-column: 2; }
   .lede { font-size: 15px; }
   .actions .btn { flex: 1 1 160px; }
@@ -321,9 +299,9 @@ kbd {
 @media (max-height: 520px) {
   #overlay { padding-top: 20px; padding-bottom: 20px; }
   .lede { margin-bottom: 16px; }
-  .index button { padding-top: 8px; padding-bottom: 8px; }
+  .index button { padding-top: 7px; padding-bottom: 7px; }
   #hud-help { padding: 8px 12px 10px; max-height: calc(100% - 76px); }
-  #hud-help li { font-size: 12px; line-height: 1.35; }
+  #hud-help li { font-size: 13px; line-height: 1.35; }
   #hud-help ul { gap: 3px; }
   #hud-stats { top: 56px; }
 }

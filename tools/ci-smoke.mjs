@@ -18,7 +18,7 @@ import puppeteer from 'puppeteer-core';
 const PORT = 4321;
 const BASE = `http://localhost:${PORT}/`;
 const OUT = 'smoke-artifacts';
-const SCENES = ['playground', 'flatland', 'gallery', 'knots', 'hopf', 'hyperbolic', 'spherical', 'klein', 'quasicrystal'];
+const SCENES = ['playground', 'gallery', 'knots', 'hopf', 'hyperbolic', 'spherical', 'klein', 'quasicrystal'];
 
 function chromePath() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -135,8 +135,6 @@ try {
     ['worldline: one ball per path in a slice of constant w', r.worldline?.straightBalls === 5, JSON.stringify(r.worldline)],
     ['worldline: disks in a tilted slice', r.worldline?.tiltedDisks > 20 && r.worldline?.tiltedBalls === 0, JSON.stringify(r.worldline)],
     ['worldline: records the mouse for 4 s', r.worldline?.recorded === 1 && r.worldline?.samples > 250, JSON.stringify(r.worldline)],
-    ['Flatland: lift the gem out of the sealed vault', r.flatland?.gemGrabbed && r.flatland?.gemOut, JSON.stringify(r.flatland)],
-    ['Flatland: a Flatlander put back upside down is mirrored', r.flatland?.triGrabbed && r.flatland?.triFlipped && r.flatland?.triBack, JSON.stringify(r.flatland)],
     ['Penrose floor: every inner edge is shared by two rhombs', r.quasi?.floor.bad === 0 && r.quasi?.floor.checked > 400, JSON.stringify(r.quasi)],
     ['Penrose floor: both rhombs, thick more often by φ', Math.abs(r.quasi?.floor.ratio - 1.618) < 0.12, JSON.stringify(r.quasi)],
     ['moving the slice flips tiles', r.quasi?.flips > 0 && r.quasi?.after.bad === 0, JSON.stringify(r.quasi)],

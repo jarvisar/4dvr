@@ -8,8 +8,7 @@ const SCENES = [
 
 async function loadExtraScenes() {
   // Other scenes are loaded separately so the first one starts sooner.
-  const [{ FlatlandScene }, { GalleryScene }, { KnotScene }, { HopfScene }, { HyperbolicScene }, { SphericalScene }, { KleinScene }, { QuasicrystalScene }] = await Promise.all([
-    import('./scenes/flatland.js'),
+  const [{ GalleryScene }, { KnotScene }, { HopfScene }, { HyperbolicScene }, { SphericalScene }, { KleinScene }, { QuasicrystalScene }] = await Promise.all([
     import('./scenes/gallery.js'),
     import('./scenes/knots.js'),
     import('./scenes/hopf.js'),
@@ -19,7 +18,6 @@ async function loadExtraScenes() {
     import('./scenes/quasicrystal.js'),
   ]);
   SCENES.push(
-    { key: 'flatland', short: 'Flatland', create: (app) => new FlatlandScene(app) },
     { key: 'gallery', short: 'Polytopes', create: (app) => new GalleryScene(app) },
     { key: 'knots', short: 'Knots', create: (app) => new KnotScene(app) },
     { key: 'hopf', short: 'Hopf', create: (app) => new HopfScene(app) },

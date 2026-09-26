@@ -398,7 +398,7 @@ export class KnotScene extends SceneBase {
     this.group.add(this.markers);
 
     this.burst = new Burst(this.group);
-    this.wLabel = new TextLabel({ size: 0.016, template: 'w = -00.0 cm', bg: 'rgba(8,9,14,0.86)' });
+    this.wLabel = new TextLabel({ size: 0.016, template: 'w = -00.0 cm', bg: 'rgba(27,31,38,0.92)' });
     this.wLabel.mesh.visible = false;
     this.group.add(this.wLabel.mesh);
     this.message = null;
@@ -447,7 +447,7 @@ export class KnotScene extends SceneBase {
 
   _say(text, seconds = 3, color = '#e8eaf0') {
     disposeLabel(this.message);
-    this.message = makeLabel(text, { size: 0.02, color, bg: 'rgba(8,9,14,0.86)' });
+    this.message = makeLabel(text, { size: 0.02, color, bg: 'rgba(27,31,38,0.92)' });
     this.message.position.set(0, 0.2, 0);
     this.group.add(this.message);
     this.messageT = seconds;
