@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { UIPanel, COLORS } from './ui.js';
 import { J } from './input.js';
+import { QUALITY } from './quality.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _pos = new THREE.Vector3();
@@ -44,6 +45,16 @@ export class HandMenu {
         set: (k) => app.setScene(k),
       }] : []),
       ...scene.menuRows(),
+      {
+        type: 'text', lines: 2,
+        text: () => (app.qualityPending ? 'Graphics quality. The resolution changes the next time you enter VR.' : 'Graphics quality'),
+      },
+      {
+        type: 'tabs',
+        options: Object.entries(QUALITY).map(([value, q]) => ({ label: q.label, value, small: true })),
+        get: () => app.quality,
+        set: (k) => app.setQuality(k),
+      },
       // desktop has Menu and Help buttons in the HTML HUD instead
       ...(vr ? [{
         type: 'buttons',

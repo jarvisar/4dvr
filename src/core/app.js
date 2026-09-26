@@ -7,6 +7,7 @@ import { InteractionManager } from './interaction.js';
 import { UISystem } from './ui.js';
 import { HandMenu, WelcomePanel } from './menu.js';
 import { HandVisuals } from './handVisuals.js';
+import { QUALITY, initialQuality, saveQuality } from './quality.js';
 
 export class App {
   constructor(container, sceneList) {
@@ -15,8 +16,7 @@ export class App {
     this.params = new URLSearchParams(location.search);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(window.innerWidth, window.innerHeight); // pixel ratio, foveation and shadows: _applyQuality()
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.NeutralToneMapping;
     renderer.toneMappingExposure = 1.0;
@@ -24,9 +24,6 @@ export class App {
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.xr.enabled = true;
     renderer.xr.setReferenceSpaceType('local-floor');
-    // three.js defaults to maximum fixed foveation, which blurs the edges of the view.
-    // The framebuffer scale is set in enterVR(), since it needs the session.
-    renderer.xr.setFoveation(0);
     container.appendChild(renderer.domElement);
     this.renderer = renderer;
 
@@ -42,6 +39,10 @@ export class App {
     this.headQuaternion = new THREE.Quaternion();
 
     this.env = new Environment(this.scene);
+    // ?quality=low|medium|high overrides the saved preset without replacing it
+    const q = this.params.get('quality');
+    this.quality = QUALITY[q] ? q : initialQuality();
+    this._applyQuality();
     this.audio = new AudioEngine();
     this.input = new InputSystem(this); // registers pointer listeners before OrbitControls on purpose
     this.ui = new UISystem(this);
@@ -190,6 +191,7 @@ export class App {
     this.renderer.shadowMap.autoUpdate = !!scene.shadows && !scene.shadowsChanged;
     this.renderer.shadowMap.needsUpdate = !!scene.shadows;
     scene.enter();
+    if (this._rates) this._setFrameRate(this._rates.length - 1); // happens during the fade
     if (this.presenting && !this._sessionJustStarted) scene.onUserReady?.(); // fit to the person's height
     this.menu.rebuild();
     if (!this.presenting && scene.desktopView) {
@@ -203,11 +205,7 @@ export class App {
 
   _onSessionStart() {
     this.audio.unlock();
-    const hz = parseFloat(this.params.get('hz'));
-    const session = this.renderer.xr.getSession();
-    if (hz && session?.updateTargetFrameRate && session.supportedFrameRates?.includes(hz)) {
-      session.updateTargetFrameRate(hz).catch(() => {});
-    }
+    this._initFrameRate();
     this.rig.position.set(0, 0, 0);
     this.rig.quaternion.identity();
     this.camera.position.set(0, 0, 0);
@@ -217,7 +215,44 @@ export class App {
     this.onSessionChange?.(true);
   }
 
+  // Refresh rate: start at the highest rate the headset supports and drop a step
+  // when the scene can't hold it. Switching scenes goes back to the highest rate,
+  // since the new scene may be cheaper. ?hz sets a fixed rate instead.
+  _initFrameRate() {
+    this._rates = null;
+    const session = this.renderer.xr.getSession();
+    if (!session?.updateTargetFrameRate || !session.supportedFrameRates?.length) return;
+    const rates = [...session.supportedFrameRates].sort((a, b) => a - b);
+    const hz = parseFloat(this.params.get('hz'));
+    if (hz) {
+      if (rates.includes(hz)) session.updateTargetFrameRate(hz).catch(() => {});
+      return;
+    }
+    this._rates = rates;
+    this._setFrameRate(rates.length - 1);
+  }
+
+  _setFrameRate(i) {
+    this._rateIndex = i;
+    this._rateGrace = 3; // seconds to skip while the display switches and the scene warms up
+    this._slowSeconds = 0;
+    const session = this.renderer.xr.getSession();
+    if (session.frameRate !== this._rates[i]) session.updateTargetFrameRate(this._rates[i]).catch(() => {});
+  }
+
+  /** Called once a second with the measured frame rate. */
+  _checkFrameRate() {
+    if (!this._rates || !this.presenting) return;
+    if (this._rateGrace > 0) { this._rateGrace--; return; }
+    const target = this.renderer.xr.getSession().frameRate || this._rates[this._rateIndex];
+    this._slowSeconds = this.fps < target * 0.9 ? this._slowSeconds + 1 : 0;
+    if (this._slowSeconds >= 2 && this._rateIndex > 0) this._setFrameRate(this._rateIndex - 1);
+  }
+
   _onSessionEnd() {
+    this._rates = null;
+    this._xrScaleUsed = null;
+    this._applyQuality(); // three.js restored the pixel ratio from before the session
     this.orbit.enabled = true;
     this.welcome.hide();
     this.menu.pinned = false;
@@ -240,19 +275,47 @@ export class App {
     const session = await navigator.xr.requestSession('immersive-vr', {
       optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers'],
     });
-    this.renderer.xr.setFramebufferScaleFactor(this._xrScale(session));
+    this._xrNative = window.XRWebGLLayer?.getNativeFramebufferScaleFactor?.(session) || 1;
+    this._xrScaleUsed = this._xrScale();
+    this.renderer.xr.setFramebufferScaleFactor(this._xrScaleUsed);
     await this.renderer.xr.setSession(session);
   }
 
-  // The Quest Browser's default WebXR resolution is below the display's, so render at
-  // the native resolution instead. Quest 1 and 2 keep the default to hold frame rate.
-  // ?scale overrides it.
-  _xrScale(session) {
+  // The Quest Browser's default WebXR resolution is below the display's (1680×1760
+  // per eye on the Quest 3, against 2064×2208), so the preset's resolution is a
+  // fraction of the native one: High renders at the display's resolution.
+  // The native scale is clamped to 1–1.5 so a headset that doesn't report it, or
+  // one with a very high resolution display, stays near its default. ?scale overrides it.
+  _xrScale() {
     const forced = parseFloat(this.params.get('scale'));
     if (forced > 0.3 && forced <= 2) return forced;
-    if (/Quest( [12])?[;)]/.test(navigator.userAgent)) return 1;
-    const native = window.XRWebGLLayer?.getNativeFramebufferScaleFactor?.(session) || 1;
-    return Math.min(Math.max(native, 1), 1.5);
+    const native = Math.min(Math.max(this._xrNative, 1), 1.5);
+    return Math.max(0.5, native * QUALITY[this.quality].resolution);
+  }
+
+  /** Switch graphics preset (see quality.js) and remember it for next time. */
+  setQuality(key) {
+    if (!QUALITY[key] || key === this.quality) return;
+    this.quality = key;
+    saveQuality(key);
+    this._applyQuality();
+  }
+
+  _applyQuality() {
+    const q = QUALITY[this.quality];
+    // The XR framebuffer size is fixed for the session, so in VR only foveation and
+    // shadows change now; the resolution changes the next time VR starts.
+    if (!this.presenting) this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * q.resolution);
+    this.renderer.xr.setFoveation(q.foveation);
+    if (this.env.sun.castShadow !== q.shadows) {
+      this.env.setShadows(q.shadows); // recompiles the lit materials, once
+      this.renderer.shadowMap.needsUpdate = true;
+    }
+  }
+
+  /** True in VR when the chosen preset's resolution differs from the session's. */
+  get qualityPending() {
+    return this.presenting && !!this._xrScaleUsed && Math.abs(this._xrScale() - this._xrScaleUsed) > 0.001;
   }
 
   _frame(t, xrFrame) {
@@ -305,10 +368,12 @@ export class App {
     if (this.statsEnabled) this._cpuAcc += performance.now() - cpu0;
     if (this._fpsT > 1) {
       this.fps = this._fpsN / this._fpsT;
+      this._checkFrameRate();
       if (this.statsEnabled) {
         const info = this.renderer.info.render;
         const eye = this.presenting ? this.renderer.xr.getCamera().cameras[0]?.viewport : null;
-        Object.assign(this.stats, { fps: this.fps, cpu: this._cpuAcc / this._fpsN, calls: info.calls, tris: info.triangles, eye: eye ? `${eye.z}×${eye.w}` : '' });
+        const hz = this.presenting ? this.renderer.xr.getSession()?.frameRate : null;
+        Object.assign(this.stats, { fps: this.fps, hz, cpu: this._cpuAcc / this._fpsN, calls: info.calls, tris: info.triangles, eye: eye ? `${eye.z}×${eye.w}` : '' });
         this.onStats?.(this.stats);
       }
       this._fpsT = 0; this._fpsN = 0; this._cpuAcc = 0;
@@ -317,6 +382,6 @@ export class App {
 
   get statsText() {
     const s = this.stats;
-    return `${s.fps.toFixed(0)} fps · ${s.cpu.toFixed(1)} ms cpu · ${s.calls} draws · ${(s.tris / 1000).toFixed(0)}k tris${s.eye ? ` · ${s.eye} per eye` : ''}`;
+    return `${s.fps.toFixed(0)}${s.hz ? `/${s.hz}` : ''} fps · ${s.cpu.toFixed(1)} ms cpu · ${s.calls} draws · ${(s.tris / 1000).toFixed(0)}k tris${s.eye ? ` · ${s.eye} per eye` : ''}`;
   }
 }

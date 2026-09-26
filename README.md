@@ -77,9 +77,10 @@ Pushing to `main` builds the site, runs the smoke tests, and deploys it to GitHu
 
 - `?scene=playground|gallery|knots|hopf|hyperbolic` sets the starting scene
 - `?desktop` skips the start screen
-- `?scale=1` sets the XR framebuffer scale. By default the Quest 3 and Pro render at the display's native resolution, and the Quest 2 uses 1. Lower it if frames drop.
-- `?hz=90` requests a 90 Hz refresh rate
-- `?stats` shows the frame rate, CPU time, draw calls, triangle count, and resolution per eye in VR
+- `?quality=low|medium|high` uses a graphics preset for this visit without changing the saved one
+- `?scale=1` sets the XR framebuffer scale directly, overriding the preset's resolution
+- `?hz=90` sets a fixed refresh rate
+- `?stats` shows the frame rate, CPU time, draw calls, triangle count, and resolution per eye in VR. In VR the frame rate is shown as measured/target.
 - `?iwer` emulates a Quest 3 with [IWER](https://github.com/meta-quest/immersive-web-emulation-runtime) so VR mode can be tested in a desktop browser. `?iwer=headless` loads it without the control panel.
 
 ## Implementation
@@ -118,7 +119,16 @@ Points are stored in the hyperboloid model and drawn using the Beltrami-Klein mo
 
 ## Performance
 
-- Fixed foveation is off, since three.js turns it on to the maximum by default
+- Graphics presets (Low, Medium, High) are in the menu and saved in the browser. The Quest 1 and 2 start on Medium and other devices start on High.
+
+  | Preset | Resolution | Fixed foveation | Shadows |
+  | --- | --- | --- | --- |
+  | High | 100% of the display's native resolution | Off | On |
+  | Medium | 80% | Low | On |
+  | Low | 60% | High | Off |
+
+  In VR, resolution is a fraction of the display's native resolution, e.g. 2064×2208 per eye on the Quest 3 at 100%, about 1650×1770 at 80%. The Quest Browser's default is about 1680×1760. On desktop it is a fraction of the screen's pixel ratio, up to 2. The VR resolution is fixed while a session runs, so changing the preset in the headset changes foveation and shadows right away and the resolution the next time VR starts. 4x MSAA is always on.
+- The refresh rate starts at the highest rate the headset supports and drops a step if the scene cannot keep up. Switching scenes goes back to the highest rate.
 - No post-processing
 - Scenes are loaded when first opened, and the 4D shapes are built before VR starts so choosing a preset in the headset does not stall
 - Per-frame code avoids allocations to prevent garbage collection pauses on the headset
