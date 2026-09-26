@@ -87,6 +87,7 @@ export class TextLabel {
     this.bg = bg;
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
+    this.texture.anisotropy = 4;
     this.mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(size * (this.w / this.h), size),
       new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, depthWrite: false, toneMapped: false }),

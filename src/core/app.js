@@ -24,8 +24,9 @@ export class App {
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.xr.enabled = true;
     renderer.xr.setReferenceSpaceType('local-floor');
-    const fbScale = parseFloat(this.params.get('scale'));
-    if (fbScale > 0.3 && fbScale <= 1.5) renderer.xr.setFramebufferScaleFactor(fbScale);
+    // three.js defaults to maximum fixed foveation, which blurs the edges of the view.
+    // The framebuffer scale is set in enterVR(), since it needs the session.
+    renderer.xr.setFoveation(0);
     container.appendChild(renderer.domElement);
     this.renderer = renderer;
 
@@ -202,7 +203,6 @@ export class App {
 
   _onSessionStart() {
     this.audio.unlock();
-    this.renderer.xr.setFoveation(1);
     const hz = parseFloat(this.params.get('hz'));
     const session = this.renderer.xr.getSession();
     if (hz && session?.updateTargetFrameRate && session.supportedFrameRates?.includes(hz)) {
@@ -240,7 +240,19 @@ export class App {
     const session = await navigator.xr.requestSession('immersive-vr', {
       optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers'],
     });
+    this.renderer.xr.setFramebufferScaleFactor(this._xrScale(session));
     await this.renderer.xr.setSession(session);
+  }
+
+  // The Quest Browser's default WebXR resolution is below the display's, so render at
+  // the native resolution instead. Quest 1 and 2 keep the default to hold frame rate.
+  // ?scale overrides it.
+  _xrScale(session) {
+    const forced = parseFloat(this.params.get('scale'));
+    if (forced > 0.3 && forced <= 2) return forced;
+    if (/Quest( [12])?[;)]/.test(navigator.userAgent)) return 1;
+    const native = window.XRWebGLLayer?.getNativeFramebufferScaleFactor?.(session) || 1;
+    return Math.min(Math.max(native, 1), 1.5);
   }
 
   _frame(t, xrFrame) {
@@ -295,7 +307,8 @@ export class App {
       this.fps = this._fpsN / this._fpsT;
       if (this.statsEnabled) {
         const info = this.renderer.info.render;
-        Object.assign(this.stats, { fps: this.fps, cpu: this._cpuAcc / this._fpsN, calls: info.calls, tris: info.triangles });
+        const eye = this.presenting ? this.renderer.xr.getCamera().cameras[0]?.viewport : null;
+        Object.assign(this.stats, { fps: this.fps, cpu: this._cpuAcc / this._fpsN, calls: info.calls, tris: info.triangles, eye: eye ? `${eye.z}×${eye.w}` : '' });
         this.onStats?.(this.stats);
       }
       this._fpsT = 0; this._fpsN = 0; this._cpuAcc = 0;
@@ -304,6 +317,6 @@ export class App {
 
   get statsText() {
     const s = this.stats;
-    return `${s.fps.toFixed(0)} fps · ${s.cpu.toFixed(1)} ms cpu · ${s.calls} draws · ${(s.tris / 1000).toFixed(0)}k tris`;
+    return `${s.fps.toFixed(0)} fps · ${s.cpu.toFixed(1)} ms cpu · ${s.calls} draws · ${(s.tris / 1000).toFixed(0)}k tris${s.eye ? ` · ${s.eye} per eye` : ''}`;
   }
 }

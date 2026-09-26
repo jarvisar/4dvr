@@ -77,9 +77,9 @@ Pushing to `main` builds the site, runs the smoke tests, and deploys it to GitHu
 
 - `?scene=playground|gallery|knots|hopf|hyperbolic` sets the starting scene
 - `?desktop` skips the start screen
-- `?scale=0.8` sets the XR framebuffer scale (lower it if a Quest 2 drops frames)
+- `?scale=1` sets the XR framebuffer scale. By default the Quest 3 and Pro render at the display's native resolution, and the Quest 2 uses 1. Lower it if frames drop.
 - `?hz=90` requests a 90 Hz refresh rate
-- `?stats` shows the frame rate, CPU time, draw calls, and triangle count
+- `?stats` shows the frame rate, CPU time, draw calls, triangle count, and resolution per eye in VR
 - `?iwer` emulates a Quest 3 with [IWER](https://github.com/meta-quest/immersive-web-emulation-runtime) so VR mode can be tested in a desktop browser. `?iwer=headless` loads it without the control panel.
 
 ## Implementation
@@ -118,6 +118,7 @@ Points are stored in the hyperboloid model and drawn using the Beltrami-Klein mo
 
 ## Performance
 
+- Fixed foveation is off, since three.js turns it on to the maximum by default
 - No post-processing
 - Scenes are loaded when first opened, and the 4D shapes are built before VR starts so choosing a preset in the headset does not stall
 - Per-frame code avoids allocations to prevent garbage collection pauses on the headset
