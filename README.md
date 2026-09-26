@@ -58,14 +58,13 @@ npm install
 npm run dev
 ```
 
-The app will be served at `https://localhost:5173` with a self-signed certificate, since WebXR requires HTTPS.
+Open `http://localhost:5173` on the PC. The server also accepts HTTPS on the same port, with a self-signed certificate, since other devices need HTTPS for WebXR.
 
-3. To use it on a Quest, connect the headset to the same network as the PC, open `https://<pc-ip>:5173` in the Quest Browser, accept the certificate warning, and press **Enter VR**.
+3. To use it on a Quest, connect the headset to the same network as the PC, open `https://<pc-ip>:5173` in the Quest Browser (`http://` redirects there), accept the certificate warning, and press **Enter VR**.
 
 Other commands:
 
 ```sh
-npm run dev:http    # dev server over http (desktop only)
 npm run build       # production build in dist/
 npm run preview     # serve the production build
 npm run test:smoke  # build and run the headless Chrome tests (requires Chrome)

@@ -6,7 +6,6 @@
   "description": "WebXR app for viewing and interacting with 4D objects, higher-dimensional geometry and hyperbolic space (Three.js, Meta Quest hand tracking).",
   "scripts": {
     "dev": "vite",
-    "dev:http": "vite --mode http",
     "build": "vite build",
     "preview": "vite preview",
     "test:smoke": "vite build && node tools/ci-smoke.mjs"

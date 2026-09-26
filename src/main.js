@@ -197,7 +197,7 @@ async function checkXR() {
   if (!('xr' in navigator)) {
     setStatus(window.isSecureContext
       ? 'This browser has no WebXR. Open the page in the Meta Quest Browser to use VR.'
-      : 'WebXR needs HTTPS. Serve over https (npm run dev does this) and open it on your headset.', 'off');
+      : 'WebXR needs HTTPS. Open the https:// address (npm run dev serves it) on your headset.', 'off');
   } else {
     xrOk = await navigator.xr.isSessionSupported('immersive-vr').catch(() => false);
     if (xrOk) {
