@@ -21,33 +21,64 @@ async function loadExtraScenes() {
   );
 }
 
+const $ = (id) => document.getElementById(id);
+const overlay = $('overlay');
+const hud = $('hud');
+const tabs = $('scene-tabs');
+const helpBox = $('hud-help');
+const helpList = $('hud-help-list');
+const hudId = $('hud-id');
+const menuBtn = $('hud-menu');
+const helpBtn = $('hud-help-toggle');
+const statsEl = $('hud-stats');
+const vrBtn = $('enter-vr');
+const deskBtn = $('enter-desktop');
+const hudVr = $('hud-vr');
+const note = $('xr-note');
+const status = $('xr-status');
+const statusText = $('xr-status-text');
+const index = $('scene-index');
+
 let app;
 try {
-  app = new App(document.getElementById('app'), SCENES);
+  app = new App($('app'), SCENES);
 } catch (e) {
-  document.getElementById('xr-note').textContent = `Could not start WebGL 2 (${e.message}). Try an up-to-date browser.`;
+  note.textContent = `Could not start WebGL 2 (${e.message}). Try an up-to-date browser.`;
   throw e;
 }
 window.__app = app; // for debugging from the console and for tools/ci-smoke.mjs
 
-const overlay = document.getElementById('overlay');
-const hud = document.getElementById('hud');
-const tabs = document.getElementById('scene-tabs');
-const help = document.getElementById('hud-help');
-const vrBtn = document.getElementById('enter-vr');
-const hudVr = document.getElementById('hud-vr');
-const note = document.getElementById('xr-note');
+// small per-browser preferences; storage can be unavailable (private mode)
+const pref = {
+  get(k, d) { try { const v = localStorage.getItem(`4dvr.${k}`); return v === null ? d : v === '1'; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(`4dvr.${k}`, v ? '1' : '0'); } catch { /* ignore */ } },
+};
+
+// --- scenes ---------------------------------------------------------------------
+let pendingScene = null;
+function requestScene(key) {
+  if (SCENES.some((s) => s.key === key)) app.setScene(key);
+  else pendingScene = key; // still loading
+}
 
 function renderTabs() {
   tabs.innerHTML = '';
-  for (const s of SCENES) {
+  SCENES.forEach((s, i) => {
     const b = document.createElement('button');
-    b.textContent = s.short;
+    b.innerHTML = `<i>${i + 1}</i>${s.short}`;
+    b.title = `${s.short} (${i + 1})`;
     b.className = s.key === app.sceneKey ? 'active' : '';
     b.onclick = () => app.setScene(s.key);
     tabs.appendChild(b);
-  }
-  help.innerHTML = app.activeScene?.desktopHelp() || '';
+  });
+  const i = SCENES.findIndex((s) => s.key === app.sceneKey);
+  hudId.innerHTML = `Scene <b>${String(i + 1).padStart(2, '0')}</b> · ${app.activeScene?.title || ''}`;
+  // "<b>Key</b> does something · …" → one row per control
+  helpList.innerHTML = (app.activeScene?.desktopHelp() || '')
+    .split(' · ')
+    .map((item) => `<li>${item}</li>`)
+    .join('');
+  for (const b of index.querySelectorAll('button')) b.classList.toggle('selected', b.dataset.scene === app.sceneKey);
 }
 
 app.onSceneChanged = () => {
@@ -59,6 +90,7 @@ app.onSceneChanged = () => {
 
 app.onSessionChange = (on) => {
   hud.hidden = on;
+  app.hudActive = !on;
   if (!on) overlay.classList.add('hidden');
 };
 
@@ -66,32 +98,65 @@ const initial = new URLSearchParams(location.search).get('scene') || 'playground
 app.setScene('playground', true);
 loadExtraScenes().then(() => {
   renderTabs();
-  if (initial !== 'playground' && SCENES.some((s) => s.key === initial)) app.setScene(initial, true);
+  app.menu.rebuild(); // the VR menu's scene tabs
+  const key = pendingScene || initial;
+  pendingScene = null;
+  if (key !== 'playground' && SCENES.some((s) => s.key === key)) app.setScene(key, true);
 }).catch((e) => console.error('Failed to load scenes', e));
 
+// --- HUD toggles ------------------------------------------------------------------
+function setHelp(open) {
+  helpBox.classList.toggle('closed', !open);
+  helpBtn.classList.toggle('on', open);
+  pref.set('help', open);
+}
+app.onDesktopHelp = () => setHelp(helpBox.classList.contains('closed'));
+helpBtn.onclick = app.onDesktopHelp;
+setHelp(pref.get('help', window.innerWidth >= 720));
+
+app.onDesktopMenuChanged = (on) => menuBtn.classList.toggle('on', on);
+menuBtn.onclick = () => app.setDesktopMenu(!app.desktopMenu);
+menuBtn.classList.toggle('on', app.desktopMenu);
+
+if (app.statsEnabled) {
+  statsEl.hidden = false;
+  app.onStats = () => { statsEl.textContent = app.statsText; };
+}
+
 // --- WebXR availability -------------------------------------------------------
+let xrOk = false;
+function setStatus(text, state) {
+  statusText.textContent = text;
+  status.className = `status ${state}`;
+}
+setStatus('Checking headset', 'pending');
+
 async function checkXR() {
   if (!('xr' in navigator)) {
-    vrBtn.textContent = 'VR not available';
+    setStatus('No WebXR', 'off');
     note.textContent = window.isSecureContext
       ? 'This browser has no WebXR. Open the page in the Meta Quest Browser to enter VR.'
       : 'WebXR needs HTTPS. Serve over https (npm run dev does this) and open it on your headset.';
-    return;
-  }
-  const ok = await navigator.xr.isSessionSupported('immersive-vr').catch(() => false);
-  if (ok) {
-    vrBtn.disabled = false;
-    vrBtn.textContent = 'Enter VR';
-    hudVr.hidden = false;
-    note.textContent = 'Supports hand tracking and controllers.';
   } else {
-    vrBtn.textContent = 'No headset found';
-    note.textContent = 'No VR headset detected. All scenes can also be used on desktop.';
+    xrOk = await navigator.xr.isSessionSupported('immersive-vr').catch(() => false);
+    if (xrOk) {
+      setStatus('Headset ready', 'ok');
+      note.textContent = 'Hand tracking and controllers are both supported.';
+      hudVr.hidden = false;
+    } else {
+      setStatus('No headset', 'off');
+      note.textContent = 'No VR headset detected. Every scene also works with a mouse and keyboard.';
+    }
   }
+  // the available path is the primary action
+  vrBtn.disabled = !xrOk;
+  vrBtn.textContent = xrOk ? 'Enter VR' : 'VR unavailable';
+  vrBtn.classList.toggle('primary', xrOk);
+  deskBtn.classList.toggle('primary', !xrOk);
 }
 checkXR();
 
-const enter = async () => {
+const enterVR = async () => {
   try {
     overlay.classList.add('hidden');
     await app.enterVR();
@@ -101,18 +166,25 @@ const enter = async () => {
     overlay.classList.remove('hidden');
   }
 };
-vrBtn.onclick = enter;
-hudVr.onclick = enter;
+vrBtn.onclick = enterVR;
+hudVr.onclick = enterVR;
 
-document.getElementById('enter-desktop').onclick = () => {
+function enterDesktop() {
   app.audio.unlock();
   overlay.classList.add('hidden');
   hud.hidden = false;
-  renderTabs();
-};
-
-if (new URLSearchParams(location.search).has('desktop')) {
-  overlay.classList.add('hidden');
-  hud.hidden = false;
+  app.hudActive = true;
   renderTabs();
 }
+deskBtn.onclick = enterDesktop;
+
+// Scene index: with a headset, pick the scene to enter VR in; without one, go straight in.
+index.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-scene]');
+  if (!b) return;
+  requestScene(b.dataset.scene);
+  for (const x of index.querySelectorAll('button')) x.classList.toggle('selected', x === b);
+  if (!xrOk) enterDesktop();
+});
+
+if (new URLSearchParams(location.search).has('desktop')) enterDesktop();

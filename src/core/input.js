@@ -31,6 +31,10 @@ class Button {
   reset() { this.set(false, 0); }
 }
 
+const HIST = 10;
+// Hand tracking often drops out for a few frames (hands overlapping, fast
+// motion). Keep the pinch state through short gaps so held objects aren't dropped.
+const TRACKING_GRACE = 0.2;
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _q = new THREE.Quaternion();
@@ -62,7 +66,10 @@ export class Interactor {
 
     this.velocity = new THREE.Vector3();
     this.angularVelocity = new THREE.Vector3();
-    this._hist = [];
+    // ring buffer of recent poses for release velocity (preallocated, no per-frame garbage)
+    this._hist = Array.from({ length: HIST }, () => ({ t: -1, p: new THREE.Vector3(), q: new THREE.Quaternion() }));
+    this._histHead = 0;
+    this._lostT = 0; // seconds since hand joints were last valid
 
     this.joints = JOINT_NAMES.map(() => ({ pos: new THREE.Vector3(), quat: new THREE.Quaternion(), radius: 0.008 }));
     this.jointsValid = false;
@@ -101,13 +108,15 @@ export class Interactor {
   }
 
   _record(time) {
-    this._hist.push({ t: time, p: this.grabPos.clone(), q: this.grabQuat.clone() });
-    while (this._hist.length > 10) this._hist.shift();
+    this._histHead = (this._histHead + 1) % HIST;
+    const last = this._hist[this._histHead];
+    last.t = time; last.p.copy(this.grabPos); last.q.copy(this.grabQuat);
     // velocity over the last ~70ms
-    const last = this._hist[this._hist.length - 1];
     let first = last;
-    for (let i = this._hist.length - 1; i >= 0; i--) {
-      first = this._hist[i];
+    for (let k = 1; k < HIST; k++) {
+      const h = this._hist[(this._histHead - k + HIST) % HIST];
+      if (h.t < 0 || h.t > time) break;
+      first = h;
       if (last.t - first.t > 0.07) break;
     }
     const dt = last.t - first.t;
@@ -173,7 +182,10 @@ export class InputSystem {
         ix.source = null;
         ix.kind = 'none';
         ix.active = false;
-        ix.pinch.reset(); ix.grip.reset();
+        ix.pinch.reset(); ix.grip.reset(); ix.btnA.reset(); ix.btnB.reset();
+        ix.stick.set(0, 0);
+        ix.jointsValid = false;
+        ix.hasPoke = false;
         model.visible = false;
       });
       this.spaces.push({ ctrl, grip, hand, model });
@@ -215,7 +227,15 @@ export class InputSystem {
         ix.joints[j].radius = jg.jointRadius || 0.008;
       }
       ix.jointsValid = valid;
-      if (!valid) { ix.pinch.set(false); ix.grip.set(false); ix.hasPoke = false; return; }
+      if (!valid) {
+        ix._lostT += dt;
+        const hold = ix._lostT < TRACKING_GRACE;
+        ix.pinch.set(hold && ix.pinch.pressed, ix.pinch.value);
+        ix.grip.set(hold && ix.grip.pressed, ix.grip.value);
+        ix.hasPoke = false;
+        return;
+      }
+      ix._lostT = 0;
 
       const thumb = ix.joints[J['thumb-tip']].pos;
       const index = ix.joints[J['index-finger-tip']].pos;

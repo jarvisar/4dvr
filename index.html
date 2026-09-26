@@ -3,42 +3,73 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b0d18" />
-    <title>ana kata</title>
+    <meta name="theme-color" content="#07080c" />
+    <title>4D VR</title>
     <meta name="description" content="WebXR app for viewing and interacting with 4D objects, higher-dimensional geometry and hyperbolic space." />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1'%3E%3Cstop offset='0' stop-color='%23ff4f9a'/%3E%3Cstop offset='1' stop-color='%2333c3ff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='8' y='8' width='34' height='34' rx='4' fill='none' stroke='url(%23g)' stroke-width='5'/%3E%3Crect x='22' y='22' width='34' height='34' rx='4' fill='none' stroke='url(%23g)' stroke-width='5'/%3E%3C/svg%3E" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M14 4H60V50L50 60H4V14Z' fill='%2307080c' stroke='%23eceef4' stroke-width='4'/%3E%3Cpath d='M4 14L14 4' stroke='%2333c3ff' stroke-width='5'/%3E%3Cpath d='M60 50L50 60' stroke='%23ff4f9a' stroke-width='5'/%3E%3Cpath d='M32 16V48M24 24H40M24 40H40' stroke='%23eceef4' stroke-width='4'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
     <link rel="stylesheet" href="./src/style.css" />
   </head>
   <body>
     <div id="app"></div>
 
+    <!-- viewfinder corners, shared by the start screen and the HUD -->
+    <div class="viewfinder" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
     <div id="overlay">
-      <div class="card">
-        <div class="eyebrow">WebXR · Meta Quest · hand tracking</div>
-        <h1>ana + kata</h1>
+      <div class="gauge" aria-hidden="true">
+        <span class="gauge-end ana">+w<br />ana</span>
+        <div class="gauge-scale"><b class="gauge-mark"></b></div>
+        <span class="gauge-end kata">kata<br />−w</span>
+      </div>
+
+      <main class="console">
+        <header class="console-bar">
+          <span>WebXR · 4D geometry lab</span>
+          <span class="status" id="xr-status"><i></i><span id="xr-status-text">Checking headset</span></span>
+        </header>
+
+        <h1 class="wordmark">
+          <span>4D</span><span class="vr">VR</span>
+          <span class="axis" aria-hidden="true"><i class="ana">+w ana</i><i class="kata">−w kata</i></span>
+        </h1>
         <p class="lede">
-          View and interact with 4D objects and hyperbolic space. Ana (+w) and kata (−w) are the two
-          directions along the fourth axis.
+          Hold, turn and cut through objects from the fourth dimension. The fourth axis is w: its two
+          directions are called ana (+w) and kata (−w), the ones you can't point to.
         </p>
-        <ul class="scenes">
-          <li><b>Hyperplay</b>4D physics sandbox, shown as 3D cross-sections</li>
-          <li><b>Polytope Lab</b>Regular 4-polytopes, projected and sliced</li>
-          <li><b>Knot Lab</b>Untie knots by moving strands through W</li>
-          <li><b>Hopf Garden</b>Hopf fibration of the 3-sphere</li>
-          <li><b>Hyperbolic Space</b>{5,3,4} and {4,3,5} honeycombs</li>
-        </ul>
+
+        <ol class="index" id="scene-index">
+          <li><button data-scene="playground"><span class="n">01</span><b>Hyperplay</b><span class="d">4D physics sandbox, seen as 3D cross-sections</span></button></li>
+          <li><button data-scene="gallery"><span class="n">02</span><b>Polytope Lab</b><span class="d">Regular 4-polytopes, projected and sliced</span></button></li>
+          <li><button data-scene="knots"><span class="n">03</span><b>Knot Lab</b><span class="d">Untie knots by moving strands through w</span></button></li>
+          <li><button data-scene="hopf"><span class="n">04</span><b>Hopf Garden</b><span class="d">The Hopf fibration of the 3-sphere</span></button></li>
+          <li><button data-scene="hyperbolic"><span class="n">05</span><b>Hyperbolic Space</b><span class="d">Walk inside the {5,3,4} and {4,3,5} honeycombs</span></button></li>
+        </ol>
+
         <div class="actions">
-          <button id="enter-vr" class="primary" disabled>Checking for VR…</button>
-          <button id="enter-desktop" class="ghost">Use on desktop</button>
+          <button id="enter-vr" class="btn primary" disabled>Enter VR</button>
+          <button id="enter-desktop" class="btn">Desktop mode</button>
         </div>
         <p id="xr-note" class="note"></p>
-      </div>
+        <p class="keys"><kbd>1</kbd>–<kbd>5</kbd> scenes <kbd>M</kbd> menu <kbd>H</kbd> help</p>
+      </main>
     </div>
 
     <div id="hud" hidden>
-      <nav id="scene-tabs"></nav>
-      <div id="hud-help"></div>
-      <button id="hud-vr" class="primary small" hidden>Enter VR</button>
+      <div class="hud-id" id="hud-id"></div>
+      <nav id="scene-tabs" aria-label="Scenes"></nav>
+      <div class="hud-tools">
+        <button id="hud-menu" class="btn small" title="Menu (M)">Menu <kbd>M</kbd></button>
+        <button id="hud-help-toggle" class="btn small" title="Controls (H)">Help <kbd>H</kbd></button>
+      </div>
+      <section id="hud-help" aria-label="Controls">
+        <header>Controls</header>
+        <ul id="hud-help-list"></ul>
+      </section>
+      <div id="hud-stats" hidden></div>
+      <button id="hud-vr" class="btn primary small" hidden>Enter VR</button>
     </div>
 
     <script type="module" src="./src/main.js"></script>

@@ -92,12 +92,12 @@ export const MOODS = {
     floorBase: '#dcd8d2', floorLine: '#b9b3ab', light: 'studio', floor: true,
   },
   dusk: {
-    top: '#1b2140', horizon: '#6b5b8a', bottom: '#15131f', glow: '#ffb38a', stars: 0.6,
-    floorBase: '#23202e', floorLine: '#3d3852', light: 'night', floor: true,
+    top: '#07080c', horizon: '#252a36', bottom: '#08090d', glow: '#9fb8ff', stars: 0.35,
+    floorBase: '#0e1016', floorLine: '#2a2f3c', light: 'night', floor: true,
   },
   void: {
-    top: '#05060d', horizon: '#141a33', bottom: '#030308', glow: '#6f8cff', stars: 1,
-    floorBase: '#0b0d18', floorLine: '#1d2340', light: 'night', floor: true,
+    top: '#040509', horizon: '#121626', bottom: '#030407', glow: '#6f8cff', stars: 1,
+    floorBase: '#08090e', floorLine: '#1a1e2c', light: 'night', floor: true,
   },
   hyperbolic: {
     top: '#070812', horizon: '#1a1030', bottom: '#050510', glow: '#ff7ad9', stars: 0.4,
@@ -127,7 +127,9 @@ export class Environment {
       depthWrite: false,
     });
     this.sky = new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), this.skyMat);
-    this.sky.renderOrder = -10;
+    // Drawn after the other opaque objects: it sits on the far plane, so the
+    // depth test skips every sky pixel that something else already covers.
+    this.sky.renderOrder = 100;
     this.sky.frustumCulled = false;
     this.group.add(this.sky);
 

@@ -6,7 +6,7 @@
 // separated when the loops are apart.
 
 import * as THREE from 'three';
-import { SceneBase, Burst, makeLabel } from './base.js';
+import { SceneBase, Burst, makeLabel, disposeLabel, TextLabel } from './base.js';
 import { LIGHT, LIGHTING_GLSL } from '../core/lighting.js';
 import { ANA_COLOR, KATA_COLOR } from '../four/sliceView.js';
 import { GHOST_STYLE } from '../four/sliceMaterial.js';
@@ -16,6 +16,10 @@ const COLLIDE = TUBE_R * 2.3;
 const RADIAL = 8;
 const SUB = 2; // curve samples per bead
 const W_SAT = 0.06;
+const COS = Array.from({ length: RADIAL }, (_, j) => Math.cos((j / RADIAL) * Math.PI * 2));
+const SIN = Array.from({ length: RADIAL }, (_, j) => Math.sin((j / RADIAL) * Math.PI * 2));
+const WHITE = new THREE.Color('#f4f1ff');
+const _col = new THREE.Color();
 
 const ROPE_VERT = /* glsl */ `
 attribute vec3 color;
@@ -275,63 +279,72 @@ class RopeMesh {
 
   update() {
     const r = this.rope, p = r.p;
-    const pt = [0, 0, 0, 0];
-    const col = new THREE.Color();
-    const white = new THREE.Color('#f4f1ff');
     r.loops.forEach((l, li) => {
       const { mesh, M } = this.meshes[li];
       const pos = mesh.geometry.attributes.position.array;
       const nor = mesh.geometry.attributes.normal.array;
       const cols = mesh.geometry.attributes.color.array;
+      // scratch buffers, grown once and reused every frame
+      if (!this._S || this._S.length < M * 4) {
+        this._S = new Float64Array(M * 4);
+        this._T = new Float64Array((M + 1) * 3);
+        this._N = new Float64Array((M + 1) * 3);
+      }
+      const S = this._S, Ts = this._T, Ns = this._N;
       // Catmull-Rom samples
-      const S = [];
       for (let k = 0; k < l.n; k++) {
         const i0 = l.start + ((k - 1 + l.n) % l.n), i1 = l.start + k, i2 = l.start + ((k + 1) % l.n), i3 = l.start + ((k + 2) % l.n);
         for (let s = 0; s < SUB; s++) {
           const t = s / SUB, t2 = t * t, t3 = t2 * t;
+          const o = (k * SUB + s) * 4;
           for (let c = 0; c < 4; c++) {
             const a = p[i0 * 4 + c], b = p[i1 * 4 + c], cc = p[i2 * 4 + c], d = p[i3 * 4 + c];
-            pt[c] = 0.5 * (2 * b + (-a + cc) * t + (2 * a - 5 * b + 4 * cc - d) * t2 + (-a + 3 * b - 3 * cc + d) * t3);
+            S[o + c] = 0.5 * (2 * b + (-a + cc) * t + (2 * a - 5 * b + 4 * cc - d) * t2 + (-a + 3 * b - 3 * cc + d) * t3);
           }
-          S.push(pt.slice());
         }
       }
       // rotation-minimising frames around the loop; the frame generally comes
       // back twisted after a full loop, so spread the twist evenly to avoid a seam
-      const Ts = [], Ns = [];
-      let prevN = null;
       for (let i = 0; i <= M; i++) {
-        const a = S[(i - 1 + M) % M], b = S[(i + 1) % M];
-        const T = norm([b[0] - a[0], b[1] - a[1], b[2] - a[2]]);
-        let N;
-        if (!prevN) N = norm(cross(T, Math.abs(T[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]));
-        else {
-          const dp = prevN[0] * T[0] + prevN[1] * T[1] + prevN[2] * T[2];
-          N = norm([prevN[0] - dp * T[0], prevN[1] - dp * T[1], prevN[2] - dp * T[2]]);
+        const a = ((i - 1 + M) % M) * 4, b = ((i + 1) % M) * 4;
+        let tx = S[b] - S[a], ty = S[b + 1] - S[a + 1], tz = S[b + 2] - S[a + 2];
+        const tl = Math.hypot(tx, ty, tz) || 1;
+        tx /= tl; ty /= tl; tz /= tl;
+        let nx, ny, nz;
+        if (i === 0) {
+          // cross(T, helper), helper = +y unless T is nearly vertical
+          const hx = Math.abs(ty) < 0.9 ? 0 : 1, hy = 1 - hx;
+          nx = -tz * hy; ny = tz * hx; nz = tx * hy - ty * hx;
+        } else {
+          const px = Ns[(i - 1) * 3], py = Ns[(i - 1) * 3 + 1], pz = Ns[(i - 1) * 3 + 2];
+          const dp = px * tx + py * ty + pz * tz;
+          nx = px - dp * tx; ny = py - dp * ty; nz = pz - dp * tz;
         }
-        prevN = N;
-        Ts.push(T); Ns.push(N);
+        const nl = Math.hypot(nx, ny, nz) || 1;
+        Ts[i * 3] = tx; Ts[i * 3 + 1] = ty; Ts[i * 3 + 2] = tz;
+        Ns[i * 3] = nx / nl; Ns[i * 3 + 1] = ny / nl; Ns[i * 3 + 2] = nz / nl;
       }
-      const T0 = Ts[0], N0 = Ns[0], NM = Ns[M];
-      const B0 = cross(T0, N0);
-      const twist = Math.atan2(NM[0] * B0[0] + NM[1] * B0[1] + NM[2] * B0[2], NM[0] * N0[0] + NM[1] * N0[1] + NM[2] * N0[2]);
+      const t0x = Ts[0], t0y = Ts[1], t0z = Ts[2], n0x = Ns[0], n0y = Ns[1], n0z = Ns[2];
+      const b0x = t0y * n0z - t0z * n0y, b0y = t0z * n0x - t0x * n0z, b0z = t0x * n0y - t0y * n0x;
+      const nMx = Ns[M * 3], nMy = Ns[M * 3 + 1], nMz = Ns[M * 3 + 2];
+      const twist = Math.atan2(nMx * b0x + nMy * b0y + nMz * b0z, nMx * n0x + nMy * n0y + nMz * n0z);
       for (let i = 0; i < M; i++) {
-        const T = Ts[i];
-        const Bi = cross(T, Ns[i]);
-        const a = -twist * (i / M), ca0 = Math.cos(a), sa0 = Math.sin(a);
-        const N = [Ns[i][0] * ca0 + Bi[0] * sa0, Ns[i][1] * ca0 + Bi[1] * sa0, Ns[i][2] * ca0 + Bi[2] * sa0];
-        const B = cross(T, N);
-        const w = S[i][3];
+        const tx = Ts[i * 3], ty = Ts[i * 3 + 1], tz = Ts[i * 3 + 2];
+        const nx0 = Ns[i * 3], ny0 = Ns[i * 3 + 1], nz0 = Ns[i * 3 + 2];
+        const bx0 = ty * nz0 - tz * ny0, by0 = tz * nx0 - tx * nz0, bz0 = tx * ny0 - ty * nx0;
+        const ang0 = -twist * (i / M), ca0 = Math.cos(ang0), sa0 = Math.sin(ang0);
+        const Nx = nx0 * ca0 + bx0 * sa0, Ny = ny0 * ca0 + by0 * sa0, Nz = nz0 * ca0 + bz0 * sa0;
+        const Bx = ty * Nz - tz * Ny, By = tz * Nx - tx * Nz, Bz = tx * Ny - ty * Nx;
+        const sx = S[i * 4], sy = S[i * 4 + 1], sz = S[i * 4 + 2], w = S[i * 4 + 3];
         const k = Math.max(-1, Math.min(1, w / W_SAT));
-        col.copy(white).lerp(k >= 0 ? ANA_COLOR : KATA_COLOR, Math.abs(k));
+        _col.copy(WHITE).lerp(k >= 0 ? ANA_COLOR : KATA_COLOR, Math.abs(k));
         for (let j = 0; j < RADIAL; j++) {
-          const ang = (j / RADIAL) * Math.PI * 2;
-          const ca = Math.cos(ang), sa = Math.sin(ang);
-          const nx = N[0] * ca + B[0] * sa, ny = N[1] * ca + B[1] * sa, nz = N[2] * ca + B[2] * sa;
+          const ca = COS[j], sa = SIN[j];
+          const nx = Nx * ca + Bx * sa, ny = Ny * ca + By * sa, nz = Nz * ca + Bz * sa;
           const o = (i * RADIAL + j) * 3;
-          pos[o] = S[i][0] + nx * TUBE_R; pos[o + 1] = S[i][1] + ny * TUBE_R; pos[o + 2] = S[i][2] + nz * TUBE_R;
+          pos[o] = sx + nx * TUBE_R; pos[o + 1] = sy + ny * TUBE_R; pos[o + 2] = sz + nz * TUBE_R;
           nor[o] = nx; nor[o + 1] = ny; nor[o + 2] = nz;
-          cols[o] = col.r; cols[o + 1] = col.g; cols[o + 2] = col.b;
+          cols[o] = _col.r; cols[o + 1] = _col.g; cols[o + 2] = _col.b;
         }
       }
       mesh.geometry.attributes.position.needsUpdate = true;
@@ -347,6 +360,11 @@ class RopeMesh {
 
 const _hp = new THREE.Vector3();
 const _hq = new THREE.Quaternion();
+const _m = new THREE.Matrix4();
+const _pos = new THREE.Vector3();
+const _head = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);
+const _one = new THREE.Vector3(1, 1, 1);
 
 export class KnotScene extends SceneBase {
   constructor(app) {
@@ -373,8 +391,9 @@ export class KnotScene extends SceneBase {
     this.group.add(this.markers);
 
     this.burst = new Burst(this.group);
-    this.wLabel = makeLabel(' ', { size: 0.018 });
-    this.group.add(this.wLabel);
+    this.wLabel = new TextLabel({ size: 0.016, template: 'w = -00.0 cm', bg: 'rgba(8,9,14,0.86)' });
+    this.wLabel.mesh.visible = false;
+    this.group.add(this.wLabel.mesh);
     this.message = null;
     this.messageT = 0;
 
@@ -383,7 +402,6 @@ export class KnotScene extends SceneBase {
     this.load('trefoil');
     this._layout();
     this.desktopView = { position: new THREE.Vector3(0, 1.35, 0.1), target: this.center.clone() };
-    this.desktopMenuPose = { position: new THREE.Vector3(0.42, 1.25, -0.3), lookAt: new THREE.Vector3(0, 1.35, 0.1) };
   }
 
   _layout() {
@@ -411,6 +429,7 @@ export class KnotScene extends SceneBase {
     this.presetName = name;
     this.goal = PRESETS[name].goal;
     if (this.ropeMesh) this.ropeMesh.dispose();
+    this.grab = null; // a strand held during a reset belongs to the old rope
     this.rope = new Rope(PRESETS[name].loops());
     this.ropeMesh = new RopeMesh(this.rope, this);
     this.solved = false;
@@ -419,9 +438,9 @@ export class KnotScene extends SceneBase {
     this._say(this.goal === 'unknot' ? `${PRESETS[name].label} knot: untie it` : `${PRESETS[name].label}: separate the loops`, 3.5);
   }
 
-  _say(text, seconds = 3, color = '#e9e4ff') {
-    if (this.message) { this.group.remove(this.message); this.message.geometry.dispose(); }
-    this.message = makeLabel(text, { size: 0.022, color, bg: 'rgba(20,16,40,0.75)' });
+  _say(text, seconds = 3, color = '#e8eaf0') {
+    disposeLabel(this.message);
+    this.message = makeLabel(text, { size: 0.02, color, bg: 'rgba(8,9,14,0.86)' });
     this.message.position.set(0, 0.2, 0);
     this.group.add(this.message);
     this.messageT = seconds;
@@ -515,16 +534,14 @@ export class KnotScene extends SceneBase {
     this.ropeMesh.update();
 
     // pass-through markers
-    const m = new THREE.Matrix4();
-    const head = this.group.worldToLocal(this.app.headPosition.clone());
-    const q = new THREE.Quaternion();
+    const head = this.group.worldToLocal(_head.copy(this.app.headPosition));
     let n = 0;
     for (const c of this.rope.crossings) {
-      const pos = new THREE.Vector3(c[0], c[1], c[2]);
-      m.lookAt(head, pos, new THREE.Vector3(0, 1, 0));
-      q.setFromRotationMatrix(m);
-      m.compose(pos, q, new THREE.Vector3(1, 1, 1));
-      this.markers.setMatrixAt(n++, m);
+      _pos.set(c[0], c[1], c[2]);
+      _m.lookAt(head, _pos, _up);
+      _hq.setFromRotationMatrix(_m);
+      _m.compose(_pos, _hq, _one);
+      this.markers.setMatrixAt(n++, _m);
     }
     this.markers.count = n;
     this.markers.instanceMatrix.needsUpdate = true;
@@ -534,17 +551,12 @@ export class KnotScene extends SceneBase {
       const i = this.grab.index, p = this.rope.p;
       const w = p[i * 4 + 3];
       const text = Math.abs(w) < 0.003 ? 'w = 0' : `w = ${(w * 100).toFixed(1)} cm`;
-      if (text !== this._wText) {
-        this._wText = text;
-        this.group.remove(this.wLabel);
-        this.wLabel.geometry.dispose();
-        this.wLabel = makeLabel(text, { size: 0.016, color: w > 0.003 ? '#ffb3d4' : w < -0.003 ? '#a8e6ff' : '#ffffff', bg: 'rgba(20,16,40,0.7)' });
-        this.group.add(this.wLabel);
-      }
-      this.wLabel.visible = true;
-      this.wLabel.position.set(p[i * 4], p[i * 4 + 1] + 0.035, p[i * 4 + 2]);
-      this.wLabel.lookAt(this.app.headPosition);
-    } else this.wLabel.visible = false;
+      this.wLabel.setText(text, w > 0.003 ? '#ff8fbf' : w < -0.003 ? '#7fd8ff' : '#ffffff');
+      const lm = this.wLabel.mesh;
+      lm.visible = true;
+      lm.position.set(p[i * 4], p[i * 4 + 1] + 0.035, p[i * 4 + 2]);
+      lm.lookAt(this.app.headPosition);
+    } else this.wLabel.mesh.visible = false;
 
     // check for a solution twice a second
     this.checkT -= dt;

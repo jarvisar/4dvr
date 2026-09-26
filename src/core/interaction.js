@@ -31,7 +31,15 @@ export class InteractionManager {
       if (ix.grabbed) { ix.grabbed.onGrabEnd?.(ix); ix.grabbed = null; }
       if (ix.emptyGrab) { this.app.activeScene?.onEmptyGrabEnd?.(ix, ix.emptyGrab.mode); ix.emptyGrab = null; }
       if (ix.hover) { ix.hover.onHover?.(ix, false); ix.hover = null; }
-      ix.uiCapture = null;
+      if (ix.uiCapture) this.app.ui.endCapture(ix);
+    }
+  }
+
+  /** Drop references to an interactable that is being removed from the scene. */
+  forget(target) {
+    for (const ix of [...this.app.input.xr, this.app.input.mouse]) {
+      if (ix.grabbed === target) ix.grabbed = null;
+      if (ix.hover === target) ix.hover = null;
     }
   }
 

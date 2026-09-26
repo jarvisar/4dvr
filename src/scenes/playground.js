@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import * as V from '../math/vec4.js';
 import * as R4 from '../math/rot4.js';
-import { SceneBase, Burst, makeLabel } from './base.js';
+import { SceneBase, Burst, makeLabel, disposeLabel } from './base.js';
 import { Object4D } from '../four/object4d.js';
 import { SliceView } from '../four/sliceView.js';
 import { World4, Body4 } from '../physics/world4.js';
@@ -11,6 +11,8 @@ import { WRail } from './wrail.js';
 
 const TABLE_R = 0.6;
 const W_RANGE = 0.55;
+const W_GRADIENT = ['#33c3ff', '#ff4f9a']; // kata (−w) → ana (+w)
+const MAX_TOYS = 32; // collision is O(n²); spawning past this recycles the oldest toy
 
 const _p4 = [0, 0, 0, 0];
 const _q4 = [0, 0, 0, 0];
@@ -191,6 +193,7 @@ export class PlaygroundScene extends SceneBase {
     this.short = 'Hyperplay';
     this.subtitle = '4D physics sandbox';
     this.mood = 'studio';
+    this.shadows = true;
     this.tableY = 0.86;
     this.tableZ = -0.72;
 
@@ -218,7 +221,6 @@ export class PlaygroundScene extends SceneBase {
 
     this.interactables = [this.rail];
     this.desktopView = { position: new THREE.Vector3(0.0, 1.45, 0.25), target: new THREE.Vector3(0, this.tableY + 0.05, this.tableZ) };
-    this.desktopMenuPose = { position: new THREE.Vector3(0.78, this.tableY + 0.28, this.tableZ + 0.35), lookAt: new THREE.Vector3(0, 1.45, 0.4) };
     this._placeStage();
     this.loadPreset('sandbox');
   }
@@ -228,7 +230,6 @@ export class PlaygroundScene extends SceneBase {
     this.table.position.set(0, this.tableY, this.tableZ);
     this.app.env.setShadowFocus(new THREE.Vector3(0, this.tableY, this.tableZ), 0.75);
     this.desktopView.target.set(0, this.tableY + 0.05, this.tableZ);
-    this.desktopMenuPose.position.set(0.78, this.tableY + 0.28, this.tableZ + 0.35);
   }
 
   _buildTable() {
@@ -260,7 +261,7 @@ export class PlaygroundScene extends SceneBase {
     t.add(top);
     const rim = new THREE.Mesh(
       new THREE.TorusGeometry(TABLE_R, 0.006, 10, 128).rotateX(Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: '#9d8cff', emissive: '#6a55ff', emissiveIntensity: 0.6, roughness: 0.4 }),
+      new THREE.MeshStandardMaterial({ color: '#2b2f3a', emissive: '#eceef4', emissiveIntensity: 0.35, roughness: 0.4 }),
     );
     rim.position.y = 0.004;
     t.add(rim);
@@ -302,8 +303,13 @@ export class PlaygroundScene extends SceneBase {
     this._wSpeed = Math.abs(this.view.w - before);
   }
 
+  _removeToy(t) {
+    this.app.interaction.forget(t);
+    t.dispose();
+  }
+
   clear() {
-    for (const t of this.toys) t.dispose();
+    for (const t of this.toys) this._removeToy(t);
     this.toys = [];
     this.interactables = [this.rail];
     this.boxGoal = null;
@@ -318,6 +324,15 @@ export class PlaygroundScene extends SceneBase {
   }
 
   spawn(key) {
+    const dynamic = this.toys.filter((t) => !t.fixed);
+    if (dynamic.length >= MAX_TOYS) {
+      const old = dynamic.find((t) => !t.grabbedBy);
+      if (old) {
+        this._removeToy(old);
+        this.toys = this.toys.filter((t) => t !== old);
+        this.interactables = this.interactables.filter((t) => t !== old);
+      }
+    }
     // drop in front of the viewer, inside the current slice
     const scale = key === 'hypersphere' ? 0.055 + rand() * 0.04 : key === 'tesseract' ? 0.13 : key === 'tiger' ? 0.1 : 0.11;
     const x = (rand() - 0.5) * 0.3, z = (rand() - 0.5) * 0.2 + 0.1;
@@ -400,9 +415,8 @@ export class PlaygroundScene extends SceneBase {
   }
 
   _say(text, seconds = 3) {
-    this.stage.remove(this.message);
-    this.message.geometry.dispose();
-    this.message = makeLabel(text, { size: 0.03, color: '#2b2840', bg: 'rgba(255,255,255,0.82)' });
+    disposeLabel(this.message);
+    this.message = makeLabel(text, { size: 0.03, color: '#11131a', bg: 'rgba(244,245,248,0.9)' });
     this.message.position.set(0, 0.42, -0.1);
     this.stage.add(this.message);
     this.messageT = seconds;
@@ -531,11 +545,10 @@ export class PlaygroundScene extends SceneBase {
           { label: 'Polytopes', onClick: () => this.loadPreset('polytopes'), active: () => this.preset === 'polytopes' },
         ],
       },
-      { type: 'slider', label: 'Slice position (w)', min: this.view.wMin, max: this.view.wMax, center: 0, get: () => this.view.w, set: (v) => this.setW(v), format: fmtW },
+      { type: 'slider', label: 'Slice position (w)', min: this.view.wMin, max: this.view.wMax, center: 0, get: () => this.view.w, set: (v) => this.setW(v), format: fmtW, gradient: W_GRADIENT },
       {
         type: 'slider', label: 'Slice rotation (xw)', min: -Math.PI / 2, max: Math.PI / 2, center: 0,
         get: () => this.view.angleXW, set: (v) => this.view.setAngles(v, this.view.angleZW), format: (v) => `${Math.round((v * 180) / Math.PI)}°`,
-        gradient: ['#ffd93d', '#8b7bff'],
       },
       {
         type: 'buttons', columns: 4,

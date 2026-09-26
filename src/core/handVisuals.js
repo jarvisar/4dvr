@@ -61,7 +61,7 @@ const _up = new THREE.Vector3(0, 1, 0);
 const TINT_NONE = new THREE.Color(0, 0, 0);
 const TINT_PINCH = new THREE.Color('#33c3ff');
 const TINT_GRIP = new THREE.Color('#ff4f9a');
-const TINT_POKE = new THREE.Color('#8b7bff');
+const TINT_POKE = new THREE.Color('#eceef4');
 
 export class HandVisuals {
   constructor(app) {

@@ -216,7 +216,7 @@ export class HopfScene extends SceneBase {
     this._buildGlobe();
 
     this.labels = [];
-    const l1 = makeLabel('S²  ·  touch to add fibers', { size: 0.018, color: '#e3ecff', bg: 'rgba(20,24,48,0.7)' });
+    const l1 = makeLabel('S²  TOUCH TO ADD FIBERS', { size: 0.016, color: '#e8eaf0', bg: 'rgba(8,9,14,0.86)' });
     this.globeLabel = l1;
     this.root.add(l1);
 
@@ -225,7 +225,6 @@ export class HopfScene extends SceneBase {
     this._layout();
 
     this.desktopView = { position: new THREE.Vector3(0.35, 1.55, 0.75), target: new THREE.Vector3(-0.1, 1.3, -1.0) };
-    this.desktopMenuPose = { position: new THREE.Vector3(0.62, 1.3, -0.3), lookAt: new THREE.Vector3(0.25, 1.5, 0.55) };
   }
 
   _buildFibers() {

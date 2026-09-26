@@ -71,9 +71,10 @@ const NODE_R = 0.04;
 const LANTERN_R = 0.055;
 
 const VERT = /* glsl */ `
-uniform mat4 uHeadInv;   // Lorentz: world -> head frame
-uniform mat4 uModel;     // extra Lorentz transform (identity for the honeycomb)
-uniform vec3 uHeadPos;
+// Lorentz transform world -> this eye: boost(-eye) · headInv · model. It is the
+// same for every vertex, so it is computed once per eye on the CPU (in double
+// precision) in onBeforeRender, which three.js calls separately for each eye.
+uniform mat4 uEyeInv;
 uniform mat3 uHeadRot;
 uniform float uL;
 uniform float uFog;
@@ -93,25 +94,9 @@ varying vec3 vN;
 varying vec3 vV;
 varying float vKind;
 
-mat4 boost(vec3 v) {
-  float d = length(v);
-  if (d < 1e-7) return mat4(1.0);
-  vec3 n = v / d;
-  float c = cosh(d), s = sinh(d);
-  mat4 m;
-  m[0] = vec4(vec3(1.0, 0.0, 0.0) + (c - 1.0) * n.x * n, s * n.x);
-  m[1] = vec4(vec3(0.0, 1.0, 0.0) + (c - 1.0) * n.y * n, s * n.y);
-  m[2] = vec4(vec3(0.0, 0.0, 1.0) + (c - 1.0) * n.z * n, s * n.z);
-  m[3] = vec4(s * n, c);
-  return m;
-}
-
 void main() {
-  // this eye's offset from the head centre, in head-local hyperbolic units
-  vec3 eye = transpose(uHeadRot) * (cameraPosition - uHeadPos) / uL;
-  mat4 E = boost(-eye);
-  vec4 Q = E * (uHeadInv * (uModel * aH));
-  vec4 D = E * (uHeadInv * (uModel * aD));
+  vec4 Q = uEyeInv * aH;
+  vec4 D = uEyeInv * aD;
   vec3 k = Q.xyz / Q.w;              // Beltrami–Klein coordinates seen from this eye
   vec3 local = k * uL;
   vec3 world = cameraPosition + uHeadRot * local;
@@ -309,6 +294,10 @@ function buildGeometry(hc) {
 const _q = new THREE.Quaternion();
 const _v = new THREE.Vector3();
 const _m4 = new THREE.Matrix4();
+const _E = R4.mat4();
+const _T = R4.mat4();
+const _eye = [0, 0, 0];
+const _euler = new THREE.Euler();
 
 export class HyperbolicScene extends SceneBase {
   constructor(app) {
@@ -321,9 +310,7 @@ export class HyperbolicScene extends SceneBase {
     this.noOrbit = true;
 
     this.uniforms = {
-      uHeadInv: { value: new THREE.Matrix4() },
-      uModel: { value: new THREE.Matrix4() },
-      uHeadPos: { value: new THREE.Vector3() },
+      uEyeInv: { value: new THREE.Matrix4() },
       uHeadRot: { value: new THREE.Matrix3() },
       uL: { value: 1.5 },
       uFog: { value: 0.55 },
@@ -339,13 +326,18 @@ export class HyperbolicScene extends SceneBase {
     this.material = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: VERT, fragmentShader: FRAG });
 
     // start marker: a larger sphere at the original origin, moved along with re-centering
-    this.beaconUniforms = { ...this.uniforms, uModel: { value: new THREE.Matrix4() }, uLanternA: { value: new THREE.Color('#ffffff') }, uLanternB: { value: new THREE.Color('#ffffff') }, uGlow: { value: 1.5 } };
+    this.beaconUniforms = { ...this.uniforms, uEyeInv: { value: new THREE.Matrix4() }, uLanternA: { value: new THREE.Color('#ffffff') }, uLanternB: { value: new THREE.Color('#ffffff') }, uGlow: { value: 1.5 } };
     this.beaconMat = new THREE.ShaderMaterial({ uniforms: this.beaconUniforms, vertexShader: VERT, fragmentShader: FRAG });
     this.beacon = new THREE.Mesh(this._beaconGeometry(), this.beaconMat);
     this.beacon.frustumCulled = false;
+    this.beaconModel = R4.mat4();
+    this.beacon.onBeforeRender = (r, s, camera) => this._setEye(camera, this.beaconMat, this.beaconModel);
     this.root.add(this.beacon);
 
     this.Hm = R4.mat4();     // head pose: world <- head (Lorentz)
+    this.headInv = R4.mat4();
+    this.headPos = new THREE.Vector3();
+    this.headQuatInv = new THREE.Quaternion();
     this.home = H.ORIGIN.slice(); // true origin in current coordinates
     this.parity = 0;
     this.prevPos = new THREE.Vector3();
@@ -360,9 +352,9 @@ export class HyperbolicScene extends SceneBase {
 
     this.setHoneycomb('dodeca');
     this.desktopView = { position: new THREE.Vector3(0, 1.6, 0), target: new THREE.Vector3(0, 1.6, -1) };
-    this.desktopMenuPose = { position: new THREE.Vector3(0.45, 1.45, -0.7), lookAt: new THREE.Vector3(0, 1.6, 0) };
-    this._onKeyDown = (e) => this.keys.add(e.key.toLowerCase());
+    this._onKeyDown = (e) => { if (!e.ctrlKey && !e.metaKey && !e.altKey) this.keys.add(e.key.toLowerCase()); };
     this._onKeyUp = (e) => this.keys.delete(e.key.toLowerCase());
+    this._onBlur = () => this.keys.clear(); // keyup never arrives after alt-tab
     this._onPointerMove = (e) => {
       if (this.app.presenting || !(e.buttons & 1) || !this.app.pointerOnEmpty) return;
       this.yaw -= e.movementX * 0.004;
@@ -398,11 +390,24 @@ export class HyperbolicScene extends SceneBase {
     if (this.mesh) { this.root.remove(this.mesh); this.mesh.geometry.dispose(); }
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.frustumCulled = false;
+    this.mesh.onBeforeRender = (r, s, camera) => this._setEye(camera, this.material, null);
     this.root.add(this.mesh);
     this.uniforms.uL.value = HONEYCOMBS[key].scale;
     this.goHome();
     console.info(`[hyperbolic] ${HONEYCOMBS[key].label}: ${this.hc.cells.length} cells, ${this.hc.edges.length} edges, ${this.hc.nodes.length} nodes, ${geo.attributes.aKind.count} verts in ${(performance.now() - t0).toFixed(0)} ms`);
     if (this.app.activeScene === this) this.app.menu.rebuild();
+  }
+
+  /** Per-eye Lorentz transform (called by three.js before drawing for each eye). */
+  _setEye(camera, material, model) {
+    const L = this.uniforms.uL.value;
+    // this eye's offset from the head centre, in head-local hyperbolic units
+    _v.setFromMatrixPosition(camera.matrixWorld).sub(this.headPos).applyQuaternion(this.headQuatInv).divideScalar(L);
+    _eye[0] = -_v.x; _eye[1] = -_v.y; _eye[2] = -_v.z;
+    R4.multiply(_T, H.boost(_E, _eye), this.headInv);
+    if (model) R4.multiply(_T, _T, model);
+    R4.toThreeMatrix(material.uniforms.uEyeInv.value, _T, 1);
+    material.uniformsNeedUpdate = true;
   }
 
   goHome() {
@@ -417,6 +422,7 @@ export class HyperbolicScene extends SceneBase {
     this.hasPrev = false;
     window.addEventListener('keydown', this._onKeyDown);
     window.addEventListener('keyup', this._onKeyUp);
+    window.addEventListener('blur', this._onBlur);
     this.app.renderer.domElement.addEventListener('pointermove', this._onPointerMove);
     if (!this.app.presenting) {
       this.yaw = 0; this.pitch = 0;
@@ -428,6 +434,8 @@ export class HyperbolicScene extends SceneBase {
     super.exit();
     window.removeEventListener('keydown', this._onKeyDown);
     window.removeEventListener('keyup', this._onKeyUp);
+    window.removeEventListener('blur', this._onBlur);
+    this.keys.clear();
     this.app.renderer.domElement.removeEventListener('pointermove', this._onPointerMove);
   }
 
@@ -486,7 +494,7 @@ export class HyperbolicScene extends SceneBase {
     if (!app.presenting) {
       // desktop: mouse look and WASD movement
       app.camera.position.copy(this.desktopView.position);
-      app.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
+      app.camera.quaternion.setFromEuler(_euler.set(this.pitch, this.yaw, 0, 'YXZ'));
       app.camera.updateMatrixWorld();
       app.camera.getWorldPosition(app.headPosition);
       app.camera.getWorldQuaternion(app.headQuaternion);
@@ -531,10 +539,10 @@ export class HyperbolicScene extends SceneBase {
     H.lorentzOrthonormalize(this.Hm);
     this._recenter();
 
-    // uniforms
-    const inv = H.lorentzInverse(R4.mat4(), this.Hm);
-    R4.toThreeMatrix(this.uniforms.uHeadInv.value, inv, 1);
-    this.uniforms.uHeadPos.value.copy(pos);
+    // uniforms (the per-eye matrix is finished in _setEye)
+    H.lorentzInverse(this.headInv, this.Hm);
+    this.headPos.copy(pos);
+    this.headQuatInv.copy(quat).invert();
     _m4.makeRotationFromQuaternion(quat);
     this.uniforms.uHeadRot.value.setFromMatrix4(_m4);
     this.uniforms.uParityFlip.value = this.hc.def.twoColor ? this.parity : 0;
@@ -544,7 +552,7 @@ export class HyperbolicScene extends SceneBase {
     // start marker: translate the base sphere to the original origin
     const hd = Math.acosh(Math.max(1, this.home[3]));
     const dir = hd > 1e-9 ? [this.home[0], this.home[1], this.home[2]].map((x) => (x / Math.sinh(hd)) * hd) : [0, 0, 0];
-    R4.toThreeMatrix(this.beaconUniforms.uModel.value, H.boost(R4.mat4(), dir), 1);
+    H.boost(this.beaconModel, dir);
     this.beacon.visible = this.showBeacon && hd < 7;
     this.homeDistance = H.hdist([this.Hm[3], this.Hm[7], this.Hm[11], this.Hm[15]], this.home);
   }
@@ -566,7 +574,7 @@ export class HyperbolicScene extends SceneBase {
         ],
       },
       { type: 'buttons', items: [{ label: 'Return to start', onClick: () => this.goHome() }] },
-      { type: 'text', text: () => `Distance from start: ${(this.homeDistance || 0).toFixed(2)} units (${((this.homeDistance || 0) * this.uniforms.uL.value).toFixed(1)} m)`, lines: 2, color: '#dfe2ff' },
+      { type: 'text', text: () => `Distance from start: ${(this.homeDistance || 0).toFixed(1)} units (${((this.homeDistance || 0) * this.uniforms.uL.value).toFixed(1)} m)`, lines: 2, color: '#dfe2ff' },
     ];
   }
 

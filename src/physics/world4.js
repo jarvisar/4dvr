@@ -130,6 +130,7 @@ export class World4 {
     this.accum = 0;
     this.time = 0;
     this.contacts = [];
+    this._free = []; // recycled contact objects
     this.onImpact = null; // (point, speed, bodyA, bodyB)
     this.linearDamping = 0.02;
     this.angularDamping = 0.06;
@@ -170,6 +171,7 @@ export class World4 {
     }
 
     // 2. Contacts
+    for (const c of this.contacts) this._free.push(c);
     this.contacts.length = 0;
     this._collide();
 
@@ -271,7 +273,10 @@ export class World4 {
   }
 
   _addContact(a, b, p, n, depth) {
-    this.contacts.push({ a, b, p: p.slice(), n: n.slice(), depth, jn: 0, jt: [0, 0, 0, 0], ra: null, rb: null, kn: 0, bias: 0 });
+    const c = this._free.pop() || { p: [0, 0, 0, 0], n: [0, 0, 0, 0], jt: [0, 0, 0, 0], ra: [0, 0, 0, 0], rb: [0, 0, 0, 0] };
+    c.a = a; c.b = b; c.depth = depth; c.jn = 0; c.kn = 0; c.bias = 0; c.mu = 0;
+    V.copy(c.p, p); V.copy(c.n, n); c.jt.fill(0);
+    this.contacts.push(c);
   }
 
   _collide() {
@@ -420,6 +425,7 @@ export class World4 {
       if (!best) break;
       keep.push(best);
     }
+    for (const c of pool) if (!keep.includes(c)) this._free.push(c);
     list.push(...keep);
   }
 
@@ -428,8 +434,8 @@ export class World4 {
 
   _prepare(c, dt) {
     const a = c.a, b = c.b;
-    c.ra = V.sub([0, 0, 0, 0], c.p, a.x);
-    c.rb = V.sub([0, 0, 0, 0], c.p, b.x);
+    V.sub(c.ra, c.p, a.x);
+    V.sub(c.rb, c.p, b.x);
     const dva = a.responseAt(_va, c.ra, c.n);
     const dvb = b.responseAt(_vb, c.rb, c.n);
     c.kn = V.dot(c.n, dva) + V.dot(c.n, dvb);

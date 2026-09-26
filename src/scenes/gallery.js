@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import * as R4 from '../math/rot4.js';
-import { SceneBase, makeLabel } from './base.js';
+import { SceneBase, makeLabel, disposeLabel } from './base.js';
 import { ProjectedWire } from '../four/projection.js';
 import { Object4D } from '../four/object4d.js';
 import { SliceView } from '../four/sliceView.js';
@@ -80,19 +80,18 @@ export class GalleryScene extends SceneBase {
     this._layout();
 
     this.desktopView = { position: new THREE.Vector3(0, 1.42, 0.12), target: this.center.clone() };
-    this.desktopMenuPose = { position: new THREE.Vector3(0.5, 1.28, -0.42), lookAt: new THREE.Vector3(0, 1.42, 0.12) };
   }
 
   _buildPedestal() {
-    const mat = new THREE.MeshStandardMaterial({ color: '#2a2640', roughness: 0.5, metalness: 0.3 });
+    const mat = new THREE.MeshStandardMaterial({ color: '#1a1d26', roughness: 0.55, metalness: 0.3 });
     this.column = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 1, 48), mat);
     this.ring = new THREE.Mesh(
       new THREE.TorusGeometry(0.2, 0.006, 12, 96).rotateX(Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: '#b08cff', toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: '#eceef4', toneMapped: false }),
     );
     this.glow = new THREE.Mesh(
       new THREE.CircleGeometry(0.19, 48).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: '#6b4dff', transparent: true, opacity: 0.25, depthWrite: false, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: '#9fb8ff', transparent: true, opacity: 0.08, depthWrite: false, toneMapped: false }),
     );
     this.root.add(this.column, this.ring, this.glow);
     this.nameplate = null;
@@ -144,6 +143,7 @@ export class GalleryScene extends SceneBase {
       if (this.mode === 'slice' && this._forcedSlice) { this.mode = 'perspective'; this._forcedSlice = false; }
     } else if (key === 'net') {
       this.fold = 0;
+      this._netFold = null;
       this.foldAnim = { from: 0, to: 1, t: 0, delay: 0.8 };
       this._updateNet();
       this.wire.edgeMat.uniforms.uRadius.value = 0.0034;
@@ -173,14 +173,16 @@ export class GalleryScene extends SceneBase {
       o.group.visible = true;
     }
     this.info = info;
-    if (this.nameplate) { this.root.remove(this.nameplate); this.nameplate.geometry.dispose(); }
-    this.nameplate = makeLabel(POLYS[key]?.label || LABELS[key] || 'Tesseract net', { size: 0.028, color: '#e9e4ff' });
+    disposeLabel(this.nameplate);
+    this.nameplate = makeLabel((POLYS[key]?.label || LABELS[key] || 'Tesseract net').toUpperCase(), { size: 0.024, color: '#e8eaf0' });
     this.root.add(this.nameplate);
     this._layout();
     if (this.app.activeScene === this) this.app.menu.rebuild();
   }
 
   _updateNet() {
+    if (this.fold === this._netFold) return; // only rebuild while folding
+    this._netFold = this.fold;
     const net = tesseractNet(this.fold);
     this.wire.setGeometry(net, { faceSubdiv: 0, edgeColors: net.edgeColors, faceColors: net.faceColors });
   }
@@ -269,7 +271,7 @@ export class GalleryScene extends SceneBase {
     const k = e.key.toLowerCase();
     if (k === 'q' || e.key === 'ArrowDown') this.sliceW = Math.max(-1.05, this.sliceW - 0.03);
     if (k === 'e' || e.key === 'ArrowUp') this.sliceW = Math.min(1.05, this.sliceW + 0.03);
-    if (k === 'p') this.mode = this.mode === 'perspective' ? 'stereo' : 'perspective';
+    if (k === 'p' && (this.isPolytope || this.isNet)) this.mode = this.mode === 'perspective' ? 'stereo' : 'perspective';
     if (k === ' ') this.auto = !this.auto;
     if (k === 'f') this.showFaces = !this.showFaces;
   }
@@ -328,7 +330,6 @@ export class GalleryScene extends SceneBase {
     w.group.visible = this.mode !== 'slice';
     w.tint = this.isNet ? 0.75 : 0;
     const hl = this.hover || this.grab ? 1.25 : 1;
-    w.edgeMat.uniforms.uOpacity.value = 1;
     w.group.scale.setScalar(THREE.MathUtils.lerp(w.group.scale.x, hl > 1 ? 1.02 : 1, Math.min(1, dt * 10)));
 
     // the solid cross-section
@@ -369,10 +370,10 @@ export class GalleryScene extends SceneBase {
         get: () => this.mode,
         set: (v) => { if (this.isPolytope || v === 'slice' || this.isNet) this.mode = v; },
       },
-      { type: 'slider', label: 'Slicing hyperplane (w)', min: -1.05, max: 1.05, center: 0, get: () => this.sliceW, set: (v) => { this.sliceW = v; }, format: (v) => v.toFixed(2) },
+      { type: 'slider', label: 'Slicing hyperplane (w)', min: -1.05, max: 1.05, center: 0, get: () => this.sliceW, set: (v) => { this.sliceW = v; }, format: (v) => v.toFixed(2), gradient: ['#33c3ff', '#ff4f9a'] },
     ];
     if (this.isNet) {
-      rows.push({ type: 'slider', label: 'Fold into 4D', min: 0, max: 1, get: () => this.fold, set: (v) => { this.fold = v; this.foldAnim = null; }, format: (v) => `${Math.round(v * 90)}°`, gradient: ['#ffd93d', '#ff4f9a'] });
+      rows.push({ type: 'slider', label: 'Fold into 4D', min: 0, max: 1, get: () => this.fold, set: (v) => { this.fold = v; this.foldAnim = null; }, format: (v) => `${Math.round(v * 90)}°` });
     }
     rows.push(
       {

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FONTS } from '../core/ui.js';
 
 /** Common scene contract used by the App, menu and interaction manager. */
 export class SceneBase {
@@ -11,7 +12,7 @@ export class SceneBase {
     this.short = 'Scene';
     this.mood = 'studio';
     this.desktopView = { position: new THREE.Vector3(0, 1.6, 0.6), target: new THREE.Vector3(0, 1.1, -0.6) };
-    this.desktopMenuPose = null;
+    this.shadows = false; // only scenes with shadow receivers pay for the shadow pass
   }
 
   enter() { this.app.scene.add(this.root); }
@@ -22,28 +23,17 @@ export class SceneBase {
   desktopHelp() { return ''; }
 }
 
-/** Text label on a plane (canvas texture). */
+/** Text label on a plane (canvas texture). Free it with disposeLabel(). */
 export function makeLabel(text, { size = 0.02, color = '#ffffff', weight = 600, bg = null, pad = 0.35 } = {}) {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   const px = 64;
-  const font = `${weight} ${px}px 'Segoe UI', Roboto, system-ui, sans-serif`;
+  const font = `${weight} ${px}px ${FONTS.mono}`;
   ctx.font = font;
   const w = Math.ceil(ctx.measureText(text).width + px * pad * 2);
   const h = Math.ceil(px * (1 + pad * 2) * 0.9);
   canvas.width = w; canvas.height = h;
-  ctx.font = font;
-  if (bg) {
-    ctx.fillStyle = bg;
-    const r = h * 0.35;
-    ctx.beginPath();
-    ctx.roundRect(0, 0, w, h, r);
-    ctx.fill();
-  }
-  ctx.fillStyle = color;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, w / 2, h / 2 + px * 0.04);
+  drawLabel(ctx, text, { w, h, px, font, color, bg });
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
@@ -51,6 +41,70 @@ export function makeLabel(text, { size = 0.02, color = '#ffffff', weight = 600, 
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size * (w / h), size), mat);
   mesh.renderOrder = 15;
   return mesh;
+}
+
+function drawLabel(ctx, text, { w, h, px, font, color, bg }) {
+  ctx.clearRect(0, 0, w, h);
+  if (bg) {
+    // chamfered plate with a thin accent tick, matching the UI panels
+    const c = h * 0.28;
+    ctx.fillStyle = bg;
+    ctx.beginPath();
+    ctx.moveTo(c, 0); ctx.lineTo(w, 0); ctx.lineTo(w, h - c); ctx.lineTo(w - c, h); ctx.lineTo(0, h); ctx.lineTo(0, c);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.9;
+    ctx.fillRect(0, c + 4, 4, h - 2 * c - 8);
+    ctx.globalAlpha = 1;
+  }
+  ctx.font = font;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, w / 2, h / 2 + px * 0.04);
+}
+
+/** Remove a label from the scene and free its GPU resources. */
+export function disposeLabel(mesh) {
+  if (!mesh) return;
+  mesh.removeFromParent();
+  mesh.geometry.dispose();
+  mesh.material.map?.dispose();
+  mesh.material.dispose();
+}
+
+/**
+ * Label for frequently changing text (readouts). The canvas has a fixed size,
+ * sized for `template`, and is redrawn in place, so updates allocate nothing.
+ */
+export class TextLabel {
+  constructor({ size = 0.02, template = 'w = -00.0 cm', weight = 500, bg = null, pad = 0.35 } = {}) {
+    this.canvas = document.createElement('canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.px = 64;
+    this.font = `${weight} ${this.px}px ${FONTS.mono}`;
+    this.ctx.font = this.font;
+    this.w = Math.ceil(this.ctx.measureText(template).width + this.px * pad * 2);
+    this.h = Math.ceil(this.px * (1 + pad * 2) * 0.9);
+    this.canvas.width = this.w; this.canvas.height = this.h;
+    this.bg = bg;
+    this.texture = new THREE.CanvasTexture(this.canvas);
+    this.texture.colorSpace = THREE.SRGBColorSpace;
+    this.mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(size * (this.w / this.h), size),
+      new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, depthWrite: false, toneMapped: false }),
+    );
+    this.mesh.renderOrder = 15;
+    this.text = null;
+  }
+
+  setText(text, color = '#ffffff') {
+    if (text === this.text && color === this.color) return;
+    this.text = text; this.color = color;
+    drawLabel(this.ctx, text, { w: this.w, h: this.h, px: this.px, font: this.font, color, bg: this.bg });
+    this.texture.needsUpdate = true;
+  }
 }
 
 /** Additive particle burst, used when a puzzle is solved. */

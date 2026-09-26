@@ -1,4 +1,4 @@
-# ana + kata
+# 4D VR
 
 WebXR app for viewing and interacting with 4D objects, higher-dimensional geometry and hyperbolic space. Built with [Three.js](https://threejs.org/) and designed for Meta Quest headsets with hand tracking. Controllers are also supported, and every scene can be used in a desktop browser with a mouse and keyboard.
 
@@ -20,7 +20,9 @@ Once GitHub Pages is enabled (see [Deploying](#deploying)), the latest deploymen
 | Rotate through 4D | Middle-finger pinch, then move your hand. The object rotates in the plane of the hand direction and W. | Grip | Right drag |
 | Move the slice along W | Pinch empty space and move up or down | Left or right stick up/down | Scroll wheel, Q/E |
 | Rotate the slice (xw/zw) | Middle-finger pinch empty space and move sideways | Stick left/right | Right drag on empty space, A/D |
-| Menu | Turn a palm towards your face, press buttons with the other index finger | A / X | Shown next to the scene (M hides it) |
+| Menu | Turn a palm towards your face, press buttons with the other index finger | A / X | Panel on the right (M toggles it) |
+| Controls help | Help button in the menu | Help button in the menu | H toggles the controls card |
+| Switch scene | Tabs in the menu | Tabs in the menu | 1–5, or the tab bar |
 | Distant UI | Point and pinch | Point and pull the trigger | Click |
 
 In Hyperbolic Space, pinching empty space moves you through the space. On desktop, use WASD to move and drag to look. In Hopf Garden, touch the globe to add fibers and pinch it to rotate it.
@@ -62,6 +64,7 @@ URL parameters:
 - `?desktop` skips the start screen
 - `?scale=0.8` sets the XR framebuffer scale (lower if a Quest 2 drops frames)
 - `?hz=90` requests a 90 Hz refresh rate
+- `?stats` shows frame rate, CPU time per frame, draw calls and triangles (in the HUD on desktop, in the hand menu in VR)
 
 ## Deploying
 
@@ -126,7 +129,10 @@ Based on Hart, Hawksley, Matsumoto and Segerman's [Non-Euclidean Virtual Reality
 - No post-processing.
 - Scenes are loaded when first opened.
 - Instancing keeps draw calls low.
-- Shadows use a single 1024x1024 shadow map.
+- Shadows use a single 1024x1024 shadow map, and it is only re-rendered in scenes that have shadow receivers (Hyperplay).
+- The sky is drawn after the other opaque objects, so the depth test skips the sky wherever something covers it.
+- Per-frame code avoids allocations (physics contacts are pooled, the knot tube is built into reused buffers, labels that change are redrawn in place) to avoid garbage-collection pauses on the headset.
+- The hyperbolic per-eye transform is computed once per eye on the CPU, not per vertex.
 - The hyperbolic honeycomb uses about 100k vertices.
 - `WebGLRenderer` does not support multiview, so each eye is rendered separately. The hyperbolic shader relies on this.
 

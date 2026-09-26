@@ -8,32 +8,51 @@ import * as THREE from 'three';
 
 const PX_PER_M = 2000;
 const PAD = 0.014;
-const GAP = 0.008;
-const ROW_H = { title: 0.05, tabs: 0.038, buttons: 0.036, toggles: 0.036, slider: 0.052, text: 0.0 };
+const GAP = 0.007;
+const ROW_H = { title: 0.054, tabs: 0.036, buttons: 0.036, toggles: 0.036, slider: 0.054, text: 0.0 };
 
-const COLORS = {
-  bg: 'rgba(15, 17, 29, 0.9)',
-  border: 'rgba(255,255,255,0.14)',
-  ink: '#eef0ff',
-  muted: '#9aa0bf',
-  btn: 'rgba(255,255,255,0.07)',
-  btnHover: 'rgba(255,255,255,0.16)',
+// Visual language shared with style.css: near-black instrument panels,
+// chamfered top-left / bottom-right corners, hairline frames with corner
+// brackets, white-filled selection. Pink (ana, +w) and cyan (kata, −w) are
+// only used where they mean a direction along w.
+export const COLORS = {
+  bg: 'rgba(9, 10, 15, 0.94)',
+  frame: 'rgba(255, 255, 255, 0.14)',
+  bracket: 'rgba(236, 238, 244, 0.8)',
+  ink: '#eceef4',
+  inkDark: '#0a0b10',
+  muted: '#8a90a3',
+  dim: 'rgba(255, 255, 255, 0.22)',
+  btn: 'rgba(255, 255, 255, 0.045)',
+  btnLine: 'rgba(255, 255, 255, 0.1)',
+  btnHover: 'rgba(255, 255, 255, 0.11)',
+  btnPress: 'rgba(255, 255, 255, 0.22)',
   ana: '#ff4f9a',
   kata: '#33c3ff',
-  accent: '#8b7bff',
 };
 
-function roundRect(ctx, x, y, w, h, r) {
+export const FONTS = {
+  display: "'Chakra Petch', 'Segoe UI', system-ui, sans-serif",
+  sans: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif",
+  mono: "'IBM Plex Mono', ui-monospace, Consolas, monospace",
+};
+
+/** Rectangle with the top-left and bottom-right corners cut at 45°. */
+function chamfer(ctx, x, y, w, h, c) {
   ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
+  ctx.moveTo(x + c, y);
+  ctx.lineTo(x + w, y);
+  ctx.lineTo(x + w, y + h - c);
+  ctx.lineTo(x + w - c, y + h);
+  ctx.lineTo(x, y + h);
+  ctx.lineTo(x, y + c);
   ctx.closePath();
 }
 
-const FONT = "'Segoe UI', Roboto, system-ui, sans-serif";
+function setFont(ctx, weight, size, family, spacing = 0) {
+  ctx.font = `${weight} ${size}px ${family}`;
+  if ('letterSpacing' in ctx) ctx.letterSpacing = `${spacing}px`;
+}
 
 export class UIPanel {
   constructor(ui, { width = 0.3, rows = [], name = 'panel' } = {}) {
@@ -146,12 +165,28 @@ export class UIPanel {
     const S = PX_PER_M;
     const W = this.canvas.width, H = this.canvas.height;
     ctx.clearRect(0, 0, W, H);
-    roundRect(ctx, 2, 2, W - 4, H - 4, 0.018 * S);
+
+    // panel: chamfered plate, hairline frame, bright brackets on the square corners
+    const c = 0.012 * S, inset = 2;
+    chamfer(ctx, inset, inset, W - 2 * inset, H - 2 * inset, c);
     ctx.fillStyle = COLORS.bg;
     ctx.fill();
     ctx.lineWidth = 2;
-    ctx.strokeStyle = COLORS.border;
+    ctx.strokeStyle = COLORS.frame;
     ctx.stroke();
+    const bl = 0.014 * S;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = COLORS.bracket;
+    ctx.beginPath();
+    ctx.moveTo(W - inset - bl, inset); ctx.lineTo(W - inset, inset); ctx.lineTo(W - inset, inset + bl);
+    ctx.moveTo(inset, H - inset - bl); ctx.lineTo(inset, H - inset); ctx.lineTo(inset + bl, H - inset);
+    ctx.stroke();
+    // the two cut corners are the ends of the w axis: kata (−w) and ana (+w)
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = COLORS.kata;
+    ctx.beginPath(); ctx.moveTo(inset, inset + c); ctx.lineTo(inset + c, inset); ctx.stroke();
+    ctx.strokeStyle = COLORS.ana;
+    ctx.beginPath(); ctx.moveTo(W - inset, H - inset - c); ctx.lineTo(W - inset - c, H - inset); ctx.stroke();
 
     const hovered = new Set(this.hover.values());
     const pressed = new Set(this.pressed.values());
@@ -161,103 +196,105 @@ export class UIPanel {
       const r = w.row;
       if (w.type === 'title') {
         const text = typeof r.text === 'function' ? r.text() : r.text;
-        ctx.fillStyle = COLORS.ink;
-        ctx.font = `700 ${0.021 * S}px ${FONT}`;
         ctx.textBaseline = 'alphabetic';
         ctx.textAlign = 'left';
-        ctx.fillText(text, x, y + 0.024 * S);
+        ctx.fillStyle = COLORS.ink;
+        setFont(ctx, 700, 0.0195 * S, FONTS.display, 0.0012 * S);
+        ctx.fillText(String(text).toUpperCase(), x, y + 0.022 * S);
         if (r.sub) {
           ctx.fillStyle = COLORS.muted;
-          ctx.font = `400 ${0.0125 * S}px ${FONT}`;
-          ctx.fillText(r.sub, x, y + 0.042 * S);
+          setFont(ctx, 400, 0.0098 * S, FONTS.mono, 0.0006 * S);
+          ctx.fillText(String(r.sub).toUpperCase(), x, y + 0.038 * S);
         }
-        // ana→kata accent line
-        const g = ctx.createLinearGradient(x, 0, x + ww, 0);
-        g.addColorStop(0, COLORS.ana); g.addColorStop(1, COLORS.kata);
-        ctx.fillStyle = g;
-        ctx.fillRect(x, y + hh - 0.002 * S, ww, 0.0012 * S);
+        setFont(ctx, 400, 10, FONTS.sans);
+        // rule with a short w-axis mark: kata | ana
+        const ry = y + hh - 0.004 * S;
+        ctx.fillStyle = COLORS.frame;
+        ctx.fillRect(x, ry, ww, 2);
+        const seg = 0.012 * S;
+        ctx.fillStyle = COLORS.kata; ctx.fillRect(x, ry - 1, seg, 4);
+        ctx.fillStyle = COLORS.ana; ctx.fillRect(x + seg, ry - 1, seg, 4);
       } else if (w.type === 'button' || w.type === 'tab' || w.type === 'toggle') {
         const on = w.type === 'tab' ? r.get() === w.item.value : w.type === 'toggle' ? w.item.get() : (w.item.active ? w.item.active() : false);
         const isHover = hovered.has(w), isPressed = pressed.has(w);
-        roundRect(ctx, x, y, ww, hh, 0.009 * S);
-        if (on && w.type !== 'toggle') {
-          const g = ctx.createLinearGradient(x, y, x + ww, y + hh);
-          g.addColorStop(0, 'rgba(255,79,154,0.85)'); g.addColorStop(1, 'rgba(51,195,255,0.85)');
-          ctx.fillStyle = g;
-        } else {
-          ctx.fillStyle = isPressed ? 'rgba(255,255,255,0.26)' : isHover ? COLORS.btnHover : COLORS.btn;
-        }
+        const selected = on && w.type !== 'toggle';
+        const bc = 0.0055 * S;
+        chamfer(ctx, x, y, ww, hh, bc);
+        ctx.fillStyle = selected ? COLORS.ink : isPressed ? COLORS.btnPress : isHover ? COLORS.btnHover : COLORS.btn;
         ctx.fill();
-        if (isHover || isPressed) {
-          ctx.lineWidth = 3;
-          ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+        if (!selected || isHover) {
+          ctx.lineWidth = isHover || isPressed ? 3 : 2;
+          ctx.strokeStyle = isHover || isPressed ? 'rgba(255,255,255,0.6)' : COLORS.btnLine;
           ctx.stroke();
         }
         let tx = x + ww / 2;
         ctx.textAlign = 'center';
         if (w.type === 'toggle') {
-          // pill switch on the left
-          const pw = 0.018 * S, ph = 0.011 * S, px = x + 0.008 * S, py = y + hh / 2 - ph / 2;
-          roundRect(ctx, px, py, pw, ph, ph / 2);
-          ctx.fillStyle = on ? COLORS.kata : 'rgba(255,255,255,0.18)';
-          ctx.fill();
-          ctx.beginPath();
-          ctx.arc(on ? px + pw - ph / 2 : px + ph / 2, py + ph / 2, ph * 0.38, 0, Math.PI * 2);
-          ctx.fillStyle = '#fff';
-          ctx.fill();
-          tx = px + pw + 0.006 * S;
+          // square indicator, filled when on
+          const sz = 0.011 * S, px = x + 0.009 * S, py = y + hh / 2 - sz / 2;
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = on ? COLORS.ink : COLORS.dim;
+          ctx.strokeRect(px, py, sz, sz);
+          if (on) { ctx.fillStyle = COLORS.ink; ctx.fillRect(px + 5, py + 5, sz - 10, sz - 10); }
+          tx = px + sz + 0.007 * S;
           ctx.textAlign = 'left';
         }
-        ctx.fillStyle = COLORS.ink;
-        const label = typeof w.item.label === 'function' ? w.item.label() : w.item.label;
-        let size = (w.item.small ? 0.0105 : 0.0122) * S;
-        ctx.font = `600 ${size}px ${FONT}`;
-        const maxW = w.type === 'toggle' ? ww - (tx - x) - 0.004 * S : ww - 0.008 * S;
-        while (ctx.measureText(label).width > maxW && size > 0.007 * S) {
-          size *= 0.92;
-          ctx.font = `600 ${size}px ${FONT}`;
+        ctx.fillStyle = selected ? COLORS.inkDark : (w.type === 'toggle' && !on ? '#b9bdcb' : COLORS.ink);
+        const label = String(typeof w.item.label === 'function' ? w.item.label() : w.item.label).toUpperCase();
+        let size = (w.item.small ? 0.0102 : 0.0116) * S;
+        setFont(ctx, 600, size, FONTS.display, size * 0.06);
+        const maxW = w.type === 'toggle' ? ww - (tx - x) - 0.005 * S : ww - 0.01 * S;
+        while (ctx.measureText(label).width > maxW && size > 0.0068 * S) {
+          size *= 0.93;
+          setFont(ctx, 600, size, FONTS.display, size * 0.04);
         }
         ctx.textBaseline = 'middle';
-        ctx.fillText(label, tx, y + hh / 2 + 0.0008 * S);
+        ctx.fillText(label, tx, y + hh / 2 + 0.0009 * S);
       } else if (w.type === 'slider') {
         const v = r.get();
-        const t = (v - r.min) / (r.max - r.min);
+        const span = r.max - r.min;
+        const t = THREE.MathUtils.clamp((v - r.min) / span, 0, 1);
         ctx.textBaseline = 'alphabetic';
         ctx.textAlign = 'left';
         ctx.fillStyle = COLORS.muted;
-        ctx.font = `600 ${0.0115 * S}px ${FONT}`;
-        ctx.fillText(r.label, x, y + 0.013 * S);
+        setFont(ctx, 500, 0.0094 * S, FONTS.mono, 0.0005 * S);
+        ctx.fillText(String(r.label).toUpperCase(), x, y + 0.012 * S);
         ctx.textAlign = 'right';
         ctx.fillStyle = COLORS.ink;
-        ctx.fillText(r.format ? r.format(v) : v.toFixed(2), x + ww, y + 0.013 * S);
-        const ty = y + 0.031 * S, th = 0.008 * S;
-        roundRect(ctx, x, ty - th / 2, ww, th, th / 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.1)';
-        ctx.fill();
-        const g = ctx.createLinearGradient(x, 0, x + ww, 0);
-        g.addColorStop(0, r.gradient ? r.gradient[0] : COLORS.kata);
-        g.addColorStop(1, r.gradient ? r.gradient[1] : COLORS.ana);
-        roundRect(ctx, x, ty - th / 2, Math.max(th, ww * t), th, th / 2);
-        ctx.fillStyle = g;
-        ctx.fill();
-        if (r.center !== undefined) {
-          const cx = x + ww * ((r.center - r.min) / (r.max - r.min));
-          ctx.fillStyle = 'rgba(255,255,255,0.5)';
-          ctx.fillRect(cx - 1, ty - th, 2, th * 2);
+        setFont(ctx, 500, 0.0112 * S, FONTS.mono);
+        ctx.fillText(r.format ? r.format(v) : v.toFixed(2), x + ww, y + 0.0125 * S);
+
+        const ty = y + 0.031 * S;
+        // scale: hairline with ticks every 10%, taller at the ends and the centre
+        ctx.fillStyle = COLORS.dim;
+        ctx.fillRect(x, ty - 1, ww, 2);
+        for (let i = 0; i <= 10; i++) {
+          const major = i === 0 || i === 10 || (r.center !== undefined && Math.abs(r.min + (i / 10) * span - r.center) < span * 0.01);
+          const th = (major ? 0.009 : 0.004) * S;
+          ctx.fillRect(x + (ww - 2) * (i / 10), ty + 0.004 * S, 2, th);
         }
+        // fill from the centre detent (or the minimum) to the value
+        const from = r.center !== undefined ? (r.center - r.min) / span : 0;
+        const x0 = x + ww * Math.min(from, t), x1 = x + ww * Math.max(from, t);
+        let fill = COLORS.ink;
+        if (r.gradient) {
+          fill = ctx.createLinearGradient(x, 0, x + ww, 0);
+          fill.addColorStop(0, r.gradient[0]); fill.addColorStop(1, r.gradient[1]);
+        }
+        ctx.fillStyle = fill;
+        ctx.fillRect(x0, ty - 3, Math.max(2, x1 - x0), 6);
+        // knob: a vertical index bar
         const kx = x + ww * t;
         const active = hovered.has(w) || pressed.has(w);
-        ctx.beginPath();
-        ctx.arc(kx, ty, (active ? 0.0105 : 0.009) * S, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff';
-        ctx.fill();
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-        ctx.stroke();
+        const kw = (active ? 0.0048 : 0.0036) * S, kh = (active ? 0.022 : 0.018) * S;
+        ctx.fillStyle = COLORS.inkDark;
+        ctx.fillRect(kx - kw / 2 - 3, ty - kh / 2 - 3, kw + 6, kh + 6);
+        ctx.fillStyle = COLORS.ink;
+        ctx.fillRect(kx - kw / 2, ty - kh / 2, kw, kh);
       } else if (w.type === 'text') {
         const text = typeof r.text === 'function' ? r.text() : r.text;
         ctx.fillStyle = r.color || COLORS.muted;
-        ctx.font = `${r.bold ? 600 : 400} ${0.0112 * S}px ${FONT}`;
+        setFont(ctx, r.bold ? 600 : 400, 0.0108 * S, FONTS.sans);
         ctx.textAlign = r.align || 'left';
         ctx.textBaseline = 'alphabetic';
         const lines = wrapText(ctx, text, ww);
@@ -265,6 +302,7 @@ export class UIPanel {
         lines.slice(0, r.lines || 2).forEach((line, i) => ctx.fillText(line, ax, y + (0.0125 + i * 0.0158) * S));
       }
     }
+    setFont(ctx, 400, 10, FONTS.sans);
     this.texture.needsUpdate = true;
   }
 
@@ -328,6 +366,14 @@ export class UISystem {
     this.root = new THREE.Group();
     this.root.name = 'ui';
     app.scene.add(this.root);
+    // Canvas text only uses web fonts that have finished loading, so redraw
+    // every panel once they arrive.
+    if (document.fonts?.load) {
+      const faces = [`700 20px ${FONTS.display}`, `600 20px ${FONTS.display}`, `400 20px ${FONTS.sans}`, `500 20px ${FONTS.mono}`];
+      Promise.all(faces.map((f) => document.fonts.load(f)))
+        .then(() => { for (const p of this.panels) { p._sig = ''; p.draw(); } })
+        .catch(() => {});
+    }
   }
 
   add(panel) {
@@ -350,7 +396,7 @@ export class UISystem {
     if (!ix.hasPoke) return false;
     let engaged = false;
     for (const p of this.panels) {
-      if (!p.visible || !p.interactive || p.ownerIx === ix) { p.hover.delete(ix); continue; }
+      if (!p.visible || !p.interactive || p.ownerIx === ix) { p.hover.delete(ix); p.pokeZ.delete(ix); continue; }
       p.toPanel(ix.pokePos, _p);
       const inside = _p.x > -0.01 && _p.x < p.width + 0.01 && _p.y > -0.01 && _p.y < p.height + 0.01;
       const prevZ = p.pokeZ.has(ix) ? p.pokeZ.get(ix) : 1;

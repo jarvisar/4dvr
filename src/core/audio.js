@@ -96,7 +96,7 @@ export class AudioEngine {
     this._tone({ freq: 587, type: 'sine', dur: 0.22, gain: 0.08, pos, delay: 0.05 });
   }
   whoosh(pos) {
-    if (!this.ctx) return;
+    if (!this.ctx || !this.enabled) return;
     const t = this.ctx.currentTime;
     const src = this.ctx.createBufferSource();
     src.buffer = this._noise;
