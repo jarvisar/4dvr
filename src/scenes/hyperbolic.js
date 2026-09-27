@@ -227,6 +227,7 @@ function buildGeometry(hc) {
     const sd = Math.sinh(d);
     const rings = [];
     const far = Math.min(A[3], B[3]) > Math.cosh(2.4);
+    let N1 = null;
     for (const tt of far ? [0, 1] : [0, 0.5, 1]) {
       const ca = Math.sinh((1 - tt) * d) / sd, cb = Math.sinh(tt * d) / sd;
       const P = [0, 1, 2, 3].map((i) => ca * A[i] + cb * B[i]);
@@ -234,15 +235,21 @@ function buildGeometry(hc) {
       const T = [0, 1, 2, 3].map((i) => da * A[i] + db * B[i]);
       const tn = Math.sqrt(Math.abs(H.mdot(T, T)));
       for (let i = 0; i < 4; i++) T[i] /= tn;
-      // Minkowski-orthonormal frame around the tube
-      const cands = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]];
-      let best = null, bestN = -1;
-      for (const h of cands) {
-        const hp = h.map((x, i) => x + H.mdot(h, P) * P[i] - H.mdot(h, T) * T[i]);
-        const n = H.mdot(hp, hp);
-        if (n > bestN) { bestN = n; best = hp; }
+      // Minkowski-orthonormal frame around the tube. N1 is orthogonal to the
+      // edge's plane span(A, B), so it's the same all along the edge and is
+      // chosen once: chosen per ring, candidates that tie (on many of the cube
+      // honeycomb's edges) could go different ways at different rings and
+      // twist the beam.
+      if (!N1) {
+        const cands = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]];
+        let best = null, bestN = -1;
+        for (const h of cands) {
+          const hp = h.map((x, i) => x + H.mdot(h, P) * P[i] - H.mdot(h, T) * T[i]);
+          const n = H.mdot(hp, hp);
+          if (n > bestN) { bestN = n; best = hp; }
+        }
+        N1 = best.map((x) => x / Math.sqrt(bestN));
       }
-      const N1 = best.map((x) => x / Math.sqrt(bestN));
       const N2 = H.mcross([0, 0, 0, 0], P, T, N1);
       const n2 = Math.sqrt(Math.abs(H.mdot(N2, N2)));
       for (let i = 0; i < 4; i++) N2[i] /= n2;
@@ -579,8 +586,10 @@ export class HyperbolicScene extends SceneBase {
     const k = hd > 1e-9 ? hd / Math.sinh(hd) : 0;
     _v3[0] = this.home[0] * k; _v3[1] = this.home[1] * k; _v3[2] = this.home[2] * k;
     H.boost(this.beaconModel, _v3);
-    this.beacon.visible = this.showBeacon && hd < 7;
     this.homeDistance = H.hdist(headPoint(_p4, this.Hm), this.home);
+    // hidden until you're well clear of it: you start inside it, and each eye
+    // would leave it at a different moment (as in spherical.js)
+    this.beacon.visible = this.showBeacon && hd < 7 && this.homeDistance > 0.5;
   }
 
   menuRows() {

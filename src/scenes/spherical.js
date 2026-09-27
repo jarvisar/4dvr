@@ -268,6 +268,10 @@ function buildGeometry(tiling, { tube, node, lantern }) {
     const Bp = V.addScaled([0, 0, 0, 0], B, A, -V.dot(A, B));
     V.normalize(Bp, Bp);
     const [N1, N2] = complementBasis(A, Bp);
+    // complementBasis doesn't choose a handedness. The rings below are wound
+    // outwards when det(A, Bp, N1, N2) > 0; otherwise the tube would be inside
+    // out, showing its far inner wall instead of its near outer one.
+    if (V.dot(N2, V.cross4([0, 0, 0, 0], A, Bp, N1)) > 0) V.scale(N2, N2, -1);
     const nSeg = Math.max(2, Math.ceil(th / SEG_ANGLE));
     const rings = [];
     for (let k = 0; k <= nSeg; k++) {
@@ -347,9 +351,12 @@ function avatarGeometry() {
   const m = (x, y, z, sx = 1, sy = 1, sz = 1, rx = 0) => new THREE.Matrix4().compose(
     new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, 0, 0)), new THREE.Vector3(sx, sy, sz));
   const skin = '#f0cdb0', hair = '#7a5238', headset = '#d6d9e0', strap = '#ff4f9a', visor = '#1d2029', shirt = '#5b6fc4';
-  // head
+  // head. The avatar is seen about 2πL (10 m) away, where depth only resolves
+  // about 0.3 mm, so the hair is a shell 4 mm outside the head, with the edge
+  // of the (tilted) cap as the hairline: surfaces crossing at a shallow angle
+  // there would shimmer.
   add(new THREE.SphereGeometry(1, 40, 28), skin, 0, m(0, 0.03, 0.075, 0.077, 0.104, 0.099));
-  add(new THREE.SphereGeometry(1, 40, 28, 0, Math.PI * 2, 0, Math.PI * 0.62), hair, 0, m(0, 0.045, 0.09, 0.083, 0.1, 0.1, 0.55));
+  add(new THREE.SphereGeometry(1, 40, 28, 0, Math.PI * 2, 0, Math.PI * 0.62).rotateX(0.55), hair, 0, m(0, 0.03, 0.075, 0.081, 0.108, 0.103));
   for (const sx of [-1, 1]) add(new THREE.SphereGeometry(1, 16, 12), skin, 0, m(sx * 0.078, 0.02, 0.085, 0.014, 0.03, 0.02));
   // headset and strap
   add(new THREE.BoxGeometry(0.19, 0.1, 0.085, 2, 2, 2), headset, 0, m(0, 0.0, -0.035));

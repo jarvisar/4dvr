@@ -40,7 +40,9 @@ void main() {
 #ifdef DISK
   vec3 e3 = iAxis;
   vec3 e1 = normalize(cross(e3, abs(e3.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
-  vec3 e2 = cross(e3, e1);
+  // e1 × e3 = e2, so (x, y, z) → (e1, e3, e2) is a rotation, not a mirror
+  // image, and the triangles keep their outward winding (front faces out)
+  vec3 e2 = cross(e1, e3);
   // CylinderGeometry: axis along y, radius 1, height 1
   vec3 local = e1 * position.x * iRadius + e2 * position.z * iRadius + e3 * position.y * iThickness;
   vec3 n = e1 * normal.x + e2 * normal.z + e3 * normal.y;
@@ -211,8 +213,12 @@ export class Worldline {
         }
         diskCenter(_cd0, slice, i, t0, nn, _m, ml);
         diskCenter(_cd1, slice, i, t1, nn, _m, ml);
-        const span = Math.abs((_cd1[0] - _cd0[0]) * _m[0] + (_cd1[1] - _cd0[1]) * _m[1] + (_cd1[2] - _cd0[2]) * _m[2]);
-        const count = Math.max(1, Math.ceil(span / DISK_STEP));
+        // DISK_STEP apart along the axis, and at most twice that sideways:
+        // where the section is sheared, wider sideways steps show as terraces
+        const dx = _cd1[0] - _cd0[0], dy = _cd1[1] - _cd0[1], dz = _cd1[2] - _cd0[2];
+        const span = Math.abs(dx * _m[0] + dy * _m[1] + dz * _m[2]);
+        const side = Math.sqrt(Math.max(0, dx * dx + dy * dy + dz * dz - span * span));
+        const count = Math.max(1, Math.ceil(span / DISK_STEP), Math.ceil(side / (2 * DISK_STEP)));
         const thick = Math.max(DISK_STEP, span / count) * 1.15;
         for (let k = 0; k <= count && nd < MAX_DISKS; k++) {
           const t = t0 + ((t1 - t0) * k) / count;

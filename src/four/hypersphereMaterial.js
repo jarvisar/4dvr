@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { LIGHT, LIGHTING_GLSL } from '../core/lighting.js';
 import { AXIS_COLORS } from './tetmesh.js';
-import { GHOST_STYLE, PREMULTIPLIED_BLEND } from './sliceMaterial.js';
+import { GHOST_STYLE, PREMULTIPLIED_BLEND, BEHIND_COPLANAR } from './sliceMaterial.js';
 
 let sharedGeometry = null;
 export function hypersphereGeometry() {
@@ -142,6 +142,7 @@ export function createHypersphereMaterials(colors = AXIS_COLORS) {
     transparent: true,
     depthWrite: false,
     ...PREMULTIPLIED_BLEND,
+    ...BEHIND_COPLANAR,
   });
   return { solid, ghost, shared };
 }

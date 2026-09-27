@@ -14,7 +14,9 @@ import { LIGHT } from '../core/lighting.js';
 import * as P from '../four/polytopes.js';
 import { screwCenters, SCREW_EDGE } from '../four/shapes.js';
 
-const TABLE_R = 0.6;
+const TABLE_R = 0.6;        // the rim; objects stay inside it
+const RIM_TUBE = 0.006;
+const TABLE_TOP_R = 0.675;  // the top, with a ledge outside the rim for the w rail
 const W_RANGE = 0.55;
 const W_GRADIENT = ['#33c3ff', '#ff4f9a']; // kata (−w) → ana (+w)
 // A pinch in empty space has to move this far (metres) before it moves the
@@ -342,11 +344,10 @@ export class PlaygroundScene extends SceneBase {
 
     this.stage = new THREE.Group(); // the 4D slice lives here (origin = table centre)
     this.root.add(this.stage);
-    this.shadow4 = new Shadow4({ extent: TABLE_R + 0.04 });
-    this.shadow4.overlay.position.y = 0.0008;
-    this.stage.add(this.shadow4.overlay);
+    this.shadow4 = new Shadow4({ extent: TABLE_TOP_R });
     this._buildTable();
-    this.rail = new WRail(this, new THREE.Vector3(-0.52, 0, 0.36));
+    // front left, standing on the ledge halfway between the rim and the edge
+    this.rail = new WRail(this, new THREE.Vector3(-0.52, 0, 0.36).setLength((TABLE_R + RIM_TUBE + TABLE_TOP_R) / 2));
     this.burst = new Burst(this.stage);
 
     this.message = makeLabel(' ', { size: 0.028 });
@@ -386,14 +387,21 @@ export class PlaygroundScene extends SceneBase {
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
-    const topMat = new THREE.MeshStandardMaterial({ color: '#ffffff', map: tex, roughness: 0.82, metalness: 0 });
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(TABLE_R + 0.03, TABLE_R + 0.03, 0.032, 96), [
-      new THREE.MeshStandardMaterial({ color: '#e7e2da', roughness: 0.7 }), topMat, topMat,
+    // The 4D shadows are part of the top face's shading (not a separate layer on it)
+    const topParams = { color: '#ffffff', map: tex, roughness: 0.82, metalness: 0 };
+    const topMat = this.shadow4.receive(new THREE.MeshStandardMaterial(topParams));
+    // Scale the grid so its outer circle (500 texels from the centre, of 512)
+    // lies under the rim, which puts a ring every 10 cm. The ledge outside it
+    // reads the plain edge of the canvas.
+    tex.repeat.setScalar(TABLE_TOP_R / (TABLE_R * (512 / 500)));
+    tex.offset.setScalar((1 - tex.repeat.x) / 2);
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(TABLE_TOP_R, TABLE_TOP_R, 0.032, 128), [
+      new THREE.MeshStandardMaterial({ color: '#e7e2da', roughness: 0.7 }), topMat, new THREE.MeshStandardMaterial(topParams),
     ]);
     top.position.y = -0.016;
     t.add(top);
     const rim = new THREE.Mesh(
-      new THREE.TorusGeometry(TABLE_R, 0.006, 10, 128).rotateX(Math.PI / 2),
+      new THREE.TorusGeometry(TABLE_R, RIM_TUBE, 10, 128).rotateX(Math.PI / 2),
       new THREE.MeshStandardMaterial({ color: '#2b2f3a', emissive: '#eceef4', emissiveIntensity: 0.35, roughness: 0.4 }),
     );
     rim.position.y = 0.004;
@@ -413,6 +421,9 @@ export class PlaygroundScene extends SceneBase {
     this.leg.position.y = -0.032 - h / 2;
     this.foot.position.y = -this.tableY + 0.015;
   }
+
+  /** The palm menu stays above the table top (see HandMenu._follow). */
+  get menuFloorY() { return this.tableY + 0.03; }
 
   onUserReady() {
     // fit the table to the person: roughly waist height
@@ -513,14 +524,16 @@ export class PlaygroundScene extends SceneBase {
       this.add('hypersphere', { scale: 0.065, pos: P4(-0.1, 0.1, 0.1, 0.38) });
     } else if (name === 'box') {
       // Closed box. The walls only extend ±6 cm in w, so the ball can be
-      // moved around them in w.
-      const ww = 0.06, s = 0.13, th = 0.012, hgt = 0.16;
+      // moved around them in w. The panels meet without overlapping: the
+      // side walls run the full depth, the front and back fit between them,
+      // and the lid covers all four.
+      const ww = 0.06, s = 0.13, th = 0.012, hgt = 0.16, out = 2 * s + th;
       const glass = { fixed: true, opacity: 0.28, tint: '#bfe6ff', tintAmount: 0.85, restitution: 0.2 };
-      this.add('tesseract', { ...glass, scale4: [2 * s, th, 2 * s, 2 * ww], pos: P4(0, hgt + th / 2, 0, 0) }); // lid
-      this.add('tesseract', { ...glass, scale4: [th, hgt, 2 * s, 2 * ww], pos: P4(s, hgt / 2, 0, 0) });
-      this.add('tesseract', { ...glass, scale4: [th, hgt, 2 * s, 2 * ww], pos: P4(-s, hgt / 2, 0, 0) });
-      this.add('tesseract', { ...glass, scale4: [2 * s, hgt, th, 2 * ww], pos: P4(0, hgt / 2, s, 0) });
-      this.add('tesseract', { ...glass, scale4: [2 * s, hgt, th, 2 * ww], pos: P4(0, hgt / 2, -s, 0) });
+      this.add('tesseract', { ...glass, scale4: [out, th, out, 2 * ww], pos: P4(0, hgt + th / 2, 0, 0) }); // lid
+      this.add('tesseract', { ...glass, scale4: [th, hgt, out, 2 * ww], pos: P4(s, hgt / 2, 0, 0) });
+      this.add('tesseract', { ...glass, scale4: [th, hgt, out, 2 * ww], pos: P4(-s, hgt / 2, 0, 0) });
+      this.add('tesseract', { ...glass, scale4: [2 * s - th, hgt, th, 2 * ww], pos: P4(0, hgt / 2, s, 0) });
+      this.add('tesseract', { ...glass, scale4: [2 * s - th, hgt, th, 2 * ww], pos: P4(0, hgt / 2, -s, 0) });
       this.ball = this.add('hypersphere', { scale: 0.045, pos: P4(0, 0.05, 0, 0), restitution: 0.2 });
       this.boxGoal = { s, done: false };
       this._say('Get the ball out of the box', 5);
@@ -969,7 +982,7 @@ export class PlaygroundScene extends SceneBase {
     const sd = LIGHT.uSunDir.value, c = Math.cos(this.sunW), sn = Math.sin(this.sunW);
     this.shadow4.setSun(sd.x * c, sd.y * c, sd.z * c, sn);
     const shadowsOn = this.app.env.shadows; // the graphics preset's shadow setting
-    this.shadow4.overlay.visible = shadowsOn;
+    this.shadow4.enabled = shadowsOn;
     if (shadowsOn) this.shadow4.render(this.app.renderer);
 
     if (this.messageT > 0) {

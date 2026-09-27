@@ -1,5 +1,20 @@
 # 4D VR
 
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/hyperplay.jpg" alt="Hyperplay: 4D objects on a table as 3D cross-sections, with 4D shadows and faint ghosts of objects outside the slice"><br><b>Hyperplay</b>: a 4D physics sandbox, sliced to 3D</td>
+    <td width="50%"><img src="docs/screenshots/polytopes.jpg" alt="Polytope Lab: the 120-cell in perspective projection"><br><b>Polytope Lab</b>: the 120-cell, projected</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/hopf.jpg" alt="Hopf Garden: nested tori of Hopf fibers around a globe"><br><b>Hopf Garden</b>: fibers of the Hopf fibration</td>
+    <td><img src="docs/screenshots/hyperbolic.jpg" alt="Hyperbolic Space: the right-angled dodecahedral honeycomb seen from inside"><br><b>Hyperbolic Space</b>: the {5,3,4} honeycomb from inside</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/spherical.jpg" alt="Spherical Space: the 120-cell tiling of the 3-sphere, with the back of the viewer's own head in the background"><br><b>Spherical Space</b>: the 120-cell tiling of S³, with the back of your own head the long way round</td>
+    <td><img src="docs/screenshots/klein.jpg" alt="Klein Room: copies of the room and of the viewer, every other row mirror-reversed"><br><b>Klein Room</b>: a room glued to itself with a flip</td>
+  </tr>
+</table>
+
 WebXR app for viewing and interacting with 4D objects, higher-dimensional geometry, and hyperbolic and spherical space. Built with [Three.js](https://threejs.org/) for the Meta Quest with hand tracking. Controllers are also supported, and every scene works in a desktop browser with a mouse and keyboard.
 
 Visit the [GitHub Pages site](https://ajarvis.co/anakata/) to access the latest deployment.
@@ -91,7 +106,10 @@ Other commands:
 npm run build       # production build in dist/
 npm run preview     # serve the production build
 npm run test:smoke  # build and run the headless Chrome tests (requires Chrome)
+npm run screenshots # build and retake the screenshots at the top of this README (requires Chrome)
 ```
+
+Retake the screenshots after changing how a scene looks. `node tools/screenshots.mjs hopf klein` retakes only those from the last build, and the camera for each shot is set in [tools/screenshots.mjs](tools/screenshots.mjs).
 
 Pushing to `main` builds the site, runs the smoke tests, and deploys it to GitHub Pages. Pull requests and other branches run the same tests and upload screenshots of each scene as artifacts.
 

@@ -187,7 +187,14 @@ export class InputSystem {
     this._mouseList = [this.mouse];
     this.spaces = [];
     this.smoothers = [new Smoother(), new Smoother()];
-    const factory = new XRControllerModelFactory();
+    // The menu and the tips panel draw over the world (depthTest off), and the
+    // hands draw after them. The controller models do the same, so a
+    // controller reaching for the menu isn't hidden behind it.
+    const factory = new XRControllerModelFactory(null, (scene) => scene.traverse((o) => {
+      if (!o.isMesh) return;
+      o.material.transparent = true; // opacity stays 1: this only moves it into the later pass
+      o.renderOrder = 30;
+    }));
 
     for (let i = 0; i < 2; i++) {
       const ctrl = r.xr.getController(i);

@@ -284,7 +284,11 @@ export class HandMenu {
     if (o.handedness === 'right') _side.negate();
     _to.subVectors(head, _pos).setY(0).normalize();
     const pn = this.panel;
-    const top = Math.min(_pos.y + 0.2, head.y + 0.05);
+    let top = Math.min(_pos.y + 0.2, head.y + 0.05);
+    // The menu draws over the world, but a finger pressing a button that hangs
+    // below a table top would disappear into the table: keep the bottom above it.
+    const floor = app.activeScene?.menuFloorY;
+    if (floor !== undefined) top = Math.max(top, floor + pn.height);
     _pos.addScaledVector(_side, pn.width / 2 + 0.06).addScaledVector(_to, 0.02);
     _pos.y = top;
     const g = pn.group;
@@ -318,6 +322,9 @@ export class WelcomePanel {
   constructor(app) {
     this.app = app;
     this.panel = app.ui.add(new UIPanel(app.ui, { width: 0.46, name: 'welcome' }));
+    // Drawn over the world like the hand menu: it opens 55 cm in front of the
+    // head, where a scene's exhibit (a polytope, a knot) would cut through it.
+    this.panel.material.depthTest = false;
     this.panel.group.visible = false;
     this.seen = pref.list('tips'); // scenes whose tips have been shown in this browser
     this.rebuild(true);

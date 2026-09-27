@@ -23,6 +23,8 @@ uniform mat4 uRot;
 uniform float uScale;
 uniform float uRadius;
 uniform float uMaxR;
+uniform vec3 uGlobe;     // world centre and radius of the globe
+uniform float uGlobeR;
 attribute vec4 aQ;
 attribute vec3 aColor;
 attribute float aSeed;
@@ -67,6 +69,14 @@ void main() {
   float valid = step(1e-10, nn) * step(R * uScale, 60.0); // not a line / absurdly large circle
   vFade = valid * (1.0 - smoothstep(uMaxR * 0.55, uMaxR, length(p0) * uScale));
   float r = uRadius * clamp(k0, 0.6, 4.0) * (0.25 + 0.75 * vFade);
+  // Large circles reach the floor (y = 0), the globe and the viewer. The tube
+  // narrows to nothing before it meets them, instead of cutting into them (or,
+  // in VR, being cut open by the near plane). Thinning keeps it opaque, so
+  // nothing needs sorting.
+  vec3 cw = (modelMatrix * vec4(p0 * uScale, 1.0)).xyz;
+  r *= smoothstep(0.0, 0.12, cw.y)
+    * smoothstep(uGlobeR, uGlobeR + 0.03, distance(cw, uGlobe))
+    * smoothstep(0.1, 0.3, distance(cw, cameraPosition));
   vec3 pos = p0 * uScale + dir * r;
   vec4 world = modelMatrix * vec4(pos, 1.0);
   vP = world.xyz;
@@ -250,6 +260,8 @@ export class HopfScene extends SceneBase {
         uScale: { value: this.scale },
         uRadius: { value: 0.0032 },
         uMaxR: { value: 5 },
+        uGlobe: { value: this.globeCenter }, // the same Vector3, so it follows _layout()
+        uGlobeR: { value: this.globeR },
         uTime: { value: 0 },
         uFlow: { value: 1 },
       },

@@ -47,6 +47,11 @@ const _m = new THREE.Matrix4();
 const _col = new THREE.Color();
 const RING_ACTIVE = new THREE.Color('#bff3ff');
 const RING_IDLE = new THREE.Color('#ffffff');
+const RING_R = 0.02, RING_TUBE = 0.0035, RING_ACTIVE_SCALE = 1.25;
+const TAG_R = 0.0065, TAG_IN_SLICE = 1.2;
+// tag columns start just outside the (enlarged) ring, so tags at the slice don't poke through it
+const TAG_X0 = (RING_R + RING_TUBE) * RING_ACTIVE_SCALE + TAG_R * TAG_IN_SLICE + 0.001;
+const KATA_OUT = 0.02; // the kata label's distance in front of the post
 
 export class WRail {
   constructor(playground, position, { height = 0.46, base = 0.06 } = {}) {
@@ -68,11 +73,11 @@ export class WRail {
     rod.position.y = base + height / 2;
     this.group.add(rod);
 
-    // post down to the table surface + a small foot
+    // post down to the table surface + a small foot (it fits the table's ledge, outside the rim)
     const postMat = new THREE.MeshStandardMaterial({ color: '#c9c4bd', roughness: 0.6, metalness: 0.1 });
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, base, 8), postMat);
     post.position.y = base / 2;
-    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.034, 0.008, 32), postMat);
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.024, 0.008, 32), postMat);
     foot.position.y = 0.004;
     this.group.add(post, foot);
 
@@ -89,9 +94,9 @@ export class WRail {
 
     // the slice ring
     this.ringMat = new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false, transparent: true, opacity: 0.95 });
-    this.ring = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.0035, 12, 40).rotateX(Math.PI / 2), this.ringMat);
+    this.ring = new THREE.Mesh(new THREE.TorusGeometry(RING_R, RING_TUBE, 12, 40).rotateX(Math.PI / 2), this.ringMat);
     this.disc = new THREE.Mesh(
-      new THREE.CircleGeometry(0.02, 40).rotateX(-Math.PI / 2),
+      new THREE.CircleGeometry(RING_R, 40).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, toneMapped: false }),
     );
     this.ring.add(this.disc);
@@ -99,15 +104,17 @@ export class WRail {
 
     // object tags
     this.maxTags = 64;
-    this.tags = new THREE.InstancedMesh(new THREE.SphereGeometry(0.0065, 12, 8), new THREE.MeshBasicMaterial({ toneMapped: false }), this.maxTags);
+    this.tags = new THREE.InstancedMesh(new THREE.SphereGeometry(TAG_R, 12, 8), new THREE.MeshBasicMaterial({ toneMapped: false }), this.maxTags);
     this.tags.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.tags.frustumCulled = false;
     this.group.add(this.tags);
 
+    // ana above the rod; kata beside the post, moved round to the viewer's side in update()
     const ana = makeLabel('ana  +w', { size: 0.016, color: '#ff8fbf' });
     ana.position.set(0, base + height + 0.022, 0);
     const kata = makeLabel('kata  −w', { size: 0.016, color: '#7fd8ff' });
-    kata.position.set(0, base - 0.018, 0.02);
+    kata.position.set(0, base - 0.018, KATA_OUT);
+    this.kata = kata;
     this.labels = [ana, kata];
     this.group.add(ana, kata);
 
@@ -203,7 +210,7 @@ export class WRail {
     this.ring.position.y = y;
     this.rodMat.uniforms.uSlice.value = (y - this.base) / this.height;
     const active = this.hovered || this.grabbedBy;
-    const s = active ? 1.25 : 1;
+    const s = active ? RING_ACTIVE_SCALE : 1;
     this.ring.scale.setScalar(s);
     this.ringMat.color.copy(active ? RING_ACTIVE : RING_IDLE);
 
@@ -215,8 +222,8 @@ export class WRail {
       const w = o.obj.pos[3];
       if (w < v.wMin - 0.05 || w > v.wMax + 0.05) continue;
       const k = n % 3;
-      const ox = 0.016 + k * 0.011;
-      const scale = o.obj.inSlice ? 1.2 : 0.8;
+      const ox = TAG_X0 + k * 0.011;
+      const scale = o.obj.inSlice ? TAG_IN_SLICE : 0.8;
       m.makeScale(scale, scale, scale).setPosition(ox, this.yFor(w), 0);
       this.tags.setMatrixAt(n, m);
       col.copy(o.tagColor);
@@ -228,8 +235,14 @@ export class WRail {
     this.tags.instanceMatrix.needsUpdate = true;
     if (this.tags.instanceColor) this.tags.instanceColor.needsUpdate = true;
 
-    // labels face the viewer
+    // labels face the viewer; kata stays on the viewer's side of the post
     const head = this.pg.app.headPosition;
+    const toHead = this.group.worldToLocal(_p2.copy(head)).setY(0);
+    if (toHead.lengthSq() > 1e-6) {
+      toHead.setLength(KATA_OUT);
+      this.kata.position.x = toHead.x;
+      this.kata.position.z = toHead.z;
+    }
     for (const l of this.labels) {
       const wp = l.getWorldPosition(_p1);
       l.lookAt(head.x, wp.y, head.z);

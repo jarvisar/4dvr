@@ -144,13 +144,17 @@ void main() {
 
 const FLOOR_FRAG = /* glsl */ `
 uniform float uTime;
-uniform float uRadius;
-uniform vec3 uFade;
+uniform float uRadius; // the tiling is complete out to here
+uniform vec3 uHorizon; // the sky's colours (see environment.js)
+uniform vec3 uBottom;
 varying vec3 vColor;
 varying vec2 vUV;
 varying float vBirth;
 varying vec3 vPos;
 void main() {
+  // a round edge: past it the outermost tiles leave a ragged border
+  float rad = length(vPos.xz);
+  if (rad > uRadius) discard;
   // edge lines (uv are the rhomb's two edge coordinates, 0..1)
   vec2 e = min(vUV, 1.0 - vUV);
   vec2 fw = max(fwidth(vUV), vec2(1e-5));
@@ -158,7 +162,9 @@ void main() {
   float glow = exp(-(uTime - vBirth) * 1.6); // tiles that just flipped
   vec3 col = mix(vColor, vec3(1.0, 0.98, 0.82), glow) + vec3(0.35, 0.3, 0.15) * glow;
   col = mix(col, vec3(0.13, 0.12, 0.16), line * 0.85);
-  col = mix(col, uFade, smoothstep(uRadius * 0.7, uRadius, length(vPos.xz)));
+  // fade into the sky seen just past the edge (below the horizon), so the edge doesn't show
+  float below = clamp(-normalize(vPos - cameraPosition).y, 0.0, 1.0);
+  col = mix(col, mix(uHorizon, uBottom, pow(below, 0.4)), smoothstep(uRadius * 0.7, uRadius, rad));
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -227,12 +233,16 @@ function birthOf(prev, next, key, time) {
 
 /** A Penrose floor around the viewer. */
 class PenroseFloor {
-  constructor(parent, { edge = 0.28, radius = 3.4, capacity = 2600 } = {}) {
+  /** sky: the environment's sky uniforms, whose colours the edge fades into. */
+  constructor(parent, sky, { edge = 0.28, radius = 3.4, capacity = 2600 } = {}) {
     this.edge = edge;
     this.radius = radius;
     this.capacity = capacity;
     this.births = new Map();
-    this.uniforms = { uTime: { value: 0 }, uRadius: { value: radius }, uFade: { value: new THREE.Color('#1b1d2b') } };
+    // Tiles are kept if their centre is within radius, and every point of a
+    // rhomb is within one edge length of its centre, so the tiling has no
+    // holes out to radius − edge.
+    this.uniforms = { uTime: { value: 0 }, uRadius: { value: radius - edge }, uHorizon: sky.uHorizon, uBottom: sky.uBottom };
     this.geo = dynamicGeometry(capacity * 4, [['position', 3], ['aColor', 3], ['aUV', 2], ['aBirth', 1]]);
     const index = new Uint32Array(capacity * 6);
     for (let i = 0; i < capacity; i++) index.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3], i * 6);
@@ -376,7 +386,7 @@ export class QuasicrystalScene extends SceneBase {
     this.flipCount = 0;
     this.spin = 0;
 
-    this.floor = new PenroseFloor(this.root);
+    this.floor = new PenroseFloor(this.root, app.env.skyMat.uniforms);
     this.crystalCenter = new THREE.Vector3(0, 1.25, -0.9);
     this.crystal = new IcosaCrystal(this.root);
     this.crystal.group.position.copy(this.crystalCenter);

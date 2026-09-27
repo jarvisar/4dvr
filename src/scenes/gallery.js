@@ -35,6 +35,7 @@ const LABELS = { duocylinder: 'Duocylinder', tiger: 'Tiger', spheritorus: 'Spher
 
 const EW = [0, 0, 0, 1];
 const AIR_DEADZONE = 0.012; // metres a pinch in empty space moves before it does anything
+const NAMEPLATE_OUT = 0.205; // nameplate's distance from the column's axis (radius there about 0.163)
 const _E = R4.mat4();
 const _M = R4.mat4();
 const _M2 = R4.mat4();
@@ -86,13 +87,15 @@ export class GalleryScene extends SceneBase {
 
   _buildPedestal() {
     const mat = new THREE.MeshStandardMaterial({ color: '#1a1d26', roughness: 0.55, metalness: 0.3 });
-    this.column = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 1, 48), mat);
+    const topR = 0.16, tube = 0.006;
+    this.column = new THREE.Mesh(new THREE.CylinderGeometry(topR, 0.2, 1, 48), mat); // tapers towards the top
+    // a bead round the top edge, flush with it, and the glow inside it
     this.ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.2, 0.006, 12, 96).rotateX(Math.PI / 2),
+      new THREE.TorusGeometry(topR - tube, tube, 12, 96).rotateX(Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: '#eceef4', toneMapped: false }),
     );
     this.glow = new THREE.Mesh(
-      new THREE.CircleGeometry(0.19, 48).rotateX(-Math.PI / 2),
+      new THREE.CircleGeometry(topR - 2 * tube, 48).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: '#9fb8ff', transparent: true, opacity: 0.08, depthWrite: false, toneMapped: false }),
     );
     this.root.add(this.column, this.ring, this.glow);
@@ -107,7 +110,7 @@ export class GalleryScene extends SceneBase {
     this.column.position.set(c.x, topY / 2, c.z);
     this.ring.position.set(c.x, topY + 0.002, c.z);
     this.glow.position.set(c.x, topY + 0.003, c.z);
-    if (this.nameplate) this.nameplate.position.set(c.x, topY - 0.06, c.z + 0.205);
+    if (this.nameplate) this.nameplate.position.set(c.x, topY - 0.06, c.z + NAMEPLATE_OUT); // update() keeps it on the viewer's side
     this.app.env.aimSun(c);
     if (this.desktopView) this.desktopView.target.copy(c);
   }
@@ -146,6 +149,7 @@ export class GalleryScene extends SceneBase {
     } else if (key === 'net') {
       this.fold = 0;
       this._netFold = null;
+      this._netStereo = null;
       this.foldAnim = { from: 0, to: 1, t: 0, delay: 0.8 };
       this._updateNet();
       this.wire.edgeMat.uniforms.uRadius.value = 0.0034;
@@ -169,6 +173,10 @@ export class GalleryScene extends SceneBase {
       if (!o) {
         o = new Object4D(key, { scale: this.S, ghosts: false, opacity: 0.82 });
         o.mesh.renderOrder = 9; // after the additive faces, so the slice keeps its colours
+        // A curved shape's slice can be two tori or a torus in a shell, and its
+        // triangles aren't drawn back to front: without depth, a far surface
+        // drawn later would cover a nearer one.
+        o.mats.solid.depthWrite = true;
         this.pivot.add(o.group);
         this.sliceObjs.set(key, o);
       }
@@ -183,10 +191,14 @@ export class GalleryScene extends SceneBase {
   }
 
   _updateNet() {
-    if (this.fold === this._netFold) return; // only rebuild while folding
+    // only rebuild while folding, or when the projection changes
+    const stereo = this.mode === 'stereo';
+    if (this.fold === this._netFold && stereo === this._netStereo) return;
     this._netFold = this.fold;
+    this._netStereo = stereo;
     const net = tesseractNet(this.fold);
-    this.wire.setGeometry(net, { faceSubdiv: 0, edgeColors: net.edgeColors, faceColors: net.faceColors });
+    // stereographic edges are arcs, so the faces are curved to meet them
+    this.wire.setGeometry(net, { faceSubdiv: stereo ? 2 : 0, edgeColors: net.edgeColors, faceColors: net.faceColors });
   }
 
   _makeHandle() {
@@ -367,15 +379,20 @@ export class GalleryScene extends SceneBase {
         R4.copy(o.R, this.R);
         o.pos[0] = o.pos[1] = o.pos[2] = o.pos[3] = 0;
         this.sliceView.w = this.sliceW * S;
-        o.group.scale.setScalar(persp ? this.eye / (this.eye - this.sliceW) : 1);
+        // at the projection's scale for that w, including its hover enlargement, so it meets the edges
+        o.group.scale.setScalar(persp ? (this.eye / (this.eye - this.sliceW)) * w.group.scale.x : 1);
         o.sync(this.sliceView, dt);
         o.setHighlight(this.hover || this.grab ? 0.35 : 0);
       }
     }
 
     if (this.nameplate) {
-      const head = this.app.headPosition;
-      this.nameplate.lookAt(head.x, this.nameplate.position.y, head.z);
+      // in front of the column on the viewer's side, facing them: turned in
+      // place, its inner edge would swing into the column seen from the side
+      const head = this.app.headPosition, c = this.center, np = this.nameplate.position;
+      const dx = head.x - c.x, dz = head.z - c.z, d = Math.hypot(dx, dz);
+      if (d > 1e-3) np.set(c.x + (dx / d) * NAMEPLATE_OUT, np.y, c.z + (dz / d) * NAMEPLATE_OUT);
+      this.nameplate.lookAt(head.x, np.y, head.z);
     }
   }
 

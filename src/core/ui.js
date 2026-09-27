@@ -650,13 +650,14 @@ export class UISystem {
 
   updateCapture(ix) {
     const cap = ix.uiCapture;
-    if (!cap.widget || cap.widget.type !== 'slider') return;
     const p = cap.panel;
     p.group.getWorldPosition(_c);
     _n.set(0, 0, 1).applyQuaternion(p.group.getWorldQuaternion(_wq));
     const denom = _n.dot(ix.rayDir);
     if (Math.abs(denom) < 1e-4) return;
     const t = _n.dot(_p.subVectors(_c, ix.rayOrigin)) / denom;
+    if (t > 0) ix.rayLength = t; // the ray and its cursor end on the panel while it's held
+    if (!cap.widget || cap.widget.type !== 'slider') return;
     _hp.copy(ix.rayOrigin).addScaledVector(ix.rayDir, t);
     p.toPanel(_hp, _p);
     p.dragSlider(cap.widget, _p.x);

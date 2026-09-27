@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import * as R4 from '../math/rot4.js';
 import { getShape } from './shapes.js';
-import { createSliceMaterials } from './sliceMaterial.js';
+import { createSliceMaterials, BEHIND_COPLANAR } from './sliceMaterial.js';
 import { createHypersphereMaterials, hypersphereGeometry } from './hypersphereMaterial.js';
 import { ANA_COLOR, KATA_COLOR } from './sliceView.js';
 
@@ -49,7 +49,8 @@ export class Object4D {
       this.mats.solid.uniforms.uOpacity.value = opacity;
       this.mats.solid.transparent = true;
       this.mats.solid.depthWrite = false;
-      this.mats.solid.side = THREE.DoubleSide;
+      this.mats.solid.side = THREE.DoubleSide; // its back faces show through, including the bottom on the table
+      Object.assign(this.mats.solid, BEHIND_COPLANAR);
     }
 
     this.mesh = new THREE.Mesh(geom, this.mats.solid);

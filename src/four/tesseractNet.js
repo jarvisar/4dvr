@@ -60,11 +60,24 @@ export function tesseractNet(t) {
     },
   });
 
+  // Scaled so the net stays well inside the perspective eye distance (2.4)
+  // however it is turned: unfolded, it reaches 5.3 units from the centre.
+  const scale = 0.35;
   const vertices = [], edges = [], faces = [], edgeColors = [], faceColors = [];
   cubes.forEach((cube) => {
     const base = vertices.length;
-    for (const v of CUBE_VERTS) vertices.push(cube.map(v[0], v[1], v[2]).map((x) => x * 0.5));
-    for (const [a, b] of CUBE_EDGES) { edges.push([base + a, base + b]); edgeColors.push(cube.color); }
+    for (const v of CUBE_VERTS) vertices.push(cube.map(v[0], v[1], v[2]).map((x) => x * scale));
+    for (const [a, b] of CUBE_EDGES) {
+      // Hinge edges, and every edge once folded, are shared by several cubes.
+      // Point each edge along its largest component, so the copies of an edge
+      // build the same tube: reversed, a tube's sides are rotated half a step,
+      // and two copies would cut through each other in stripes.
+      const pa = vertices[base + a], pb = vertices[base + b];
+      let k = 0;
+      for (let i = 1; i < 4; i++) if (Math.abs(pb[i] - pa[i]) > Math.abs(pb[k] - pa[k])) k = i;
+      edges.push(pb[k] > pa[k] ? [base + a, base + b] : [base + b, base + a]);
+      edgeColors.push(cube.color);
+    }
     for (const f of CUBE_FACES) { faces.push({ verts: f.map((i) => base + i) }); faceColors.push(cube.color); }
   });
   return { vertices, edges, faces, edgeColors, faceColors };

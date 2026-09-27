@@ -13,6 +13,15 @@ import { GHOST_STYLE } from '../four/sliceMaterial.js';
 
 const TUBE_R = 0.0095;
 const COLLIDE = TUBE_R * 2.3;
+// Pass-through markers: one per place where strands overlap in xyz but not w.
+// Each such place has several close bead pairs; pairs within MARK_MERGE of a
+// marker are averaged into it, so one crossing gets one steady ring.
+const MAX_MARKS = 24;
+const MARK_MERGE = 0.025;
+const MARK_R = 0.018, MARK_TUBE = 0.0022;
+// The ring faces the head from this far in front of the crossing: past the
+// front of either strand (their centres are up to COLLIDE apart), so they don't cut through it.
+const MARK_LIFT = COLLIDE / 2 + TUBE_R + MARK_TUBE;
 const RADIAL = 8;
 const SUB = 2; // curve samples per bead
 const W_SAT = 0.06;
@@ -122,7 +131,23 @@ class Rope {
     }
     this.pinned = -1;
     this.pinTarget = [0, 0, 0, 0];
-    this.crossings = [];
+    this.crossings = new Float64Array(MAX_MARKS * 4); // x, y, z, and the number of bead pairs averaged
+    this.nCrossings = 0;
+  }
+
+  _markCrossing(x, y, z) {
+    const c = this.crossings;
+    for (let k = 0; k < this.nCrossings; k++) {
+      const n = c[k * 4 + 3];
+      const dx = c[k * 4] / n - x, dy = c[k * 4 + 1] / n - y, dz = c[k * 4 + 2] / n - z;
+      if (dx * dx + dy * dy + dz * dz < MARK_MERGE * MARK_MERGE) {
+        c[k * 4] += x; c[k * 4 + 1] += y; c[k * 4 + 2] += z; c[k * 4 + 3] = n + 1;
+        return;
+      }
+    }
+    if (this.nCrossings >= MAX_MARKS) return;
+    const k = this.nCrossings++;
+    c[k * 4] = x; c[k * 4 + 1] = y; c[k * 4 + 2] = z; c[k * 4 + 3] = 1;
   }
 
   next(i, s) {
@@ -150,7 +175,7 @@ class Rope {
   _collide(markCrossings) {
     const p = this.p, N = this.N;
     const d2 = COLLIDE * COLLIDE;
-    if (markCrossings) this.crossings.length = 0;
+    if (markCrossings) this.nCrossings = 0;
     for (let i = 0; i < N; i++) {
       const xi = p[i * 4], yi = p[i * 4 + 1], zi = p[i * 4 + 2], wi = p[i * 4 + 3];
       const li = this.loopOf[i];
@@ -169,9 +194,7 @@ class Rope {
         const r4 = r3 + dw * dw;
         if (r4 >= d2) {
           // overlapping in xyz but apart in w: one strand passing through another
-          if (markCrossings && Math.abs(dw) > COLLIDE * 0.5 && this.crossings.length < 24) {
-            this.crossings.push([(xi + p[j * 4]) / 2, (yi + p[j * 4 + 1]) / 2, (zi + p[j * 4 + 2]) / 2]);
-          }
+          if (markCrossings && Math.abs(dw) > COLLIDE * 0.5) this._markCrossing((xi + p[j * 4]) / 2, (yi + p[j * 4 + 1]) / 2, (zi + p[j * 4 + 2]) / 2);
           continue;
         }
         const d = Math.sqrt(r4) || 1e-9;
@@ -370,6 +393,7 @@ const _hq = new THREE.Quaternion();
 const _m = new THREE.Matrix4();
 const _pos = new THREE.Vector3();
 const _head = new THREE.Vector3();
+const _toHead = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
 const _one = new THREE.Vector3(1, 1, 1);
 
@@ -389,9 +413,9 @@ export class KnotScene extends SceneBase {
 
     // markers where strands overlap in xyz but are apart in w
     this.markers = new THREE.InstancedMesh(
-      new THREE.TorusGeometry(0.018, 0.0022, 8, 28),
+      new THREE.TorusGeometry(MARK_R, MARK_TUBE, 8, 28),
       new THREE.MeshBasicMaterial({ color: '#fff3b0', transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false }),
-      24,
+      MAX_MARKS,
     );
     this.markers.count = 0;
     this.markers.frustumCulled = false;
@@ -543,9 +567,12 @@ export class KnotScene extends SceneBase {
 
     // pass-through markers
     const head = this.group.worldToLocal(_head.copy(this.app.headPosition));
+    const cr = this.rope.crossings;
     let n = 0;
-    for (const c of this.rope.crossings) {
-      _pos.set(c[0], c[1], c[2]);
+    for (let k = 0; k < this.rope.nCrossings; k++) {
+      const pairs = cr[k * 4 + 3];
+      _pos.set(cr[k * 4] / pairs, cr[k * 4 + 1] / pairs, cr[k * 4 + 2] / pairs);
+      _pos.addScaledVector(_toHead.subVectors(head, _pos).normalize(), MARK_LIFT);
       _m.lookAt(head, _pos, _up);
       _hq.setFromRotationMatrix(_m);
       _m.compose(_pos, _hq, _one);

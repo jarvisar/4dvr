@@ -9,10 +9,10 @@
 // cast shadows that fall outside it.
 //
 // The shadow regions are drawn top-down into a mask texture (only when
-// something moved) and the table multiplies its colour by the mask.
-// Polytopes use the slice shader compiled with SHADOW4 (see sliceMaterial.js);
-// a hypersphere's shadow is found per pixel: the floor points whose line
-// towards the sun passes within r of the centre.
+// something moved) and the table's material multiplies its colour by the mask
+// (see receive()). Polytopes use the slice shader compiled with SHADOW4 (see
+// sliceMaterial.js); a hypersphere's shadow is found per pixel: the floor
+// points whose line towards the sun passes within r of the centre.
 
 import * as THREE from 'three';
 import { SLICE_VERTEX_GLSL } from './sliceMaterial.js';
@@ -58,37 +58,37 @@ void main() {
 // lands on another shadow.
 const MASK_BLEND = { blending: THREE.CustomBlending, blendEquation: THREE.MaxEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor };
 
-const OVERLAY_VERT = /* glsl */ `
-uniform float uExtent;
-varying vec2 vUv;
-void main() {
-  vUv = position.xz / (2.0 * uExtent) + 0.5;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
+// Spliced into the receiving material (see receive()).
+const RECEIVER_VERT_HEAD = /* glsl */ `
+uniform float uShadowExtent;
+varying vec2 vShadowUv;
 `;
-
-const OVERLAY_FRAG = /* glsl */ `
-uniform sampler2D uMask;
-uniform float uTexel;
-uniform float uStrength;
-varying vec2 vUv;
-void main() {
+const RECEIVER_VERT = /* glsl */ `
+vShadowUv = transformed.xz / (2.0 * uShadowExtent) + 0.5;
+`;
+const RECEIVER_FRAG_HEAD = /* glsl */ `
+uniform sampler2D uShadowMask;
+uniform float uShadowTexel;
+uniform float uShadowStrength;
+varying vec2 vShadowUv;
+float shadow4Factor() {
   // The blur below reads texels up to 2.4 away. A texel of mip level 3 covers
   // 8x8 of them, so if level 3 is 0 here, every texel the blur reads is 0
   // (or holds a sliver of an antialiased edge, too faint to see): most of the
   // table has no shadow nearby and skips the other 9 reads.
-  if (textureLod(uMask, vUv, 3.0).r == 0.0) {
-    gl_FragColor = vec4(1.0);
-    return;
-  }
+  if (uShadowStrength == 0.0 || textureLod(uShadowMask, vShadowUv, 3.0).r == 0.0) return 1.0;
   // small blur for soft edges
   float m = 0.0;
   for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) {
-    m += textureLod(uMask, vUv + vec2(float(i), float(j)) * uTexel * 1.4, 0.0).r;
+    m += textureLod(uShadowMask, vShadowUv + vec2(float(i), float(j)) * uShadowTexel * 1.4, 0.0).r;
   }
-  m /= 9.0;
-  gl_FragColor = vec4(vec3(1.0 - uStrength * m), 1.0); // multiplied into the table colour
+  return 1.0 - uShadowStrength * m / 9.0;
 }
+`;
+// After tone mapping and sRGB encoding, so the shadow darkens the displayed
+// colour by the same factor whatever the lighting.
+const RECEIVER_FRAG = /* glsl */ `
+gl_FragColor.rgb *= shadow4Factor();
 `;
 
 const _clear = new THREE.Color();
@@ -109,26 +109,40 @@ export class Shadow4 {
     this.uniforms = { uSun: { value: new THREE.Vector4(0, 1, 0, 0) }, uExtent: { value: extent } };
     this.proxies = new Map();
     this.sphereQuad = new THREE.PlaneGeometry(2, 2);
-
-    this.overlay = new THREE.Mesh(
-      new THREE.CircleGeometry(extent, 96).rotateX(-Math.PI / 2),
-      new THREE.ShaderMaterial({
-        uniforms: { uMask: { value: this.rt.texture }, uExtent: this.uniforms.uExtent, uTexel: { value: 1 / size }, uStrength: { value: strength } },
-        vertexShader: OVERLAY_VERT,
-        fragmentShader: OVERLAY_FRAG,
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.CustomBlending,
-        blendEquation: THREE.AddEquation,
-        blendSrc: THREE.ZeroFactor,
-        blendDst: THREE.SrcColorFactor,
-      }),
-    );
-    // First of the transparent objects, straight after the opaque table:
-    // translucent objects drawn before it would be darkened along with the
-    // table behind them, instead of showing the shadow through them.
-    this.overlay.renderOrder = -1;
+    this.strength = strength;
+    this.receiverUniforms = {
+      uShadowMask: { value: this.rt.texture },
+      uShadowExtent: this.uniforms.uExtent,
+      uShadowTexel: { value: 1 / size },
+      uShadowStrength: { value: strength },
+    };
     this.dirty = true;
+  }
+
+  /**
+   * Make a built-in material (e.g. MeshStandardMaterial) darken by the mask.
+   * The mesh's local x and z must be the shadow's: the mask's centre at the
+   * local origin. The shadow is part of the surface's own shading, not a
+   * second surface laid on top of it, so nothing can z-fight with it, and it
+   * only darkens this surface (not the bases of objects standing on it).
+   */
+  receive(material) {
+    material.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, this.receiverUniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${RECEIVER_VERT_HEAD}`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>\n${RECEIVER_VERT}`);
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${RECEIVER_FRAG_HEAD}`)
+        .replace('#include <dithering_fragment>', `#include <dithering_fragment>\n${RECEIVER_FRAG}`);
+    };
+    material.customProgramCacheKey = () => 'shadow4-receiver';
+    return material;
+  }
+
+  /** The graphics preset's shadow setting: off skips the mask reads and redraws. */
+  set enabled(on) {
+    this.receiverUniforms.uShadowStrength.value = on ? this.strength : 0;
   }
 
   /** Direction towards the sun, in slice space (x, y, z, w); y must be > 0. */
@@ -213,7 +227,5 @@ export class Shadow4 {
   dispose() {
     for (const obj of [...this.proxies.keys()]) this.remove(obj);
     this.rt.dispose();
-    this.overlay.geometry.dispose();
-    this.overlay.material.dispose();
   }
 }

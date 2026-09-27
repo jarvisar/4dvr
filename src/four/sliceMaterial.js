@@ -288,6 +288,17 @@ export const PREMULTIPLIED_BLEND = {
 };
 
 /**
+ * For see-through surfaces (ghosts, glass): pushed slightly back in depth, so
+ * where one lies in the same plane as an opaque surface the opaque one wins
+ * on every pixel instead of flickering. An object resting on a cell has the
+ * bottom of every cross-section in the table's plane, and a ghost can share
+ * faces with its own slice (an axis-aligned tesseract's sections are all the
+ * same cube). The offset is about a pixel's worth of depth, so it only
+ * decides between surfaces that are really in the same place.
+ */
+export const BEHIND_COPLANAR = { polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 4 };
+
+/**
  * Per-object uniform bundle. The solid and ghost materials (and the 4D
  * shadow in shadow4.js) share the uniforms that describe the object's pose.
  */
@@ -335,6 +346,7 @@ export function createSliceMaterials(tetMesh, { pattern = 0, gloss = 0.5 } = {})
     transparent: true,
     depthWrite: false,
     ...PREMULTIPLIED_BLEND,
+    ...BEHIND_COPLANAR,
     side: THREE.DoubleSide,
   });
 
