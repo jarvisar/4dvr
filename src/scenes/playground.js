@@ -810,7 +810,7 @@ export class PlaygroundScene extends SceneBase {
     this.worldlineDuration = REC_TIME;
     this.worldlineDemo = false;
     this.worldline.group.visible = true;
-    this.playing = true;
+    this.playing = !this.worldline.empty; // nothing to replay: its w range is empty
     this.setW(-REC_HALF_W);
     this.app.audio.spawn(this.stage.localToWorld(new THREE.Vector3(0, 0.2, 0)));
     this._say(this.worldline.empty ? 'Nothing was tracked' : 'Replaying: the slice moves through time', 3);

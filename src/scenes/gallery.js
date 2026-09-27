@@ -156,6 +156,7 @@ export class GalleryScene extends SceneBase {
       this.spin.fill(0);
       this.auto = false;
       if (this.mode !== 'perspective') this.mode = 'perspective';
+      this._forcedSlice = false;
       info = 'Tesseract net · 8 cubes';
     } else {
       this.wire.setGeometry({ vertices: [], edges: [], faces: [] });
@@ -207,10 +208,11 @@ export class GalleryScene extends SceneBase {
         scene.spin.fill(0);
       },
       onGrabUpdate(ix, dt) {
+        if (scene.grab?.ix !== ix) return;
         scene._grabUpdate(ix, dt);
         if (scene.grab?.mode === 'secondary') scene.app.hands.readout(ix, 'turning through w');
       },
-      onGrabEnd() { scene.grab = null; },
+      onGrabEnd(ix) { if (scene.grab?.ix === ix) scene.grab = null; },
     };
   }
 
@@ -259,7 +261,7 @@ export class GalleryScene extends SceneBase {
     ix.pose('near', _hp, _hq);
     if (mode === 'primary') {
       this.air = { ix, start: _hp.clone(), w: this.sliceW };
-    } else {
+    } else if (!this.grab) { // not while the other hand holds the shape
       this.grab = { ix, mode, kind: 'near', air: true, startR: R4.copy(R4.mat4(), this.R), startHand: _hp.clone(), startQInv: _hq.clone().invert() };
       this.spin.fill(0);
     }
@@ -277,13 +279,13 @@ export class GalleryScene extends SceneBase {
       ix.pose('near', _hp, _hq);
       this.sliceW = THREE.MathUtils.clamp(this.air.w + (_hp.y - this.air.start.y) * (ix.isMouse ? 3 : 5), -1.05, 1.05);
       this.app.hands.readout(ix, `slice w ${this.sliceW >= 0 ? '+' : '−'}${Math.abs(this.sliceW).toFixed(2)}`, this.sliceW > 0.005 ? '#ff8fbf' : this.sliceW < -0.005 ? '#7fd8ff' : '#ffffff');
-    } else if (this.grab) {
+    } else if (this.grab?.air && this.grab.ix === ix) {
       this._grabUpdate(ix, dt);
       this.app.hands.readout(ix, 'turning through w');
     }
   }
 
-  onEmptyGrabEnd() { this.pending = null; this.air = null; if (this.grab?.air) this.grab = null; }
+  onEmptyGrabEnd(ix) { this.pending = null; this.air = null; if (this.grab?.air && this.grab.ix === ix) this.grab = null; }
 
   onWheel(delta) { this.sliceW = THREE.MathUtils.clamp(this.sliceW - delta * 0.001, -1.05, 1.05); }
 
@@ -388,7 +390,7 @@ export class GalleryScene extends SceneBase {
         type: 'tabs',
         options: [{ label: 'Perspective', value: 'perspective', small: true }, { label: 'Stereographic', value: 'stereo', small: true }, { label: 'Slice only', value: 'slice', small: true }],
         get: () => this.mode,
-        set: (v) => { if (this.isPolytope || v === 'slice' || this.isNet) this.mode = v; },
+        set: (v) => { if (this.isPolytope || v === 'slice' || this.isNet) { if (v !== this.mode) this._forcedSlice = false; this.mode = v; } },
       },
       { type: 'slider', label: 'Slicing hyperplane (w)', min: -1.05, max: 1.05, center: 0, get: () => this.sliceW, set: (v) => { this.sliceW = v; }, format: (v) => v.toFixed(2), gradient: ['#33c3ff', '#ff4f9a'] },
     ];

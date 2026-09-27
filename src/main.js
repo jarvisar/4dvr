@@ -192,6 +192,9 @@ app.onDesktopMenuChanged = (on) => {
   if (on && cramped() && !helpBox.classList.contains('closed')) setHelp(false);
 };
 menuBtn.onclick = () => app.setDesktopMenu(!app.desktopMenu);
+// A button clicked with the mouse gives up focus, so Space and Enter go to the
+// scene afterwards instead of clicking it again (detail is 0 for keyboard clicks).
+hud.addEventListener('click', (e) => { if (e.detail > 0) e.target.closest('button')?.blur(); });
 syncMenuButton(app.desktopMenu);
 setHelp(pref.get('help', !cramped()));
 

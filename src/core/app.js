@@ -252,6 +252,8 @@ export class App {
 
   _key(e) {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    // Space and Enter on a focused button press the button, not also the scene
+    if (e.target?.tagName === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return; // leave browser shortcuts (Ctrl+R, Ctrl+1…) alone
     const idx = parseInt(e.key, 10);
     if (idx >= 1 && idx <= this.sceneList.length) { this.setScene(this.sceneList[idx - 1].key); return; }
@@ -319,6 +321,10 @@ export class App {
     this.rig.quaternion.identity();
     this.camera.position.set(0, 0, 0);
     this.orbit.enabled = false;
+    this.interaction.releaseAll(); // the mouse's drag or hover
+    // the desktop menu is fully opaque at the HUD position; don't let it fade out from there
+    this.menu.panel.opacity = 0;
+    this.menu.panel.group.visible = false;
     this._sessionJustStarted = 2;
     this.activeScene?.onSessionStart?.();
     this.onSessionChange?.(true);
@@ -359,6 +365,8 @@ export class App {
   }
 
   _onSessionEnd() {
+    // drop anything the hands or controllers were holding: they stop updating now
+    this.interaction.releaseAll();
     this._rates = null;
     this.rig.position.set(0, 0, 0); // undo snap turns and recentring for the desktop camera
     this.rig.quaternion.identity();
@@ -370,6 +378,8 @@ export class App {
     this.welcome.hide();
     this.menu.pinned = false;
     this.menu.shown = false;
+    this.menu.summoned = false;
+    this.menu.owner = null;
     this._resize();
     if (this.activeScene?.desktopView) {
       this.camera.position.copy(this.activeScene.desktopView.position);

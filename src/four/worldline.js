@@ -236,7 +236,8 @@ export class Worldline {
     uploadFirst(B, nb);
     uploadFirst(D, nd);
 
-    const pk = `${view.angleXW},${view.angleZW},${this.chains.length}`;
+    // a tilted slice mixes w into the path points' slice-space xyz
+    const pk = `${view.angleXW},${view.angleZW},${this.chains.length}${flat ? '' : `,${view.w}`}`;
     if (pk !== this._pathKey) this._updatePaths(pk);
   }
 

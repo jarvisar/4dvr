@@ -44,10 +44,19 @@ varying vec2 vXZ;
 void main() {
   vec4 d = vec4(vXZ.x, 0.0, vXZ.y, 0.0) - uPos;
   float a = dot(d, uSun);
-  if (dot(d, d) - a * a > uRadius * uRadius) discard;
-  gl_FragColor = vec4(1.0);
+  // Distance from the centre to the line towards the sun. The fragment shader
+  // runs once per texel, not per sample, so the edge is antialiased here: the
+  // coverage ramps over one texel instead of switching on and off.
+  float dist = sqrt(max(dot(d, d) - a * a, 0.0));
+  float cover = clamp((uRadius - dist) / max(fwidth(dist), 1e-6) + 0.5, 0.0, 1.0);
+  if (cover <= 0.0) discard;
+  gl_FragColor = vec4(cover);
 }
 `;
+
+// Shadows overlap in the mask: keep the darker one where an antialiased edge
+// lands on another shadow.
+const MASK_BLEND = { blending: THREE.CustomBlending, blendEquation: THREE.MaxEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor };
 
 const OVERLAY_VERT = /* glsl */ `
 uniform float uExtent;
@@ -65,8 +74,9 @@ uniform float uStrength;
 varying vec2 vUv;
 void main() {
   // The blur below reads texels up to 2.4 away. A texel of mip level 3 covers
-  // 8x8 of them, so if level 3 is 0 here, so is every texel the blur reads:
-  // most of the table has no shadow nearby and skips the other 9 reads.
+  // 8x8 of them, so if level 3 is 0 here, every texel the blur reads is 0
+  // (or holds a sliver of an antialiased edge, too faint to see): most of the
+  // table has no shadow nearby and skips the other 9 reads.
   if (textureLod(uMask, vUv, 3.0).r == 0.0) {
     gl_FragColor = vec4(1.0);
     return;
@@ -86,8 +96,14 @@ const _clear = new THREE.Color();
 export class Shadow4 {
   /** extent: half-size (m) of the square area of floor the mask covers, centred on the origin. */
   constructor({ extent = 0.64, size = 512, strength = 0.42 } = {}) {
-    // mipmapped for the overlay's quick "no shadow nearby" test
-    this.rt = new THREE.WebGLRenderTarget(size, size, { depthBuffer: false, magFilter: THREE.LinearFilter, minFilter: THREE.LinearMipmapNearestFilter, generateMipmaps: true });
+    // Multisampled: a texel is 2.5 mm, and with one sample per texel a shadow
+    // edge that moves by a fraction of that (a stack settling, a slow drag)
+    // flips whole texels on and off, which flickers. With 4 samples the edge
+    // texels hold partial coverage and change gradually. On the Quest's tiled
+    // GPU the resolve happens in tile memory, and the mask is only redrawn when
+    // something moved.
+    // Mipmapped for the overlay's quick "no shadow nearby" test.
+    this.rt = new THREE.WebGLRenderTarget(size, size, { samples: 4, depthBuffer: false, magFilter: THREE.LinearFilter, minFilter: THREE.LinearMipmapNearestFilter, generateMipmaps: true });
     this.scene = new THREE.Scene();
     this.camera = new THREE.Camera(); // the mask shaders ignore the camera
     this.uniforms = { uSun: { value: new THREE.Vector4(0, 1, 0, 0) }, uExtent: { value: extent } };
@@ -108,7 +124,10 @@ export class Shadow4 {
         blendDst: THREE.SrcColorFactor,
       }),
     );
-    this.overlay.renderOrder = 1;
+    // First of the transparent objects, straight after the opaque table:
+    // translucent objects drawn before it would be darkened along with the
+    // table behind them, instead of showing the shadow through them.
+    this.overlay.renderOrder = -1;
     this.dirty = true;
   }
 
@@ -131,6 +150,7 @@ export class Shadow4 {
         fragmentShader: SPHERE_FRAG,
         depthTest: false,
         depthWrite: false,
+        ...MASK_BLEND,
       }));
     } else {
       mesh = new THREE.Mesh(obj.shape.tetMesh.geometry, new THREE.ShaderMaterial({
@@ -141,6 +161,7 @@ export class Shadow4 {
         side: THREE.DoubleSide,
         depthTest: false,
         depthWrite: false,
+        ...MASK_BLEND,
       }));
     }
     mesh.frustumCulled = false;

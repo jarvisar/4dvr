@@ -129,6 +129,9 @@ export class Burst {
       c.set(colors[i % colors.length]);
       this.col[i * 3] = c.r; this.col[i * 3 + 1] = c.g; this.col[i * 3 + 2] = c.b;
     }
+    const attr = this.points.geometry.attributes;
+    attr.position.needsUpdate = true;
+    attr.color.needsUpdate = true;
     this.life = 1.6;
     this.points.visible = true;
   }
