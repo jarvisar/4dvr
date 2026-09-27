@@ -13,6 +13,7 @@
 // is now mirror-reversed, and your left hand fits the right-hand print.
 
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SceneBase } from './base.js';
 import { BONES } from '../core/handVisuals.js';
 import { J } from '../core/input.js';
@@ -104,6 +105,7 @@ function mergeColored(parts) {
     }
     if (geo.index) for (let i = 0; i < geo.index.count; i++) index.push(base + geo.index.getX(i));
     else for (let i = 0; i < gp.count; i++) index.push(base + i);
+    geo.dispose();
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -118,6 +120,17 @@ const at = (x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => new THRE
 
 const CYAN = '#33c3ff', PINK = '#ff4f9a';
 const INK = '#2b2f3a', SLATE = '#3a3f4d', STONE = '#eee8de';
+const BRASS = '#bda477', COPPER = '#e79970';
+
+/** A single bevel catches the light without subdividing the flat faces. */
+function bevelBox(w, h, d, bevel = 0.012) {
+  const x = w / 2 - bevel, y = h / 2 - bevel;
+  const shape = new THREE.Shape().moveTo(-x, -y).lineTo(x, -y).lineTo(x, y).lineTo(-x, y).closePath();
+  return new THREE.ExtrudeGeometry(shape, {
+    depth: d - 2 * bevel, bevelEnabled: true, bevelSegments: 1,
+    steps: 1, bevelSize: bevel, bevelThickness: bevel, curveSegments: 1,
+  }).translate(0, 0, -d / 2 + bevel);
+}
 // the frame: a square pillar at each corner, and a lintel along the top of each wall
 const PILLAR = 0.16, LINTEL = 0.2, CAP = 0.22, CAP_H = 0.06, BASE_H = 0.1;
 const JAMB_TOP = H - LINTEL - CAP_H; // where the pillar's capital starts
@@ -127,6 +140,7 @@ const PLATE = { x: 0.2, z: -1.0, size: 0.44, top: 0.9 };
 const HELIX = { x: 0.9, z: 0.8, size: 0.44, top: 0.8 };
 const CLOCK_C = new THREE.Vector3(CLOCK.x, 1.3, CLOCK.z); // centre of the clock, inside its body
 const SIGN_POS = new THREE.Vector3(-0.2, 1.9, -D / 2 + 0.05); // facing +z, into the room
+const SIGN_W = 1.4, SIGN_H = 0.35, PORTAL_Y = H - LINTEL - 0.1;
 
 /**
  * Everything in the room that doesn't move and is lit, in room coordinates,
@@ -143,31 +157,38 @@ function roomGeometry() {
   add(box(CAP, CAP_H, CAP), SLATE, at(W / 2, JAMB_TOP + CAP_H / 2, D / 2));
   add(box(PILLAR, LINTEL, D), SLATE, at(W / 2, H - LINTEL / 2, 0));
   add(box(W, LINTEL, PILLAR), SLATE, at(0, H - LINTEL / 2, D / 2));
-  // gallery plinths: a dark recessed foot, and a top slab that overhangs a little
+  // Chamfered stone, a recessed foot and a thin brass reveal under each cap.
   for (const { x, z, size, top } of [CLOCK, PLATE, HELIX]) {
     add(box(size - 0.04, 0.05, size - 0.04), INK, at(x, 0.025, z));
-    add(box(size, top - 0.08, size), STONE, at(x, 0.05 + (top - 0.08) / 2, z));
-    add(box(size + 0.03, 0.03, size + 0.03), SLATE, at(x, top - 0.015, z));
+    add(bevelBox(size, top - 0.095, size, 0.018), STONE, at(x, 0.05 + (top - 0.095) / 2, z));
+    add(box(size - 0.025, 0.012, size - 0.025), BRASS, at(x, top - 0.038, z));
+    add(bevelBox(size + 0.03, 0.032, size + 0.03, 0.008), SLATE, at(x, top - 0.016, z));
   }
+  // The spiral is mounted on a shallow disc, rather than hovering over its plinth.
+  add(new THREE.CylinderGeometry(0.18, 0.19, 0.018, 32), BRASS, at(HELIX.x, HELIX.top + 0.009, HELIX.z));
   // a helix, which is chiral: this one twists to the right
   const helixPts = Array.from({ length: 60 }, (_, k) => {
     const t = k / 59, a = t * Math.PI * 6;
     return new THREE.Vector3(Math.cos(a) * 0.14, HELIX.top + 0.02 + t * 0.7, -Math.sin(a) * 0.14);
   });
-  add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(helixPts), 160, 0.025, 8, false), '#e76f51', at(HELIX.x, 0, HELIX.z));
+  add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(helixPts), 80, 0.025, 8, false), COPPER, at(HELIX.x, 0, HELIX.z));
   // the tube is open-ended: round off both ends
-  for (const p of [helixPts[0], helixPts[59]]) add(new THREE.SphereGeometry(0.025, 12, 8), '#e76f51', at(HELIX.x + p.x, p.y, HELIX.z + p.z));
+  for (const p of [helixPts[0], helixPts[59]]) add(new THREE.SphereGeometry(0.025, 8, 6), COPPER, at(HELIX.x + p.x, p.y, HELIX.z + p.z));
   // the clock: a body facing +z with a bezel round the face (see clockFaceTexture()), on a stand
   // thinner than the body (0.03), so where it runs up behind the face it stays inside it
   add(new THREE.CylinderGeometry(0.21, 0.21, 0.03, 48).rotateX(Math.PI / 2), INK, at(CLOCK_C.x, CLOCK_C.y, CLOCK_C.z));
-  add(new THREE.TorusGeometry(0.205, 0.013, 8, 48), INK, at(CLOCK_C.x, CLOCK_C.y, CLOCK_C.z + 0.015));
+  add(new THREE.TorusGeometry(0.205, 0.013, 6, 48), BRASS, at(CLOCK_C.x, CLOCK_C.y, CLOCK_C.z + 0.015));
   add(box(0.03, 0.3, 0.02), INK, at(CLOCK_C.x, CLOCK.top + 0.08, CLOCK_C.z));
+  add(bevelBox(0.19, 0.022, 0.12, 0.006), INK, at(CLOCK.x, CLOCK.top + 0.011, CLOCK.z));
   // the pin the hands turn on (see update()), from the face out past the second hand
   add(new THREE.CylinderGeometry(0.008, 0.008, 0.02, 12).rotateX(Math.PI / 2), INK, at(CLOCK_C.x, CLOCK_C.y, CLOCK_C.z + 0.025));
   // a board behind the sign, so from behind it isn't a bare one-sided plane, hung from the lintel
-  add(box(1.24, 0.34, 0.02), INK, at(SIGN_POS.x, SIGN_POS.y, SIGN_POS.z - 0.011));
-  const rod = H - LINTEL - (SIGN_POS.y + 0.17);
-  for (const dx of [-0.5, 0.5]) add(new THREE.CylinderGeometry(0.006, 0.006, rod, 6), INK, at(SIGN_POS.x + dx, SIGN_POS.y + 0.17 + rod / 2, SIGN_POS.z - 0.011));
+  add(bevelBox(SIGN_W + 0.04, SIGN_H + 0.04, 0.032, 0.008), INK, at(SIGN_POS.x, SIGN_POS.y, SIGN_POS.z - 0.017));
+  const signTop = SIGN_POS.y + (SIGN_H + 0.04) / 2;
+  const rod = H - LINTEL - signTop;
+  for (const dx of [-0.5, 0.5]) add(new THREE.CylinderGeometry(0.006, 0.006, rod, 6), INK, at(SIGN_POS.x + dx, signTop + rod / 2, SIGN_POS.z - 0.017));
+  add(box(0.06, 0.18, 0.68), INK, at(W / 2, PORTAL_Y, 0));
+  add(box(0.68, 0.18, 0.06), INK, at(0, PORTAL_Y, D / 2));
   return mergeColored(parts);
 }
 
@@ -234,23 +255,23 @@ function canvasTexture(width, height, draw, { text = false, anisotropy = 4 } = {
  * shadows are painted in.
  */
 function floorTexture() {
-  const S = 2048, px = S / W; // W = D
+  const S = 1024, px = S / W; // W = D; baked detail needs no extra geometry or lights
   const X = (x) => (x + W / 2) * px, Z = (z) => (z + D / 2) * px;
   return canvasTexture(S, S, (g) => {
-    g.fillStyle = '#474c59';
+    g.fillStyle = '#373e4b';
     g.fillRect(0, 0, S, S);
-    // 7 × 7 tiles, with a slightly different shade each
-    const N_T = 7, t0 = -(W - CAP) / 2, T = -2 * t0 / N_T;
+    // Larger, quieter limestone tiles leave the coloured boundaries easy to read.
+    const N_T = 6, t0 = -(W - CAP) / 2, T = -2 * t0 / N_T;
     let seed = 11;
     const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     for (let a = 0; a < N_T; a++) for (let b = 0; b < N_T; b++) {
-      const [r, gr, bl] = (a + b) % 2 ? [236, 231, 222] : [216, 209, 197];
+      const [r, gr, bl] = (a + b) % 2 ? [231, 226, 217] : [221, 215, 205];
       const k = 1 + (rand() - 0.5) * 0.035;
       g.fillStyle = `rgb(${Math.round(r * k)}, ${Math.round(gr * k)}, ${Math.round(bl * k)})`;
       g.fillRect(X(t0 + a * T), Z(t0 + b * T), T * px, T * px);
     }
-    g.strokeStyle = 'rgba(70, 60, 50, 0.28)';
-    g.lineWidth = 3;
+    g.strokeStyle = 'rgba(70, 60, 50, 0.18)';
+    g.lineWidth = 1.5;
     g.beginPath();
     for (let k = 1; k < N_T; k++) {
       const p = t0 + k * T;
@@ -259,17 +280,22 @@ function floorTexture() {
     }
     g.stroke();
     // a brass line round the tiles
-    g.strokeStyle = '#b39862';
-    g.lineWidth = 6;
+    g.strokeStyle = BRASS;
+    g.lineWidth = 3;
     g.strokeRect(X(t0), Z(t0), N_T * T * px, N_T * T * px);
-    // the F, inlaid, reading the right way from the starting spot
+    // An inlaid orientation medallion: F has an unmistakable mirror image.
+    g.beginPath();
+    g.arc(X(-0.13), Z(0.35), 0.6 * px, 0, Math.PI * 2);
+    g.fillStyle = '#ded8cb';
+    g.fill();
+    g.stroke();
     const F = [[-0.38, -0.1], [0.12, -0.1], [0.12, 0.06], [-0.22, 0.06], [-0.22, 0.22], [0, 0.22], [0, 0.38], [-0.22, 0.38], [-0.22, 0.8], [-0.38, 0.8]];
     g.beginPath();
     for (const [x, z] of F) g.lineTo(X(x), Z(z));
     g.closePath();
-    g.fillStyle = '#3d5a80';
+    g.fillStyle = '#435a70';
     g.fill();
-    g.lineWidth = 5;
+    g.lineWidth = 2.5;
     g.stroke(); // brass, as above
     // soft shadows: the shape is drawn off the canvas, so only its blurred shadow lands on it
     const shadow = (x, z, size, blur, alpha) => {
@@ -290,12 +316,12 @@ function handPrintTexture() {
   return canvasTexture(512, 512, (g) => {
     g.fillStyle = INK;
     g.fillRect(0, 0, 512, 512);
-    g.strokeStyle = 'rgba(255, 217, 61, 0.4)';
+    g.strokeStyle = BRASS;
     g.lineWidth = 6;
     g.beginPath();
     g.roundRect(16, 16, 480, 480, 36);
     g.stroke();
-    g.fillStyle = g.strokeStyle = '#ffd93d';
+    g.fillStyle = g.strokeStyle = '#e8c986';
     g.lineCap = 'round';
     g.beginPath();
     g.roundRect(172, 222, 172, 180, [46, 54, 84, 84]);
@@ -320,16 +346,95 @@ function handPrintTexture() {
   }, { text: true });
 }
 
-function signTexture() {
-  return canvasTexture(1024, 256, (g) => {
-    g.fillStyle = '#f7f3ec';
-    g.fillRect(0, 0, 1024, 256);
+// All static signs share one atlas and the same pair of instanced draw calls.
+const LABEL_TILES = {
+  title: [0, 0, 1024, 256],
+  wrap: [0, 256, 512, 128], flip: [512, 256, 512, 128],
+};
+
+function labelTexture() {
+  return canvasTexture(1024, 512, (g) => {
     g.fillStyle = INK;
-    g.font = `700 108px ${FONTS.sans}`;
-    g.textAlign = 'center';
+    g.fillRect(0, 0, 1024, 512);
+    // Enamel nameplate, with the room's edge identifications beside its name.
+    g.fillStyle = '#ede9df';
+    g.fillRect(0, 0, 1024, 256);
+    g.strokeStyle = INK;
+    g.lineWidth = 2;
+    g.strokeRect(12, 12, 1000, 232);
+    g.textAlign = 'left';
     g.textBaseline = 'middle';
-    g.fillText('KLEIN ROOM →', 512, 134);
+    g.fillStyle = INK;
+    g.font = '148px Georgia, serif';
+    g.fillText('Klein', 52, 105);
+    g.font = `600 32px ${FONTS.sans}`;
+    g.fillText('R O O M', 62, 208);
+    // Cyan sides have matching arrows; pink sides have opposite arrows.
+    const edge = (x1, y1, x2, y2, color) => {
+      const dx = (x2 - x1) / 176, dy = (y2 - y1) / 176;
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+      g.strokeStyle = color;
+      g.lineWidth = 7;
+      g.beginPath();
+      g.moveTo(x1, y1); g.lineTo(x2, y2);
+      g.moveTo(mx - dx * 12 - dy * 13, my - dy * 12 + dx * 13);
+      g.lineTo(mx + dx * 8, my + dy * 8);
+      g.lineTo(mx - dx * 12 + dy * 13, my - dy * 12 - dx * 13);
+      g.stroke();
+    };
+    edge(748, 216, 748, 40, '#147da6');
+    edge(924, 216, 924, 40, '#147da6');
+    edge(748, 40, 924, 40, '#c63573');
+    edge(924, 216, 748, 216, '#c63573');
+    g.textAlign = 'center';
+    g.font = `600 48px ${FONTS.sans}`;
+    for (const [tile, title, color] of [['wrap', 'WRAP', CYAN], ['flip', 'FLIP', PINK]]) {
+      const [x, y, w, h] = LABEL_TILES[tile];
+      g.fillStyle = color;
+      g.fillText(title, x + w / 2, y + h / 2);
+    }
   }, { text: true });
+}
+
+function labelGeometry() {
+  const parts = [];
+  const panel = (tile, w, h, matrix, mirror = false) => {
+    const [x, y, tw, th] = LABEL_TILES[tile];
+    const geo = new THREE.PlaneGeometry(w, h).applyMatrix4(matrix);
+    const uv = geo.attributes.uv;
+    // Half-pixel inset keeps the base-level samples within their atlas tile.
+    for (let i = 0; i < uv.count; i++) uv.setXY(i,
+      (x + 0.5 + (mirror ? 1 - uv.getX(i) : uv.getX(i)) * (tw - 1)) / 1024,
+      1 - (y + 0.5 + (1 - uv.getY(i)) * (th - 1)) / 512);
+    parts.push(geo);
+  };
+  panel('title', SIGN_W, SIGN_H, at(SIGN_POS.x, SIGN_POS.y, SIGN_POS.z));
+  for (const s of [-1, 1]) {
+    panel('wrap', 0.64, 0.16, at(W / 2 + s * 0.031, PORTAL_Y, 0, 0, s * Math.PI / 2));
+    // The outward pink face belongs to the reflected neighbour. Its lettering
+    // must use that room's handedness, so both exits read correctly from inside.
+    panel('flip', 0.64, 0.16, at(0, PORTAL_Y, D / 2 + s * 0.031, 0, s === 1 ? 0 : Math.PI), s === 1);
+  }
+  const merged = mergeGeometries(parts);
+  for (const geo of parts) geo.dispose();
+  return merged;
+}
+
+/** A shoulder-and-waist silhouette with a collar, using fewer faces than a capsule. */
+function torsoGeometry() {
+  const profile = [[0, -0.33], [0.105, -0.33], [0.13, -0.29], [0.135, -0.08],
+    [0.2, 0.19], [0.195, 0.24], [0.15, 0.29], [0.065, 0.33], [0, 0.33]];
+  return mergeColored([
+    { geo: new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), 16), color: '#6e8494' },
+    { geo: new THREE.TorusGeometry(0.062, 0.012, 4, 16), color: INK, matrix: at(0, 0.33, 0, Math.PI / 2) },
+  ]);
+}
+
+function visorGeometry() {
+  return mergeColored([
+    { geo: bevelBox(0.19, 0.1, 0.09, 0.018), color: '#d6d9e0' },
+    { geo: bevelBox(0.163, 0.066, 0.014, 0.006), color: '#273b50', matrix: at(0, 0, -0.048) },
+  ]);
 }
 
 /** The clock's face, with numerals, which read backwards in a mirrored copy. */
@@ -448,7 +553,7 @@ export class KleinScene extends SceneBase {
       inst(roomGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true }), COPIES),
       inst(new THREE.PlaneGeometry(W, D).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: floorTexture(), toneMapped: false }), COPIES),
       inst(glowGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), COPIES),
-      inst(new THREE.PlaneGeometry(1.2, 0.3).translate(SIGN_POS.x, SIGN_POS.y, SIGN_POS.z), new THREE.MeshBasicMaterial({ map: signTexture(), toneMapped: false }), COPIES),
+      inst(labelGeometry(), new THREE.MeshBasicMaterial({ map: labelTexture(), toneMapped: false }), COPIES),
       inst(new THREE.CircleGeometry(0.2, 48).translate(CLOCK_C.x, CLOCK_C.y, CLOCK_C.z + 0.017), new THREE.MeshBasicMaterial({ map: clockFaceTexture(), toneMapped: false }), COPIES),
       inst(new THREE.PlaneGeometry(0.34, 0.34).rotateX(-Math.PI / 2).translate(this.platePos.x, this.platePos.y, this.platePos.z), this.plateMat, COPIES),
     ];
@@ -457,11 +562,11 @@ export class KleinScene extends SceneBase {
     this.secondHand = inst(new THREE.BoxGeometry(0.006, 0.22, 0.004).translate(0, 0.07, 0), new THREE.MeshLambertMaterial({ color: '#e63946' }), COPIES);
 
     // copies of you: head, headset, neck, body and hands
-    const skin = new THREE.MeshLambertMaterial({ color: '#f0cdb0' });
-    this.head = inst(new THREE.SphereGeometry(1, 24, 16), skin, COPIES);
-    this.visor = inst(new THREE.BoxGeometry(0.19, 0.1, 0.09), new THREE.MeshLambertMaterial({ color: '#d6d9e0' }), COPIES);
+    const skin = new THREE.MeshLambertMaterial({ color: '#e3ddd1' });
+    this.head = inst(new THREE.SphereGeometry(1, 16, 12), skin, COPIES);
+    this.visor = inst(visorGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true }), COPIES);
     this.neck = inst(new THREE.CylinderGeometry(1, 1, 1, 12, 1, true).translate(0, 0.5, 0), skin, COPIES);
-    this.torso = inst(new THREE.CapsuleGeometry(0.15, 0.45, 8, 20), new THREE.MeshLambertMaterial({ color: '#5b6fc4' }), COPIES);
+    this.torso = inst(torsoGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true }), COPIES);
     this.joints = inst(new THREE.SphereGeometry(1, 10, 8), skin, COPIES * 50);
     this.bones = inst(new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0), skin, COPIES * BONES.length * 2);
     this.desktopView = { position: new THREE.Vector3(0, 1.6, 0.6), target: new THREE.Vector3(0, 1.4, -1) };
