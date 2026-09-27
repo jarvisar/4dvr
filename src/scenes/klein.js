@@ -440,10 +440,12 @@ export class KleinScene extends SceneBase {
     const inst = (geo, mat, count) => new MirrorableInstances(this.root, geo, skyFog(mat, sky), count);
     // the parts of the room that don't move, in room coordinates: one instance per copy.
     // The floor is unlit, with its shading painted in, as it covers so much of the view.
+    // The rest is Lambert: at this roughness, Standard's highlight barely shows,
+    // and it costs about twice as much per pixel.
     this.platePos = new THREE.Vector3(PLATE.x, PLATE.top + 0.002, PLATE.z);
     this.plateMat = new THREE.MeshBasicMaterial({ map: handPrintTexture(), toneMapped: false });
     this.fixed = [
-      inst(roomGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }), COPIES),
+      inst(roomGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true }), COPIES),
       inst(new THREE.PlaneGeometry(W, D).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: floorTexture(), toneMapped: false }), COPIES),
       inst(glowGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), COPIES),
       inst(new THREE.PlaneGeometry(1.2, 0.3).translate(SIGN_POS.x, SIGN_POS.y, SIGN_POS.z), new THREE.MeshBasicMaterial({ map: signTexture(), toneMapped: false }), COPIES),
@@ -451,15 +453,15 @@ export class KleinScene extends SceneBase {
       inst(new THREE.PlaneGeometry(0.34, 0.34).rotateX(-Math.PI / 2).translate(this.platePos.x, this.platePos.y, this.platePos.z), this.plateMat, COPIES),
     ];
     // the clock's hands: hour and minute hands are one box, stretched (see update()), with a short tail
-    this.hands = inst(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.4, 0), new THREE.MeshStandardMaterial({ color: INK, roughness: 0.4 }), 2 * COPIES);
-    this.secondHand = inst(new THREE.BoxGeometry(0.006, 0.22, 0.004).translate(0, 0.07, 0), new THREE.MeshStandardMaterial({ color: '#e63946' }), COPIES);
+    this.hands = inst(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.4, 0), new THREE.MeshLambertMaterial({ color: INK }), 2 * COPIES);
+    this.secondHand = inst(new THREE.BoxGeometry(0.006, 0.22, 0.004).translate(0, 0.07, 0), new THREE.MeshLambertMaterial({ color: '#e63946' }), COPIES);
 
     // copies of you: head, headset, neck, body and hands
-    const skin = new THREE.MeshStandardMaterial({ color: '#f0cdb0', roughness: 0.6 });
+    const skin = new THREE.MeshLambertMaterial({ color: '#f0cdb0' });
     this.head = inst(new THREE.SphereGeometry(1, 24, 16), skin, COPIES);
-    this.visor = inst(new THREE.BoxGeometry(0.19, 0.1, 0.09), new THREE.MeshStandardMaterial({ color: '#d6d9e0', roughness: 0.4 }), COPIES);
+    this.visor = inst(new THREE.BoxGeometry(0.19, 0.1, 0.09), new THREE.MeshLambertMaterial({ color: '#d6d9e0' }), COPIES);
     this.neck = inst(new THREE.CylinderGeometry(1, 1, 1, 12, 1, true).translate(0, 0.5, 0), skin, COPIES);
-    this.torso = inst(new THREE.CapsuleGeometry(0.15, 0.45, 8, 20), new THREE.MeshStandardMaterial({ color: '#5b6fc4', roughness: 0.7 }), COPIES);
+    this.torso = inst(new THREE.CapsuleGeometry(0.15, 0.45, 8, 20), new THREE.MeshLambertMaterial({ color: '#5b6fc4' }), COPIES);
     this.joints = inst(new THREE.SphereGeometry(1, 10, 8), skin, COPIES * 50);
     this.bones = inst(new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0), skin, COPIES * BONES.length * 2);
     this.desktopView = { position: new THREE.Vector3(0, 1.6, 0.6), target: new THREE.Vector3(0, 1.4, -1) };

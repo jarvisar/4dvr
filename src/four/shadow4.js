@@ -120,7 +120,7 @@ export class Shadow4 {
   }
 
   /**
-   * Make a built-in material (e.g. MeshStandardMaterial) darken by the mask.
+   * Make a built-in material (e.g. MeshLambertMaterial) darken by the mask.
    * The mesh's local x and z must be the shadow's: the mask's centre at the
    * local origin. The shadow is part of the surface's own shading, not a
    * second surface laid on top of it, so nothing can z-fight with it, and it

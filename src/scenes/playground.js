@@ -387,26 +387,28 @@ export class PlaygroundScene extends SceneBase {
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
-    // The 4D shadows are part of the top face's shading (not a separate layer on it)
-    const topParams = { color: '#ffffff', map: tex, roughness: 0.82, metalness: 0 };
-    const topMat = this.shadow4.receive(new THREE.MeshStandardMaterial(topParams));
+    // The 4D shadows are part of the top face's shading (not a separate layer on it).
+    // Lambert, as the top fills much of the view: a matte Standard material looks
+    // the same here and costs about twice as much per pixel.
+    const topParams = { color: '#ffffff', map: tex };
+    const topMat = this.shadow4.receive(new THREE.MeshLambertMaterial(topParams));
     // Scale the grid so its outer circle (500 texels from the centre, of 512)
     // lies under the rim, which puts a ring every 10 cm. The ledge outside it
     // reads the plain edge of the canvas.
     tex.repeat.setScalar(TABLE_TOP_R / (TABLE_R * (512 / 500)));
     tex.offset.setScalar((1 - tex.repeat.x) / 2);
     const top = new THREE.Mesh(new THREE.CylinderGeometry(TABLE_TOP_R, TABLE_TOP_R, 0.032, 128), [
-      new THREE.MeshStandardMaterial({ color: '#e7e2da', roughness: 0.7 }), topMat, new THREE.MeshStandardMaterial(topParams),
+      new THREE.MeshLambertMaterial({ color: '#e7e2da' }), topMat, new THREE.MeshLambertMaterial(topParams),
     ]);
     top.position.y = -0.016;
     t.add(top);
     const rim = new THREE.Mesh(
       new THREE.TorusGeometry(TABLE_R, RIM_TUBE, 10, 128).rotateX(Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: '#2b2f3a', emissive: '#eceef4', emissiveIntensity: 0.35, roughness: 0.4 }),
+      new THREE.MeshLambertMaterial({ color: '#2b2f3a', emissive: '#eceef4', emissiveIntensity: 0.35 }),
     );
     rim.position.y = 0.004;
     t.add(rim);
-    const legMat = new THREE.MeshStandardMaterial({ color: '#d4cec6', roughness: 0.6 });
+    const legMat = new THREE.MeshLambertMaterial({ color: '#d4cec6' });
     this.leg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.16, 1, 32), legMat);
     t.add(this.leg);
     const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.32, 0.03, 48), legMat);
