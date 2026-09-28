@@ -105,7 +105,7 @@ kbd, #hud-help li b {
   display: flex;
   align-items: center;
   /* vertical spacing shrinks on short windows so the whole screen fits at 1280x650 */
-  padding: clamp(16px, 4vh, 32px) clamp(20px, 6vw, 88px);
+  padding: clamp(16px, 3.5vh, 32px) clamp(20px, 6vw, 88px);
   overflow-y: auto;
   /* dark on the left for the text, the live scene shows through on the right */
   background: linear-gradient(90deg, rgba(16, 19, 24, 0.97) 0%, rgba(16, 19, 24, 0.93) 40%, rgba(16, 19, 24, 0.35) 72%, rgba(16, 19, 24, 0.15) 100%);
