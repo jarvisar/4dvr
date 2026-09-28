@@ -45,8 +45,8 @@ const SHOTS = [
     setup: () => {
       const s = window.__app.activeScene;
       s.desktopView.position.set(0.5, 1.6, 1.2);
-      s.yaw = 0.5;
-      s.pitch = -0.15;
+      s.walk.yaw = 0.5;
+      s.walk.pitch = -0.15;
     },
   },
 ];

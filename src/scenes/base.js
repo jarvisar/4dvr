@@ -22,6 +22,89 @@ export class SceneBase {
   desktopHelp() { return ''; }
 }
 
+const LOOK = 0.004;     // radians per CSS pixel dragged
+const TURN_SPEED = 1.8; // radians per second with the arrow keys
+const _euler = new THREE.Euler();
+
+// Desktop controls for the scenes you walk through. WASD moves, Q/E go down and
+// up where that's possible, Shift is faster, and dragging empty space looks
+// around. The up and down arrows move and the left and right arrows turn, so
+// the keyboard alone is enough. Keys go by position (KeyboardEvent.code), so on
+// an AZERTY keyboard WASD is ZQSD.
+export class WalkControls {
+  constructor(app) {
+    this.app = app;
+    this.yaw = 0;
+    this.pitch = 0;
+    this.keys = new Set();
+    this._drag = null; // the pointer that's looking around
+    const canvas = app.renderer.domElement;
+    const end = (e) => { if (e.pointerId === this._drag?.id) this._drag = null; };
+    this._listeners = [
+      [window, 'keydown', (e) => {
+        // a slider in the menu uses the arrow keys itself
+        if (e.ctrlKey || e.metaKey || e.altKey || e.target?.tagName === 'INPUT') return;
+        this.keys.add(e.code);
+      }],
+      [window, 'keyup', (e) => this.keys.delete(e.code)],
+      [window, 'blur', () => this.keys.clear()], // keyup never arrives after alt-tab
+      [canvas, 'pointerdown', (e) => {
+        // a second finger pulls you along instead (see InputSystem)
+        if (this._drag) { if (e.pointerType === 'touch') this._drag = null; return; }
+        // App's pointer gate has already checked whether this press hit something
+        if (app.presenting || e.button !== 0 || !app.pointerOnEmpty) return;
+        this._drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      }],
+      // Deltas come from clientX/Y. movementX is missing for touch in some
+      // browsers and in device pixels in others.
+      [window, 'pointermove', (e) => {
+        const d = this._drag;
+        if (!d || e.pointerId !== d.id) return;
+        this.yaw -= (e.clientX - d.x) * LOOK;
+        this.pitch = THREE.MathUtils.clamp(this.pitch - (e.clientY - d.y) * LOOK, -1.4, 1.4);
+        d.x = e.clientX;
+        d.y = e.clientY;
+      }],
+      [window, 'pointerup', end],
+      [window, 'pointercancel', end],
+    ];
+  }
+
+  attach() {
+    for (const [el, type, fn] of this._listeners) el.addEventListener(type, fn);
+  }
+
+  detach() {
+    for (const [el, type, fn] of this._listeners) el.removeEventListener(type, fn);
+    this.keys.clear();
+    this._drag = null;
+  }
+
+  get fast() { return this.keys.has('ShiftLeft') || this.keys.has('ShiftRight'); }
+
+  // Held keys as a direction in the camera's axes (x right, y up, z back), not normalized
+  direction(out) {
+    const k = this.keys;
+    return out.set(
+      (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0),
+      (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0),
+      (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0) - (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0),
+    );
+  }
+
+  // Turns with the arrow keys and points the camera, which the scene has
+  // already put in place. The head pose is updated too, since the scene reads
+  // it later in the same frame.
+  update(dt) {
+    const app = this.app, cam = app.camera;
+    this.yaw += ((this.keys.has('ArrowLeft') ? 1 : 0) - (this.keys.has('ArrowRight') ? 1 : 0)) * TURN_SPEED * dt;
+    cam.quaternion.setFromEuler(_euler.set(this.pitch, this.yaw, 0, 'YXZ'));
+    cam.updateMatrixWorld();
+    cam.getWorldPosition(app.headPosition);
+    cam.getWorldQuaternion(app.headQuaternion);
+  }
+}
+
 // Text on a plane using a canvas texture. Free it with disposeLabel().
 export function makeLabel(text, { size = 0.02, color = '#ffffff', weight = 600, bg = null, pad = 0.35 } = {}) {
   const canvas = document.createElement('canvas');

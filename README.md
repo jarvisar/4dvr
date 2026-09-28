@@ -21,15 +21,16 @@ Visit the [GitHub Pages site](https://4dvr.ajarvis.co/) to access the latest dep
 
 ## Scenes
 
-- **Hyperplay:** A 4D physics sandbox on a table with the regular 4-polytopes, hyperspheres, duocylinders, spherinders, cubinders, and a tiger. Objects are shown as 3D cross-sections. The slice can be moved along W or rotated in the xw/zw planes. The sun can lean towards +W, so objects outside the slice still cast shadows into it. Presets:
-  - Sealed box: get the ball out of a closed glass box by moving it through W.
-  - Mirror: fit a chiral piece into an outline of its mirror image. Only a half-turn through W does it.
+- **Hyperplay:** A 4D physics sandbox on a table with the regular 4-polytopes, hyperspheres, duocylinders, spherinders, cubinders, and a tiger. Objects are shown as 3D cross-sections. The slice can be moved along w or rotated in the xw/zw planes. The sun can lean towards ana (+w), so objects outside the slice still cast shadows into it. Presets:
+  - Sandbox, Tower, Hyperballs, Rollers, and Polytopes: sets of objects to play with.
+  - Sealed box: get the ball out of a closed glass box by moving it through w.
+  - Mirror: fit a chiral piece into an outline of its mirror image. Only a half-turn through w does it.
   - Dice: the regular 4-polytopes as a d5, d8, d16, d24, d120, and d600.
   - Orbits: moons around a sun with 4D gravity (1/r³). There are no stable orbits, so a small nudge sends a moon into the sun or off for good. Can be switched to 1/r² to compare.
-  - Shadows: the sun leans 50° towards +W.
-  - Worldline: a motion with time as the W axis, so moving the slice replays it. Shows juggling by default and can record 4 seconds of your hands.
+  - Shadows: the sun leans 50° towards ana.
+  - Worldline: a motion with time as the w axis, so moving the slice replays it. Shows juggling by default and can record 4 seconds of your hands, controllers, or mouse.
 - **Polytope Lab:** The regular 4-polytopes as perspective or stereographic projections, with the current cross-section drawn inside. Also has a tesseract net that folds up, and cross-sections of curved shapes like the spheritorus.
-- **Knot Lab:** A rope simulated in 4D. Strands only collide when they're close in all four coordinates, so moving a strand in W lets it pass through another one. Detects when a knot is untied or a link is separated.
+- **Knot Lab:** A rope simulated in 4D. Strands only collide when they're close in all four coordinates, so moving a strand in w lets it pass through another one. Detects when a knot is untied or a link is separated.
 - **Hopf Garden:** The Hopf fibration of the 3-sphere. Touch the globe to add the fiber for that point.
 - **Hyperbolic Space:** The {5,3,4} and {4,3,5} honeycombs viewed from inside. Head movement is tracked in hyperbolic space, so walking in a loop leaves you slightly rotated.
 - **Spherical Space:** The 120-cell, 24-cell, tesseract, and 5-cell as tilings of the 3-sphere, viewed from inside. Walking straight for 2π times the radius brings you back to the start, and straight ahead at the end of the long way round is the back of your own head.
@@ -38,13 +39,15 @@ Visit the [GitHub Pages site](https://4dvr.ajarvis.co/) to access the latest dep
 
 ## Controls
 
-The first time Hyperplay opens in VR, a short tutorial goes through grabbing, moving the slice, rotating through 4D, and opening the menu. A see-through hand shows each gesture, and each step moves on once you've done it. `How to play` in the menu's settings runs it again.
+The first time Hyperplay opens in VR, a short tutorial goes through grabbing, moving the slice, rotating through 4D, and opening the menu. A see-through hand shows the gestures, the fingers to use light up on your own hands, and each step moves on once you've done it. `How to play` in the menu's settings runs it again.
+
+The controls below are for Hyperplay. The other scenes use the same grabs and gestures for their own things, and each scene's page in the menu says what they do there.
 
 ### Hand Tracking
 
 Pinch with your thumb and index finger, or close your hand around an object, to grab, move, and throw it. Pinch with your middle finger and move your hand to rotate an object through 4D. To grab something out of reach, point at it with your arm out and pinch. It flies to your hand.
 
-Pinch empty space and move up or down to move the slice along W. Middle-finger pinch empty space and move sideways to rotate the slice. A pinch that just missed an object doesn't move the slice.
+Pinch empty space and move up or down to move the slice along w. Middle-finger pinch empty space and move sideways to rotate the slice. A pinch that just missed an object doesn't move the slice.
 
 Turn a palm towards your face and a `Menu` button shows up next to it. Tap it with your other index finger. The menu opens in front of you and stays there until you close it. Pinch the bar under it to move it. Point and pinch to use UI that's out of reach.
 
@@ -56,19 +59,23 @@ In Hyperbolic Space, Spherical Space, and the Klein Room, walk or pinch empty sp
 
 ### Controllers
 
-Use the trigger or grip to grab, move, and throw objects. Hold both to rotate an object through 4D. Push either stick up or down to move the slice along W, or left and right to rotate it. Press `A` or `X` to open or close the menu.
+Use the trigger or grip to grab, move, and throw objects. Hold both to rotate an object through 4D. Push either stick up or down to move the slice along w, or left and right to rotate it. Press `A` or `X` to open or close the menu.
 
-In the curved spaces and the Klein Room, the left stick moves and the right stick turns in 30° steps. With snap turning off, both sticks move.
+In the curved spaces and the Klein Room, the left stick moves and the right stick turns, in 30° steps or smoothly. With `No turning`, both sticks move. With only one controller, its stick moves you forward and back and turns you left and right.
+
+###### Note: the comfort vignette, turning, and larger menus are in the VR menu's settings. `Recenter` there moves the scene in front of you and fits it to your height, for example after sitting down.
+
+Inputs with no buttons to read, like a phone viewer's screen tap or Vision Pro's look and pinch, act as a pinch, and a `Menu` button waits low in front of you instead of next to your palm. I haven't been able to test this on those devices.
 
 ### Desktop
 
-Left drag to grab, move, and throw objects. Right drag to rotate them through 4D, or right drag empty space to rotate the slice. Use the scroll wheel or `Q`/`E` to move the slice along W, `A`/`D` to rotate it, and `0` to reset it. Press `1`-`8` to switch scenes, `M` to toggle the menu, and `H` to toggle the controls.
+Left drag to grab, move, and throw objects. Right drag to rotate them through 4D, or right drag empty space to rotate the slice. `Shift` and drag works the same as right drag, for trackpads. Use the scroll wheel or `Q`/`E` to move the slice along w, `A`/`D` to rotate it, and `0` to reset it. Press `1`-`8` to switch scenes, `M` to toggle the menu, and `H` to toggle the controls.
 
-In the curved spaces and the Klein Room, use `WASD` to move and drag to look.
+In the curved spaces and the Klein Room, use `WASD` or the arrow keys to move and drag to look. The left and right arrows turn, `Q`/`E` go down and up in the curved spaces, and `Shift` goes faster. Keys go by position, so on an AZERTY keyboard it's `ZQSD`.
 
-Touch screens can drag objects and orbit the camera. Rotating through 4D and moving around the curved spaces need a mouse and keyboard or a headset.
+The menu works with the keyboard too. `Tab` through it, press buttons with `Space` or `Enter`, move sliders with the arrow keys, and close it with `Escape`.
 
-###### Note: the comfort vignette, snap turning, and larger menus are in the menu's settings. `Recenter` there moves the scene in front of you and fits it to your height, for example after sitting down.
+On touch screens, drag with one finger to grab things and orbit the camera. A two-finger drag does what a right drag does: it rotates things through 4D, rotates the slice, and pulls you along in the curved spaces and the Klein Room.
 
 ## Local Installation
 
@@ -113,7 +120,7 @@ Hyperspheres are drawn as regular spheres with radius `sqrt(r² - d²)`, since e
 
 ### 4D Shadows
 
-An object's shadow is its projection onto the floor (a 3D hyperplane in 4D) along the sun's 4D direction. If the sun leans into W, objects outside the slice can cast shadows into it. [shadow4.js](src/four/shadow4.js) draws these into a 512x512 mask that the table multiplies its color by. The three.js shadow map isn't used.
+An object's shadow is its projection onto the floor (a 3D hyperplane in 4D) along the sun's 4D direction. If the sun leans into w, objects outside the slice can cast shadows into it. [shadow4.js](src/four/shadow4.js) draws these into a 512x512 mask that the table multiplies its color by. The three.js shadow map isn't used.
 
 ### Physics
 

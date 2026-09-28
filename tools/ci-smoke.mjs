@@ -389,7 +389,7 @@ try {
   const turnDeg = Math.round((Math.atan2(-turned.fx, -turned.fz) - Math.atan2(-recentred.fx, -recentred.fz)) * 180 / Math.PI);
   const vrChecks = [
     ['enters an immersive session', started.presenting, JSON.stringify(started)],
-    ['the menu leaves the page and is drawn at full resolution', !started.menuInPage && started.menuPx === 2000, JSON.stringify(started)],
+    ['the menu leaves the page and is drawn at full resolution', !started.menuInPage && started.menuPx === 3000, JSON.stringify(started)],
     ['the tutorial starts the first time, with labels on the controllers', started.guide === 'tutorial' && started.step === 0 && started.card && started.tags > 0, JSON.stringify(started)],
     ['a controller ray grabs a toy', grabbedByRay],
     ['grabbing and letting go finishes the first step', afterGrab.step === 1, JSON.stringify(afterGrab)],

@@ -31,6 +31,10 @@ const PALM_KEEP = 0.45;
 const LOOK_SHOW = 0.8;
 const LOOK_KEEP = 0.55;
 const FLAT = 0.8;
+// The other hand reaching for the button keeps it up, but only while the palm
+// is still at least this much towards the head. Otherwise it lingers after the
+// palm drops, as Close, where the same finger can push through it.
+const PALM_REACH = 0.2;
 const SHOW_DELAY = 0.3;
 const HIDE_DELAY = 0.35;
 // One-handed use: when the other hand hasn't been seen for ALONE_AFTER
@@ -38,12 +42,27 @@ const HIDE_DELAY = 0.35;
 // under the button fills up meanwhile.
 const ALONE_AFTER = 4;
 const DWELL_OPEN = 1.5;
+// With no hands or controllers (a gaze cursor, a phone viewer, Vision Pro
+// without hand tracking) there's no palm to show the button or A/X to press,
+// so after this long into a session without any, the button waits low in
+// front of you instead. Not after hands have been seen, since they come and
+// go with tracking.
+const NO_HANDS_AFTER = 1.5;
 
 // Where the menu opens: this far in front of the head, with its top edge this
 // far below eye level. A 50 cm tall page then centers about 30° below eye
-// level, where Meta and Microsoft put panels you touch.
+// level, where Meta and Microsoft put panels you touch. With controllers (or
+// any ray) it opens further out, since they're held low and a ray only works
+// from in front of the panel.
 const OPEN_DIST = 0.45;
+const OPEN_DIST_RAY = 0.6;
 const OPEN_TOP = 0.05;
+// It leans back to face the head, but no more than this. It turns about its
+// top edge, so a tall page leaning further brings its bottom rows up against
+// your chest, behind where you hold a controller. Further out it doesn't need
+// to lean as much for the bottom rows to face you.
+const MAX_TILT = THREE.MathUtils.degToRad(25);
+const MAX_TILT_RAY = THREE.MathUtils.degToRad(15);
 
 export class HandMenu {
   constructor(app) {
@@ -79,12 +98,13 @@ export class HandMenu {
     this.dwellBar.position.set(0, -this.button.height / 2 - 0.006, 0.001);
     this.button.group.add(this.dwellBar);
     this.palm = { ix: null, t: 0, hideT: 0, shown: false, dwell: 0, armed: true, seen: [-Infinity, -Infinity] };
+    this.noHandsT = 0; // seconds into this session without hands or controllers, or -1 once there have been some
     this.hud = null; // the panel in the page on a flat screen (mountHud)
   }
 
   // Show the menu inside `parent` (an HTML element) when not in VR
   mountHud(parent) {
-    this.hud = new DomPanel(this.panel, parent);
+    this.hud = new DomPanel(this.panel, parent, 'Menu');
   }
 
   // The VR menu has three short pages instead of one long one. The pages are
@@ -96,7 +116,7 @@ export class HandMenu {
     if (!scene) return;
     const close = () => (app.presenting ? this.close() : app.setDesktopMenu(false));
     const title = { type: 'title', text: scene.title, sub: scene.subtitle, close };
-    const hint = { type: 'text', text: () => scene.hint(app.inputMode), lines: 5 };
+    const hint = { type: 'text', text: () => scene.hint(app.inputMode, { touch: app.touch }), lines: 5 };
     const quality = [
       {
         type: 'text', lines: 2,
@@ -133,17 +153,19 @@ export class HandMenu {
             { type: 'text', lines: 2, text: 'Recenter moves the scene in front of you and fits it to your height, for example after sitting down.' },
           ]),
           ...quality,
-          { type: 'text', lines: 3, text: 'Comfort, in scenes you move through. The vignette darkens the edges of your view while you move, and snap turn turns in 30° steps.' },
+          { type: 'text', lines: 3, text: 'For the scenes you walk through. The right stick turns you in 30° steps or smoothly, and the vignette darkens the edges of your view while you move.' },
+          {
+            type: 'tabs',
+            options: [{ label: 'Snap turn', value: 'snap', small: true }, { label: 'Smooth turn', value: 'smooth', small: true }, { label: 'No turning', value: 'off', small: true }],
+            get: () => app.comfort.turn,
+            set: (v) => app.setComfort('turn', v),
+          },
           {
             type: 'toggles', columns: 2,
             items: [
               { label: 'Vignette', get: () => app.comfort.vignette, set: (v) => app.setComfort('vignette', v) },
-              { label: 'Snap turn', get: () => app.comfort.snapTurn, set: (v) => app.setComfort('snapTurn', v) },
+              { label: 'Larger menus', get: () => app.largeUI, set: (v) => app.setLargeUI(v) },
             ],
-          },
-          {
-            type: 'toggles', columns: 2,
-            items: [{ label: 'Larger menus', get: () => app.largeUI, set: (v) => app.setLargeUI(v) }],
           },
         );
       } else {
@@ -198,11 +220,15 @@ export class HandMenu {
     }
     const pn = this.panel, g = pn.group;
     const s = app.uiScale;
+    const rays = app.inputMode === 'controllers' || this.noHandsT > NO_HANDS_AFTER;
     let top = head.y - OPEN_TOP;
-    // a finger pressing a button that hangs below a table top would disappear into the table
+    // A finger pressing a button that hangs below a table top would disappear
+    // into the table. It doesn't go above eye level for that though, which is
+    // where it would end up for someone sitting down.
     const floor = app.activeScene?.menuFloorY;
-    if (floor !== undefined) top = Math.max(top, floor + pn.height * s);
-    g.position.copy(head).addScaledVector(_fwd, OPEN_DIST * Math.sqrt(s));
+    if (floor !== undefined) top = Math.min(Math.max(top, floor + pn.height * s), head.y);
+    g.position.copy(head).addScaledVector(_fwd, (rays ? OPEN_DIST_RAY : OPEN_DIST) * Math.sqrt(s));
+    pn.maxTilt = rays ? MAX_TILT_RAY : MAX_TILT; // also used when it's moved by its bar
     g.position.y = top;
     g.scale.setScalar(s);
     facePanel(pn, head);
@@ -226,6 +252,7 @@ export class HandMenu {
     if (!app.activeScene) return;
     if (!app.presenting) {
       g.visible = false; // shown in the page instead
+      this.noHandsT = 0;
       this.hud?.setShown(app.desktopMenu && app.hudActive);
       this.panel.opacity = 1;
       this.button.group.visible = false;
@@ -238,7 +265,10 @@ export class HandMenu {
     for (const ix of app.input.xr) {
       if (ix.kind === 'controller' && ix.btnA.down) this.toggle(ix.grabPos);
     }
-    this._updatePalm(dt);
+    if (app.input.xr.some((ix) => ix.active && (ix.kind === 'hand' || ix.kind === 'controller'))) this.noHandsT = -1;
+    else if (this.noHandsT >= 0) this.noHandsT += dt;
+    if (this.noHandsT > NO_HANDS_AFTER) this._updateFloating(dt);
+    else this._updatePalm(dt);
 
     this.hiddenT = this.shown ? 0 : this.hiddenT + dt;
     const target = this.shown ? 1 : 0;
@@ -266,7 +296,7 @@ export class HandMenu {
     }
     // The other hand reaching for the button keeps it up and holds it still,
     // so it doesn't drift away from the finger about to press it.
-    const reaching = P.shown && this.button.opacity > 0.3
+    const reaching = P.shown && this.button.opacity > 0.3 && P.ix?.jointsValid && P.ix.palmFacingHead > PALM_REACH
       && app.input.xr.some((ix) => ix !== P.ix && ix.active && ix.hasPoke && this._nearPanel(this.button, ix.pokePos, 0.04));
     if (reaching) {
       P.hideT = 0;
@@ -301,6 +331,27 @@ export class HandMenu {
     const bar = this.dwellBar.material.uniforms;
     bar.uFill.value = P.dwell / DWELL_OPEN;
     bar.uOpacity.value = P.dwell > 0.15 ? b.opacity : 0;
+  }
+
+  // The button without hands or controllers: about 30° below eye level, half a
+  // meter out. It only follows the head's heading, and slowly, so looking down
+  // at it doesn't move it.
+  _updateFloating(dt) {
+    const app = this.app;
+    const b = this.button, g = b.group;
+    this.palm.shown = false;
+    this.palm.ix = null;
+    b.ownerIx = null;
+    _fwd.set(0, 0, -1).applyQuaternion(app.headQuaternion).setY(0);
+    if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1);
+    _pos.copy(app.headPosition).addScaledVector(_fwd.normalize(), 0.5);
+    _pos.y -= 0.3;
+    g.position.lerp(_pos, b.opacity < 0.02 ? 1 : 1 - Math.exp(-dt * 2));
+    facePanel(b, app.headPosition);
+    b.opacity += (1 - b.opacity) * Math.min(1, dt * 16);
+    g.visible = true;
+    g.scale.setScalar(app.uiScale);
+    this.dwellBar.material.uniforms.uOpacity.value = 0;
   }
 
   // Keep the button beside the palm on the side towards the body's midline

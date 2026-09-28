@@ -120,18 +120,19 @@ export class GhostHand {
 }
 
 // One-line label on a dark plate that hugs the text. Redrawn in place on a
-// fixed size canvas, so updates allocate nothing.
+// fixed size canvas, so updates allocate nothing. The width is in canvas
+// pixels, about 26 per character.
 class Readout {
-  constructor() {
+  constructor(width = 640) {
     this.canvas = document.createElement('canvas');
-    this.canvas.width = 640; this.canvas.height = 88;
+    this.canvas.width = width; this.canvas.height = 88;
     this.ctx = this.canvas.getContext('2d');
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
     this.texture.anisotropy = 4;
     const h = 0.02;
     this.mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(h * (640 / 88), h),
+      new THREE.PlaneGeometry(h * (width / 88), h),
       new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }),
     );
     this.mesh.renderOrder = 35;
@@ -227,9 +228,9 @@ export class HandVisuals {
       this.group.add(r.mesh);
       return r;
     });
-    // tutorial labels above each controller, e.g. which button grabs
+    // tutorial labels above each controller, e.g. which button grabs. Wider, since they're longer.
     this.tags = [0, 1].map(() => {
-      const r = new Readout();
+      const r = new Readout(1024);
       this.group.add(r.mesh);
       return r;
     });

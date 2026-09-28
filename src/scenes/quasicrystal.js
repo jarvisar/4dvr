@@ -21,6 +21,7 @@
 
 import * as THREE from 'three';
 import { SceneBase } from './base.js';
+import { REDUCED_MOTION } from '../core/prefs.js';
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 
@@ -475,7 +476,7 @@ export class QuasicrystalScene extends SceneBase {
     this.floor.uniforms.uTime.value = time;
     this.crystal.uniforms.uTime.value = time;
     if (this.mode === 'crystal') {
-      this.spin += dt * 0.08;
+      if (!REDUCED_MOTION) this.spin += dt * 0.08;
       this.crystal.group.quaternion.setFromAxisAngle(_v.set(0, 1, 0), this.spin);
     }
   }
@@ -493,24 +494,24 @@ export class QuasicrystalScene extends SceneBase {
         type: 'buttons', columns: 2,
         items: [
           { label: () => (this.drift ? 'Stop drifting' : 'Drift the slice'), onClick: () => { this.drift = !this.drift; } },
-          { label: 'Reset', onClick: () => this.reset() },
+          { label: 'Reset slice', onClick: () => this.reset() },
         ],
       },
       {
         type: 'text', lines: 2, color: '#dfe2ff',
-        text: () => `${this.mode === 'floor' ? this.floor.count : this.crystal.count} tiles · slice moved (${d().map((x) => x.toFixed(2)).join(', ')}) · ${this.flipCount} tiles rearranged`,
+        text: () => `${this.mode === 'floor' ? this.floor.count : this.crystal.count} tiles · slice moved (${d().map((x) => x.toFixed(2)).join(', ')}) · ${this.flipCount} tiles flipped`,
       },
     ];
   }
 
-  hint(mode) {
-    const how = { hands: 'Pinch empty space and move your hand', controllers: 'Push the stick, or hold the trigger in empty space and move', desktop: 'Right-drag' }[mode];
+  hint(mode, { touch } = {}) {
+    const how = { hands: 'Pinch empty space and move your hand', controllers: 'Push the stick, or hold the trigger in empty space and move', desktop: touch ? 'Drag with two fingers' : 'Right-drag' }[mode];
     if (this.mode === 'crystal') return `A slice of the 6D cubic lattice: two rhombohedra with icosahedral symmetry that never repeat. ${how} to shift the slice through the hidden dimensions. Changed tiles glow.`;
     return `A Penrose tiling is a slice of the 5D cubic lattice. ${how} to shift the slice through the hidden dimensions. Tiles flip three at a time (they glow), but the pattern never repeats.`;
   }
 
   desktopHelp({ touch } = {}) {
-    if (touch) return '<b>Drag</b> to orbit · The menu can drift the slice through the hidden dimensions.';
+    if (touch) return '<b>Two-finger drag</b> to move the slice through the hidden dimensions · <b>Drag</b> to orbit';
     return '<b>Right-drag</b> to move the slice through the hidden dimensions · <b>Drag</b> to orbit';
   }
 }

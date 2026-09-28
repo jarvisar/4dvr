@@ -20,13 +20,13 @@ const INTRO = '4D objects are shown as their 3D cross-sections, or slices. The f
 // the sticks do depends on the scene, so that's in each scene's tips.
 const LEGEND = {
   hands: [
-    ['Pinch or grab', 'Pick up, move and throw things. Point at things out of reach with your arm out and pinch to pull them over.'],
+    ['Pinch or grab', 'Pick things up and move them.'],
     ['Middle-finger pinch', 'Turn or move things through w, the fourth direction.'],
     ['Palm towards you', 'Shows a Menu button. Tap it with your other hand.'],
     ['Fingertip', 'Press buttons. Point and pinch to use distant ones.'],
   ],
   controllers: [
-    ['Trigger or grip', 'Pick up, move and throw. Point at distant objects and buttons to use them.'],
+    ['Trigger or grip', 'Pick things up and move them. Point at distant things and buttons to use them.'],
     ['Trigger and grip', 'Hold both to turn or move things through w, the fourth direction.'],
     ['A or X', 'Open or close the menu.'],
   ],
@@ -37,11 +37,11 @@ const MENU_HOW = {
 };
 
 // Cards you read and press open this far in front, this far below eye level
-// (their center, about 26° down) and turned this far to the left, so they're
-// in reach but not on top of a scene's exhibit
+// (their center, about 21° down) and turned this far to the left (about 32°),
+// so they're in reach and mostly beside a scene's exhibit, not on top of it
 const CARD_DIST = 0.45;
-const CARD_DROP = 0.22;
-const CARD_TURN = 0.2;
+const CARD_DROP = 0.17;
+const CARD_TURN = 0.55;
 // The tutorial card floats over the far side of the Hyperplay table, about
 // 1.2 m away, so it's drawn larger. Its text is then about 1.2° tall.
 const TUTORIAL_SCALE = 2.3;
@@ -178,7 +178,8 @@ export class Guide {
     this.panel.width = 0.46;
     this.panel.setRows([
       { type: 'title', text: 'How to play', sub: scene ? scene.title : '' },
-      { type: 'text', text: INTRO, lines: 3, color: COLORS.ink },
+      // only where things are shown as slices. Elsewhere pink and blue mean other things.
+      ...(scene?.crossSections ? [{ type: 'text', text: INTRO, lines: 3, color: COLORS.ink }] : []),
       { type: 'legend', items: LEGEND[input] },
       ...(scene ? [{ type: 'spacer', h: 0.004 }, { type: 'text', text: scene.hint(input), lines: 6 }] : []),
       { type: 'buttons', columns: buttons.length, items: buttons, height: 0.042 },
@@ -219,7 +220,7 @@ export class Guide {
     const g = this.panel.group;
     _fwd.set(0, 0, -1).applyQuaternion(app.headQuaternion).setY(0);
     if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1);
-    _fwd.normalize().applyAxisAngle(UP, mode === 'reminder' ? 0 : CARD_TURN);
+    _fwd.normalize().applyAxisAngle(UP, CARD_TURN);
     g.scale.setScalar(app.uiScale);
     g.position.copy(head).addScaledVector(_fwd, CARD_DIST * Math.sqrt(app.uiScale));
     g.position.y -= mode === 'reminder' ? CARD_DROP + 0.05 : CARD_DROP;
@@ -264,7 +265,7 @@ export class Guide {
     if (t.finished) {
       this.panel.setRows([
         { type: 'title', text: 'Tutorial done', sub: '' },
-        { type: 'text', text: 'The menu has puzzles, the other scenes and settings. "How to play" in its settings runs this again.', lines: 4, color: COLORS.ink },
+        { type: 'text', text: 'The menu has presets, the other scenes and settings. "How to play" in its settings runs this again.', lines: 4, color: COLORS.ink },
         { type: 'buttons', items: [{ label: 'Close', onClick: () => this.stopTutorial(), active: () => true }], height: 0.036 },
       ]);
       return;
@@ -287,6 +288,8 @@ export class Guide {
     }
     this.shownT += dt;
     if (this.mode === 'tutorial' && this.tut) {
+      // a scene switch stops it in sceneEntered(), but that's a frame later
+      if (!app.activeScene?.tutorial) { this.stopTutorial(); return; }
       this._updateTutorial(dt);
       return;
     }
@@ -309,9 +312,14 @@ export class Guide {
     const scene = app.activeScene;
     const input = this._input;
     if (this._builtInput !== input) this._buildStep();
+    // The menu opens in front of the card and the demonstration hand, so they
+    // wait while it's open. The last step opens it, so the "Tutorial done"
+    // card shows once it's closed.
+    const menuOpen = app.menu.shown;
+    this.panel.group.visible = !menuOpen;
 
     if (t.finished) {
-      t.finishT += dt;
+      if (!menuOpen) t.finishT += dt;
       app.hands.fingerHint = null;
       this.ghost.hide();
       this.demoButton.group.visible = false;
@@ -332,13 +340,16 @@ export class Guide {
         t.i++;
         t.doneT = -1;
         this._demo.kind = null;
-        if (t.i >= t.steps.length) t.finished = true;
+        if (t.i >= t.steps.length) {
+          t.finished = true;
+          pref.set('tutorial', true); // even if the session ends before the card is closed
+        } else t.steps[t.i].start?.();
         this._buildStep();
         return;
       }
     }
 
-    const active = t.doneT < 0;
+    const active = t.doneT < 0 && !menuOpen;
     app.hands.fingerHint = active && input === 'hands' && step.fingers
       ? { joints: step.fingers === 'middle' ? TIPS_MIDDLE : TIPS_INDEX, color: step.fingers === 'middle' ? PINK : CYAN }
       : null;

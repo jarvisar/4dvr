@@ -8,6 +8,10 @@
 //   grabPos/grabQuat where grabbed objects are held
 //   rayOrigin/rayDir pointer ray for distant objects and UI
 //   pokePos          index fingertip (or controller tip) for pressing UI
+//
+// Inputs with no hand joints and no gamepad (a gaze cursor, a phone viewer's
+// screen tap, Vision Pro's look and pinch) are 'pointer's. Their select
+// events are the only thing to read, and they act as the primary action.
 
 import * as THREE from 'three';
 import { XRControllerModelFactory } from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
@@ -85,7 +89,7 @@ const _q = new THREE.Quaternion();
 export class Interactor {
   constructor(index) {
     this.index = index;
-    this.kind = 'none'; // 'hand', 'controller', 'mouse' or 'none'
+    this.kind = 'none'; // 'hand', 'controller', 'pointer', 'mouse' or 'none'
     this.handedness = 'none';
     this.source = null;
     this.active = false;
@@ -97,6 +101,7 @@ export class Interactor {
     this.btnA = new Button();
     this.btnB = new Button();
     this.stick = new THREE.Vector2();
+    this.touch = false;     // mouse: a touch screen is being touched
     this.pinchStrength = 0; // thumb and index, 0 (fingers apart) to 1 (touching)
     this.gripStrength = 0;  // the same for the thumb and middle finger
     this.fist = false;      // hands: closed hand (see classifyFist)
@@ -106,6 +111,7 @@ export class Interactor {
     this.palmGrab = false;
     this.palmPos = new THREE.Vector3(); // hands: a few cm in front of the palm
     this.hasPalm = false;
+    this.selecting = false; // pointers: between selectstart and selectend
     this.openness = 1;  // hands: how straight the least straight of the index, middle and ring fingers is
     this._pinchOffT = 0; // seconds a held pinch or grip has looked released (see RELEASE_DELAY)
     this._gripOffT = 0;
@@ -161,6 +167,14 @@ export class Interactor {
       outPos.copy(this.grabPos);
       outQuat.copy(this.grabQuat);
     }
+  }
+
+  // Forget recent motion, for when grabPos jumps without the hand moving
+  clearHistory(time) {
+    for (const h of this._hist) h.t = -1;
+    this._record(time);
+    this.velocity.set(0, 0, 0);
+    this.angularVelocity.set(0, 0, 0);
   }
 
   pulse(intensity = 0.4, ms = 30) {
@@ -245,12 +259,18 @@ export class InputSystem {
       ctrl.addEventListener('connected', (e) => {
         ix.source = e.data;
         ix.handedness = e.data.handedness;
-        ix.kind = e.data.hand ? 'hand' : 'controller';
+        ix.kind = e.data.hand ? 'hand' : e.data.gamepad ? 'controller' : 'pointer';
         ix.active = true;
         model.visible = ix.kind === 'controller';
         this.smoothers[i].reset();
       });
+      ctrl.addEventListener('selectstart', () => { ix.selecting = true; });
+      ctrl.addEventListener('selectend', () => { ix.selecting = false; });
       ctrl.addEventListener('disconnected', () => {
+        // drop what it was holding, without throwing it
+        ix.velocity.set(0, 0, 0);
+        ix.angularVelocity.set(0, 0, 0);
+        app.interaction?.release(ix);
         ix.source = null;
         ix.kind = 'none';
         ix.active = false;
@@ -261,6 +281,7 @@ export class InputSystem {
         ix.hasPalm = false;
         ix.fist = false;
         ix.palmGrab = false;
+        ix.selecting = false;
         model.visible = false;
       });
       this.spaces.push({ ctrl, grip, hand, model });
@@ -372,6 +393,16 @@ export class InputSystem {
 
       ix.pokePos.copy(index);
       ix.hasPoke = true;
+    } else if (ix.kind === 'pointer') {
+      ix.jointsValid = false;
+      ix.hasPalm = false;
+      ix.hasPoke = false;
+      // held at the grip if there is one (Vision Pro's is at the pinch), otherwise along the ray
+      if (sp.grip.visible) sp.grip.matrixWorld.decompose(ix.grabPos, ix.grabQuat, _v);
+      else { ix.grabPos.copy(ix.rayOrigin).addScaledVector(ix.rayDir, 0.4); ix.grabQuat.copy(ix.rayQuat); }
+      ix.pinch.set(ix.selecting);
+      ix.grip.set(false);
+      ix.palmFacingHead = 0;
     } else {
       ix.jointsValid = false;
       ix.hasPalm = false;
@@ -405,27 +436,57 @@ export class InputSystem {
   // ---------------------------------------------------------------------------
   // Desktop mouse
 
+  // Touch screens: one finger is the left button. Two fingers are the right
+  // button, at their midpoint, until every finger has lifted. That's the
+  // secondary action (turning things through 4D, pulling yourself along)
+  // wherever a right-drag does it.
   _setupMouse() {
     const el = this.app.renderer.domElement;
     const m = this.mouse;
     this.ndc = new THREE.Vector2();
     this._buttons = 0;
     this._shift = false;
-    const track = (e) => {
+    this._touches = new Map(); // on the canvas, by pointer id
+    this.twoFinger = false;
+    const track = (x, y) => {
       const r = el.getBoundingClientRect();
-      this.ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      this.ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
+    };
+    const trackTouches = () => {
+      let x = 0, y = 0;
+      for (const t of this._touches.values()) { x += t.x; y += t.y; }
+      track(x / this._touches.size, y / this._touches.size);
     };
     el.addEventListener('pointermove', (e) => {
-      track(e);
       this._shift = e.shiftKey;
+      if (e.pointerType !== 'touch') { track(e.clientX, e.clientY); return; }
+      const t = this._touches.get(e.pointerId);
+      if (!t) return;
+      t.x = e.clientX; t.y = e.clientY;
+      trackTouches();
     });
     el.addEventListener('pointerdown', (e) => {
-      track(e); // a touch has no pointermove before it goes down
-      this._buttons = e.buttons;
       this._shift = e.shiftKey;
       this.app.audio.unlock();
+      if (e.pointerType !== 'touch') {
+        track(e.clientX, e.clientY); // a pen has no pointermove before it goes down either
+        this._buttons = e.buttons;
+        return;
+      }
+      this._touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      trackTouches();
+      if (this._touches.size === 2) {
+        this.twoFinger = true;
+        this.app.orbit.enabled = false; // App turns it back on once every finger has lifted
+      }
     });
-    window.addEventListener('pointerup', (e) => { this._buttons = e.buttons; });
+    const up = (e) => {
+      if (e.pointerType !== 'touch') { this._buttons = e.buttons; return; }
+      this._touches.delete(e.pointerId);
+      if (!this._touches.size) this.twoFinger = false;
+    };
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     m.active = true;
   }
@@ -439,10 +500,14 @@ export class InputSystem {
     m.rayQuat.copy(cam.quaternion);
     m.grabPos.copy(m.rayOrigin).addScaledVector(m.rayDir, m.grabDepth);
     m.grabQuat.identity();
-    const left = (this._buttons & 1) !== 0;
-    const right = (this._buttons & 2) !== 0;
-    m.pinch.set(left && !this._shift);
-    m.grip.set(right || (left && this._shift));
+    const touches = this._touches.size;
+    m.touch = touches > 0;
+    // Shift+drag is a right-drag for trackpads, except where Shift is for moving faster
+    const shift = this._shift && !this.app.activeScene?.locomotion;
+    const left = touches ? !this.twoFinger : (this._buttons & 1) !== 0;
+    const right = touches ? this.twoFinger && touches > 1 : (this._buttons & 2) !== 0;
+    m.pinch.set(left && !shift);
+    m.grip.set(right || (left && shift));
     m.hasPoke = false;
     m._record(time);
   }

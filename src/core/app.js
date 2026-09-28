@@ -9,10 +9,12 @@ import { HandMenu } from './menu.js';
 import { Guide } from './guide.js';
 import { HandVisuals } from './handVisuals.js';
 import { QUALITY, initialQuality, saveQuality } from './quality.js';
-import { pref } from './prefs.js';
+import { pref, REDUCED_MOTION } from './prefs.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const SNAP_ANGLE = Math.PI / 6; // 30°
+const SMOOTH_TURN = Math.PI / 2; // radians per second at full stick
+const TURNING = ['snap', 'smooth', 'off'];
 const _v = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _m = new THREE.Matrix4();
@@ -59,9 +61,11 @@ export class App {
     this.menu = new HandMenu(this);
     this.guide = new Guide(this);
     this.desktopMenu = window.innerWidth >= 720 && window.innerHeight >= 540; // phones start with the menu closed
+    this.touch = matchMedia('(hover: none) and (pointer: coarse)').matches; // for touch instructions
     this.hudActive = false; // set by main.js once the start screen is dismissed
     // comfort options for scenes you move through (see setComfort)
-    this.comfort = { vignette: pref.get('vignette', true), snapTurn: pref.get('snapturn', true) };
+    // turn is 'snap', 'smooth' or 'off'. Without a saved choice it follows the older snap turn on/off setting.
+    this.comfort = { vignette: pref.get('vignette', true), turn: pref.choice('turn', TURNING, pref.get('snapturn', true) ? 'snap' : 'off') };
     this._motion = 0;      // meters of artificial movement this frame (addMotion)
     this._vignette = this._makeVignette();
     this._snapArmed = true;
@@ -70,9 +74,12 @@ export class App {
     this._cpuAcc = 0;
 
     this.orbit = new OrbitControls(this.camera, renderer.domElement);
-    this.orbit.enableDamping = true;
+    this.orbit.enableDamping = !REDUCED_MOTION;
     this.orbit.dampingFactor = 0.08;
     this.orbit.enableZoom = false;
+    // Panning (two fingers, or Ctrl+drag) could only drag the view away from the exhibit.
+    // Two fingers are the secondary action instead (see InputSystem).
+    this.orbit.enablePan = false;
     this.orbit.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: -1 };
     this.orbit.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     this._installPointerGate();
@@ -96,6 +103,7 @@ export class App {
     window.addEventListener('resize', () => this._resize());
     window.addEventListener('keydown', (e) => this._key(e));
     renderer.domElement.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) return; // browser zoom, and a trackpad pinch
       e.preventDefault();
       this.activeScene?.onWheel?.(e.deltaY, e);
     }, { passive: false });
@@ -137,7 +145,9 @@ export class App {
       this.pointerOnEmpty = !hit;
       this.orbit.enabled = !hit && !secondary && !this.activeScene?.noOrbit;
     }, { capture: true });
-    window.addEventListener('pointerup', () => { this.orbit.enabled = !this.activeScene?.noOrbit; });
+    window.addEventListener('pointerup', () => {
+      if (!this.input.twoFinger) this.orbit.enabled = !this.activeScene?.noOrbit;
+    });
   }
 
   _makeFader() {
@@ -197,9 +207,10 @@ export class App {
     v.material.uniforms.uStrength.value = v.level;
   }
 
-  setComfort(key, on) {
-    this.comfort[key] = on;
-    pref.set(key.toLowerCase(), on);
+  setComfort(key, value) {
+    this.comfort[key] = value;
+    if (typeof value === 'boolean') pref.set(key.toLowerCase(), value);
+    else pref.setChoice(key.toLowerCase(), value);
   }
 
   get uiScale() { return this.largeUI ? 1.25 : 1; }
@@ -221,27 +232,44 @@ export class App {
     this.audio.click();
   }
 
-  // Right stick left/right turns in 30° steps in scenes you move through
-  _updateSnapTurn() {
-    if (!this.presenting || !this.activeScene?.locomotion || !this.comfort.snapTurn) return;
+  // In scenes you move through, the right stick turns you, in 30° steps or
+  // smoothly (comfort.turn). With only one controller its stick turns you and
+  // still moves you forward and back.
+  _updateTurn(dt) {
+    const turn = this.comfort.turn;
+    if (!this.presenting || !this.activeScene?.locomotion || turn === 'off') return;
+    let right = null, only = null, n = 0;
     for (const ix of this.input.xr) {
-      if (ix.kind !== 'controller' || ix.handedness !== 'right') continue;
-      const x = ix.stick.x;
-      if (this._snapArmed && Math.abs(x) > 0.7) {
-        this._turn(-Math.sign(x) * SNAP_ANGLE);
-        this._snapArmed = false;
-      } else if (Math.abs(x) < 0.3) this._snapArmed = true;
-      ix.stick.x = 0; // the scene doesn't also strafe with it
+      if (!ix.active || ix.kind !== 'controller') continue;
+      n++;
+      only = ix;
+      if (ix.handedness === 'right') right = ix;
     }
+    const ix = right || (n === 1 ? only : null);
+    if (!ix) return;
+    const x = ix.stick.x;
+    if (turn === 'smooth') {
+      if (x) {
+        this._turn(-x * SMOOTH_TURN * dt, false);
+        this.addMotion(Math.abs(x) * SMOOTH_TURN * dt * 0.6); // turning closes the vignette too
+      }
+    } else if (this._snapArmed && Math.abs(x) > 0.7) {
+      this._turn(-Math.sign(x) * SNAP_ANGLE);
+      this._snapArmed = false;
+    } else if (Math.abs(x) < 0.3) this._snapArmed = true;
+    // The right stick only turns, or a flick that isn't perfectly sideways
+    // would also slide you forward or back
+    if (ix === right) ix.stick.set(0, 0);
+    else ix.stick.x = 0;
   }
 
   // Rotate around the vertical axis through the head
-  _turn(angle) {
+  _turn(angle, click = true) {
     _q.setFromAxisAngle(UP, angle);
     this.rig.position.sub(this.headPosition).applyQuaternion(_q).add(this.headPosition);
     this.rig.quaternion.premultiply(_q);
     this.rig.updateMatrixWorld(true);
-    this.audio.click();
+    if (click) this.audio.click();
   }
 
   // Move the rig so the head is over the scene's origin, facing -z, which is
@@ -265,6 +293,8 @@ export class App {
     if (this.presenting) return;
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
+    // the pixel ratio changes with browser zoom and between monitors
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * QUALITY[this.quality].resolution);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
@@ -273,11 +303,18 @@ export class App {
     // Space and Enter on a focused button press the button, not also the scene
     if (e.target?.tagName === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return; // leave browser shortcuts (Ctrl+R, Ctrl+1…) alone
-    const idx = parseInt(e.key, 10);
+    // by position as well, since the number row needs Shift on an AZERTY keyboard
+    const idx = parseInt(/^(Digit|Numpad)\d$/.test(e.code) ? e.code.slice(-1) : e.key, 10);
     if (idx >= 1 && idx <= this.sceneList.length) { this.setScene(this.sceneList[idx - 1].key); return; }
-    if (e.key === 'm' || e.key === 'M') { this.setDesktopMenu(!this.desktopMenu); return; }
-    if (e.key === 'h' || e.key === 'H') { this.onDesktopHelp?.(); return; }
+    // the menu and help are only on screen once the start screen is gone
+    if ((e.key === 'm' || e.key === 'M') && this.hudActive) { this.setDesktopMenu(!this.desktopMenu); return; }
+    if ((e.key === 'h' || e.key === 'H') && this.hudActive) { this.onDesktopHelp?.(); return; }
     this.activeScene?.onKey?.(e);
+  }
+
+  // Reads a message out to screen readers (main.js decides how)
+  announce(text) {
+    this.onAnnounce?.(text);
   }
 
   setDesktopMenu(on) {
@@ -417,7 +454,13 @@ export class App {
     this._xrNative = window.XRWebGLLayer?.getNativeFramebufferScaleFactor?.(session) || 1;
     this._xrScaleUsed = this._xrScale();
     this.renderer.xr.setFramebufferScaleFactor(this._xrScaleUsed);
-    await this.renderer.xr.setSession(session);
+    try {
+      await this.renderer.xr.setSession(session);
+    } catch (e) {
+      // otherwise the headset is left in a session that never draws anything
+      session.end().catch(() => {});
+      throw e;
+    }
   }
 
   // The Quest Browser's default WebXR resolution is below the display's (1680×1760
@@ -494,7 +537,7 @@ export class App {
     this._fader.material.opacity = Math.min(1, this.fade * 1.05);
 
     this.input.update(dt, this.time);
-    this._updateSnapTurn();
+    this._updateTurn(dt);
     this.interaction.update(dt);
     this.activeScene?.update(dt, this.time);
     this.menu.update(dt);

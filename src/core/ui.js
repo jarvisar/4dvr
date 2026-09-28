@@ -8,8 +8,12 @@
 
 import * as THREE from 'three';
 
-// canvas resolution in VR. A panel shown in the page uses the screen's instead.
-export const PX_PER_M = 2000;
+// Canvas resolution in VR. A panel shown in the page uses the screen's instead.
+// About 24 texels per degree at the menu's distance, close to the Quest 3's
+// 25 pixels per degree, so text isn't magnified on the way to the display.
+export const PX_PER_M = 3000;
+// line widths are given in pixels at this resolution and scaled from it
+const LINE_PX_PER_M = 2000;
 const PAD = 0.014;
 const GAP = 0.009;
 // how far outside a widget a fingertip or ray still hits it. Less than half the
@@ -46,7 +50,7 @@ export const COLORS = {
   btnOff: 'rgba(44, 50, 60, 0.45)', // a button that does nothing right now
   track: '#15181e', // behind the menu's page tabs, like the scene tab bar on desktop
   select: '#1f6bd1',
-  selectHover: '#2a76db',
+  selectHover: '#2a74da',
   accent: '#1a9fff',
   ana: '#ff4f9a',
   kata: '#33c3ff',
@@ -308,8 +312,7 @@ export class UIPanel {
   draw(band = null) {
     const ctx = this.ctx;
     const S = this.px;
-    // line widths are in canvas pixels at the VR resolution, scaled with it
-    const lw = (n) => Math.max(1, (n * S) / PX_PER_M);
+    const lw = (n) => Math.max(1, (n * S) / LINE_PX_PER_M);
     const W = this.canvas.width, H = this.canvas.height;
     let y0 = 0, y1 = H;
     if (band) {
@@ -494,6 +497,8 @@ export class UIPanel {
       } else if (w.type === 'text') {
         const lines = this._wrap(r, w.w);
         if (lines.length > w.lines && w.lines < (r.lines || 8)) this._relayout = true;
+        // text past the row's line limit gets cut, so the last line says so
+        else if (lines.length > w.lines) lines[w.lines - 1] = ellipsize(ctx, lines[w.lines - 1], ww);
         ctx.fillStyle = r.color || COLORS.muted;
         ctx.textAlign = r.align || 'left';
         ctx.textBaseline = 'alphabetic';
@@ -520,6 +525,7 @@ export class UIPanel {
     // if the panel is drawn in 3D again.
     if (band && !this.dom) this._uploadRows(y0, y1);
     else this.texture.needsUpdate = true;
+    this.onDraw?.();
   }
 
   // Copy canvas rows y0 to y1 (pixels) into the texture instead of uploading all of it
@@ -577,6 +583,12 @@ function labelText(item) {
   return String(typeof item.label === 'function' ? item.label() : item.label);
 }
 
+function ellipsize(ctx, line, maxW) {
+  const words = line.split(' ');
+  while (words.length > 1 && ctx.measureText(`${words.join(' ')}…`).width > maxW) words.pop();
+  return `${words.join(' ')}…`;
+}
+
 function wrapText(ctx, text, maxW) {
   const out = [];
   for (const para of String(text).split('\n')) {
@@ -596,24 +608,44 @@ function wrapText(ctx, text, maxW) {
 //
 // The canvas is drawn at the screen's resolution. The mouse and touch use the
 // same widgets as in VR, but buttons act on release like normal buttons, so a
-// touch that scrolls the panel doesn't press anything. Sliders act on press.
+// touch that scrolls the panel doesn't press anything. Sliders act on press
+// with a mouse. With touch they wait for the finger to move sideways, since
+// moving up or down scrolls the panel.
+//
+// For the keyboard and screen readers, every widget also gets an invisible
+// DOM control laid over it (a button, checkbox or range input, or text). They
+// let pointer events through, so the mouse and touch still go to the canvas.
 const DOM_POINTER = { index: -1 }; // hover and press key, separate from the 3D interactors
 const TAP_SLOP = 8; // CSS pixels a press can move and still be a click
 
+const setText = (el, text) => { if (el.textContent !== text) el.textContent = text; };
+const setAttr = (el, name, value) => {
+  if (value === null) el.removeAttribute(name);
+  else if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+};
+const valueOf = (v) => (typeof v === 'function' ? v() : v);
+
 export class DomPanel {
-  constructor(panel, parent) {
+  constructor(panel, parent, label) {
     this.panel = panel;
     this.shown = false;
     this.el = document.createElement('div');
     this.el.className = 'hud-panel';
     this.el.hidden = true;
-    this.el.append(panel.canvas);
+    this.el.setAttribute('role', 'region');
+    this.el.setAttribute('aria-label', label);
+    panel.canvas.setAttribute('aria-hidden', 'true'); // the controls below stand in for it
+    this.controls = document.createElement('div');
+    this.controls.className = 'hud-panel-controls';
+    this.el.append(panel.canvas, this.controls);
     parent.append(this.el);
     this._w = 0;
     this._h = 0;
     this._down = null;
     this._drag = null;
-    panel.onLayout = () => this.update();
+    this._items = [];
+    panel.onLayout = () => { this.update(); this._build(); };
+    panel.onDraw = () => this._sync();
     const c = panel.canvas;
     c.style.touchAction = 'pan-y'; // vertical swipes scroll the panel
     c.addEventListener('pointermove', (e) => this._move(e));
@@ -634,10 +666,106 @@ export class DomPanel {
     this.panel.dom = on;
     if (on) {
       this.fit();
+      this._build(); // fit() only lays the panel out again if its resolution changed
     } else {
       this._end();
       this._hover(null);
       this.panel.setPixelsPerMeter(PX_PER_M); // back to the VR resolution
+    }
+  }
+
+  // Lays a DOM control over each widget. Runs after every layout. A button can
+  // rebuild the rows it's in (a preset rebuilds the menu), so keyboard focus
+  // goes back to the control in the same place.
+  _build() {
+    if (!this.shown) return;
+    const p = this.panel;
+    const focused = this.controls.contains(document.activeElement) ? document.activeElement.dataset.key : null;
+    const s = p.px / (window.devicePixelRatio || 1); // CSS pixels per meter
+    this._items = p.widgets.map((w) => {
+      const box = document.createElement('div');
+      Object.assign(box.style, { left: `${w.x * s}px`, top: `${w.y * s}px`, width: `${w.w * s}px`, height: `${w.h * s}px` });
+      const item = { w, box, el: null, sub: null, value: null };
+      if (w.type === 'title') {
+        item.el = document.createElement('h2');
+        item.sub = document.createElement('p');
+        box.append(item.el, item.sub);
+        return item;
+      }
+      if (w.type === 'text' || w.type === 'legend') {
+        item.el = document.createElement('p');
+        box.append(item.el);
+        return item;
+      }
+      const r = w.row;
+      const ri = p.rows.indexOf(r); // -1 for the title row's close button
+      let el;
+      if (w.type === 'slider') {
+        el = document.createElement('input');
+        el.type = 'range';
+        el.min = r.min;
+        el.max = r.max;
+        el.step = 'any';
+        el.setAttribute('aria-label', r.label);
+        el.addEventListener('input', () => { if (!isDisabled(w)) r.set(+el.value); });
+        // Keys are handled here instead of by the input's own steps, which
+        // don't always land on the ends or the center exactly
+        el.addEventListener('keydown', (e) => {
+          const span = r.max - r.min, step = r.step || span / 50;
+          const k = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1, PageUp: 10, PageDown: -10 }[e.key];
+          let v;
+          if (k) v = r.get() + k * step;
+          else if (e.key === 'Home') v = r.min;
+          else if (e.key === 'End') v = r.max;
+          else return;
+          e.preventDefault();
+          if (r.center !== undefined && Math.abs(v - r.center) < step / 2) v = r.center;
+          if (!isDisabled(w)) r.set(THREE.MathUtils.clamp(v, r.min, r.max));
+        });
+        el.dataset.key = `${ri}`;
+      } else {
+        el = document.createElement('button');
+        el.type = 'button';
+        if (w.type === 'toggle') el.setAttribute('role', 'checkbox');
+        el.addEventListener('click', () => p.activate(w, w.x + w.w / 2));
+        el.dataset.key = ri < 0 ? 'close' : `${ri}.${(r.options || r.items).indexOf(w.item)}`;
+      }
+      item.el = el;
+      box.append(el);
+      return item;
+    });
+    this.controls.replaceChildren(...this._items.map((it) => it.box));
+    this._sync();
+    if (focused) this.controls.querySelector(`[data-key="${focused}"]`)?.focus({ preventScroll: true });
+  }
+
+  // Keeps the DOM controls' labels, states and values the same as the canvas
+  _sync() {
+    if (!this.shown) return;
+    for (const it of this._items) {
+      const { w, el } = it;
+      const r = w.row;
+      if (w.type === 'title') {
+        setText(el, String(valueOf(r.text)));
+        setText(it.sub, String(valueOf(r.sub) || ''));
+        continue;
+      }
+      if (w.type === 'text') { setText(el, String(valueOf(r.text))); continue; }
+      if (w.type === 'legend') { setText(el, r.items.map(([k, t]) => `${k}: ${t}`).join(' ')); continue; }
+      setAttr(el, 'aria-disabled', isDisabled(w) ? 'true' : null);
+      if (w.type === 'slider') {
+        const v = r.get();
+        if (v !== it.value) {
+          it.value = v;
+          el.value = v;
+          setAttr(el, 'aria-valuetext', r.format ? r.format(v) : v.toFixed(2));
+        }
+        continue;
+      }
+      setText(el, labelText(w.item));
+      if (w.type === 'tab') setAttr(el, 'aria-pressed', r.get() === w.item.value ? 'true' : 'false');
+      else if (w.type === 'toggle') setAttr(el, 'aria-checked', w.item.get() ? 'true' : 'false');
+      else setAttr(el, 'aria-current', w.item.active?.() ? 'true' : null); // e.g. the preset that's loaded
     }
   }
 
@@ -686,7 +814,10 @@ export class DomPanel {
     if (this._drag) { this.panel.dragSlider(this._drag, x); return; }
     if (e.pointerType !== 'touch') this._hover(this.panel.widgetAt(x, y, 0));
     const d = this._down;
-    if (d && Math.hypot(e.clientX - d.cx, e.clientY - d.cy) > TAP_SLOP) this._end();
+    if (!d) return;
+    const dx = Math.abs(e.clientX - d.cx), dy = Math.abs(e.clientY - d.cy);
+    if (d.w.type === 'slider' && dx > TAP_SLOP && dx > dy) this._startDrag(d.w, e, x);
+    else if (Math.hypot(dx, dy) > TAP_SLOP) this._end();
   }
 
   _press(e) {
@@ -696,13 +827,15 @@ export class DomPanel {
     const w = this.panel.widgetAt(x, y, 0);
     if (!w) return;
     this.panel.pressed.set(DOM_POINTER, w);
-    if (w.type === 'slider') {
-      this._drag = w;
-      this.panel.canvas.setPointerCapture(e.pointerId);
-      this.panel.activate(w, x);
-    } else {
-      this._down = { w, cx: e.clientX, cy: e.clientY };
-    }
+    if (w.type === 'slider' && e.pointerType !== 'touch') this._startDrag(w, e, x);
+    else this._down = { w, cx: e.clientX, cy: e.clientY };
+  }
+
+  _startDrag(w, e, x) {
+    this._down = null;
+    this._drag = w;
+    this.panel.canvas.setPointerCapture(e.pointerId);
+    this.panel.activate(w, x);
   }
 
   _release(e) {
@@ -730,6 +863,7 @@ const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
 const _u = new THREE.Vector3();
 const _m4 = new THREE.Matrix4();
+const _look = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 const HANDLE_HALF = 0.04;
 const HANDLE_IDLE = new THREE.Color('#9aa3b0');
@@ -821,9 +955,12 @@ export function facePanel(panel, head, alpha = 1) {
   const g = panel.group;
   _c.copy(g.position);
   if (panel.anchorTop) _c.y -= (panel.height / 2) * g.scale.y;
+  // leaning back no further than panel.maxTilt, if it has one (see HandMenu)
+  _look.subVectors(head, _c);
+  if (panel.maxTilt !== undefined) _look.y = Math.min(_look.y, Math.hypot(_look.x, _look.z) * Math.tan(panel.maxTilt));
   // Matrix4.lookAt(eye, target) builds a basis whose +Z points from target to
   // eye, so passing (head, center) turns the panel's front (+Z) toward the head.
-  _m4.lookAt(head, _c, UP);
+  _m4.lookAt(_look.add(_c), _c, UP);
   _wq.setFromRotationMatrix(_m4);
   g.quaternion.slerp(_wq, alpha);
 }
@@ -959,6 +1096,13 @@ export class UISystem {
     _hp.copy(ix.rayOrigin).addScaledVector(ix.rayDir, t);
     p.toPanel(_hp, _p);
     p.dragSlider(cap.widget, _p.x);
+  }
+
+  // Drops an interactor's hover and press on every panel
+  forget(ix) {
+    for (const p of this.panels) { p.hover.delete(ix); p.pressed.delete(ix); p.pokeZ.delete(ix); }
+    ix.pokeHit.panel = null;
+    ix.uiEngaged = false;
   }
 
   endCapture(ix) {

@@ -84,7 +84,6 @@ export class WRail {
     // ticks every 10 cm of w
     const tickGeo = new THREE.BoxGeometry(0.014, 0.0012, 0.0012);
     const tickMat = new THREE.MeshBasicMaterial({ color: '#8d8a99', toneMapped: false });
-    const range = this.view.wMax - this.view.wMin;
     for (let w = Math.ceil(this.view.wMin * 10) / 10; w <= this.view.wMax + 1e-6; w += 0.1) {
       const t = new THREE.Mesh(tickGeo, tickMat);
       t.position.y = this.yFor(w);
@@ -108,9 +107,10 @@ export class WRail {
     this.group.add(this.tags);
 
     // ana goes above the rod. kata goes beside the post and update() moves it to the viewer's side.
-    const ana = makeLabel('ana  +w', { size: 0.016, color: '#ff8fbf' });
+    const plate = 'rgba(27,31,38,0.92)'; // the text alone is hard to see against the light sky
+    const ana = makeLabel('ana  +w', { size: 0.018, color: '#ff8fbf', bg: plate });
     ana.position.set(0, base + height + 0.022, 0);
-    const kata = makeLabel('kata  −w', { size: 0.016, color: '#7fd8ff' });
+    const kata = makeLabel('kata  −w', { size: 0.018, color: '#7fd8ff', bg: plate });
     kata.position.set(0, base - 0.018, KATA_OUT);
     this.kata = kata;
     this.labels = [ana, kata];
@@ -118,7 +118,6 @@ export class WRail {
 
     this.hovered = false;
     this.grabbedBy = null;
-    this._range = range;
   }
 
   yFor(w) {

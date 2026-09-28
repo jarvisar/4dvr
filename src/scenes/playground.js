@@ -13,6 +13,7 @@ import { Worldline, jugglingChains } from '../four/worldline.js';
 import { LIGHT } from '../core/lighting.js';
 import * as P from '../four/polytopes.js';
 import { screwCenters, SCREW_EDGE } from '../four/shapes.js';
+import { REDUCED_MOTION } from '../core/prefs.js';
 
 const TABLE_R = 0.6;        // rim radius, objects stay inside it
 const RIM_TUBE = 0.006;
@@ -29,6 +30,12 @@ const TOY_REACH = 0.055;
 // the toy, so it doesn't move the slice either
 const NEAR_MISS = 0.1;
 const PULL_TIME = 0.35; // seconds for a pulled toy to fly to the hand
+// Throws are capped, since a tracking glitch as the hand opens can read as a
+// throw fast enough to go straight through the glass box
+const MAX_THROW = 6;  // m/s
+const MAX_SPIN = 25;  // rad/s
+// Dice would roll out of the slice along w, so their walls in w are much closer
+const DICE_W_RANGE = 0.09;
 
 const fmtW = (v) => (Math.abs(v) < 0.005 ? '0' : `${v > 0 ? 'ana' : 'kata'} ${Math.abs(v * 100).toFixed(0)} cm`);
 const wColor = (v) => (v > 0.005 ? '#ff8fbf' : v < -0.005 ? '#7fd8ff' : '#ffffff');
@@ -238,13 +245,15 @@ class Toy {
     if (this.mode === 'primary') {
       const v = ix.velocity;
       const throwGain = ix.isMouse ? 0.6 : 1.15;
-      view.toWorld(_q4, [v.x * throwGain, v.y * throwGain, v.z * throwGain, 0]);
+      const k = throwGain * Math.min(1, MAX_THROW / Math.max(1e-6, throwGain * v.length()));
+      view.toWorld(_q4, [v.x * k, v.y * k, v.z * k, 0]);
       _q4[3] -= view.w; // toWorld adds the slice offset, which a velocity shouldn't get
       V.copy(this.body.v, _q4);
       const w = ix.angularVelocity;
       const B = [-w.z, w.y, 0, -w.x, 0, 0]; // xyz angular velocity as a bivector (slice space)
       const Bw = R4.bivRotate(R4.biv(), view.rotT, B);
-      this.body.setAngularVelocity(Bw.map((x) => x * 0.9));
+      const ks = 0.9 * Math.min(1, MAX_SPIN / Math.max(1e-6, 0.9 * R4.bivNorm(Bw)));
+      this.body.setAngularVelocity(Bw.map((x) => x * ks));
     } else {
       V.set(this.body.v, 0, 0, 0, 0);
       this.body.setAngularVelocity(R4.biv());
@@ -350,6 +359,7 @@ export class PlaygroundScene extends SceneBase {
     this.short = 'Hyperplay';
     this.subtitle = '4D physics sandbox';
     this.mood = 'studio';
+    this.crossSections = true; // the How to play card explains slices and w (see guide.js)
     this.tableY = 0.86;
     this.tableZ = -0.72;
 
@@ -453,7 +463,7 @@ export class PlaygroundScene extends SceneBase {
     this.foot.position.y = -this.tableY + 0.015;
   }
 
-  // Keeps the palm menu above the table top (see HandMenu._follow)
+  // Keeps the bottom of the VR menu above the table top (see HandMenu._place)
   get menuFloorY() { return this.tableY + 0.03; }
 
   onUserReady() {
@@ -472,7 +482,13 @@ export class PlaygroundScene extends SceneBase {
 
   // ---------------------------------------------------------------------------
 
+  // Glides the slice to w, unless something else moves it first
+  easeSliceTo(w) {
+    this._wTarget = w;
+  }
+
   setW(w) {
+    this._wTarget = null;
     const before = this.view.w;
     this.view.setW(w);
     this._wSpeed = Math.abs(this.view.w - before);
@@ -500,6 +516,7 @@ export class PlaygroundScene extends SceneBase {
     if (this.worldline) this.worldline.group.visible = false;
     this.rec = null;
     this.playing = false;
+    this._wTarget = null;
     this.world.linearDamping = 0.02;
   }
 
@@ -520,7 +537,7 @@ export class PlaygroundScene extends SceneBase {
   spawn(key) {
     const dynamic = this.toys.filter((t) => !t.fixed);
     if (dynamic.length >= MAX_TOYS) {
-      const old = dynamic.find((t) => !t.grabbedBy);
+      const old = dynamic.find((t) => !t.grabbedBy && t !== this.ball && t !== this.mirror?.piece); // not a puzzle's piece
       if (old) this._drop(old);
     }
     // drop in front of the viewer, inside the current slice
@@ -536,6 +553,7 @@ export class PlaygroundScene extends SceneBase {
     const was = this.preset;
     this.preset = name;
     this.clear();
+    this.world.wRange = name === 'dice' ? DICE_W_RANGE : W_RANGE + 0.02;
     this.view.setW(0);
     this.view.setAngles(0, 0);
     if (name !== 'shadows' && was === 'shadows') this.sunW = 0;
@@ -571,12 +589,16 @@ export class PlaygroundScene extends SceneBase {
       this._say('Get the ball out of the box', 5);
     } else if (name === 'tower') {
       const s = 0.1; // tesseract edge length
+      const blocks = [];
       for (let lvl = 0; lvl < 4; lvl++) {
         for (let i = 0; i < 2; i++) {
-          this.add('tesseract', { scale: s, pos: P4((i - 0.5) * s * 1.02 + (lvl % 2 ? 0.02 : 0), s * 0.5 + lvl * s * 1.001, 0, (lvl % 2 ? 1 : -1) * 0.01) });
+          blocks.push(this.add('tesseract', { scale: s, pos: P4((i - 0.5) * s * 1.02 + (lvl % 2 ? 0.02 : 0), s * 0.5 + lvl * s * 1.001, 0, (lvl % 2 ? 1 : -1) * 0.01) }));
         }
       }
-      this.add('icositetrachoron', { scale: 0.07, pos: P4(0, s * 4 + 0.07, 0, 0) });
+      blocks.push(this.add('icositetrachoron', { scale: 0.07, pos: P4(0, s * 4 + 0.07, 0, 0) }));
+      // Starts asleep. Awake, the contact solver can't hold a stack this tall
+      // still and it slumps within a second. Anything that hits it wakes it.
+      for (const t of blocks) t.body.sleep();
       this.add('hypersphere', { scale: 0.06, pos: P4(0.2, 0.08, 0.28, 0) });
       this.add('hypersphere', { scale: 0.06, pos: P4(-0.2, 0.08, 0.28, 0) });
       this._say('Tesseract tower', 3);
@@ -629,7 +651,7 @@ export class PlaygroundScene extends SceneBase {
       if (!this.worldline) this.worldline = new Worldline(this.stage);
       if (this.worldline.empty || this.worldlineDemo) this._setJuggling();
       this.worldline.group.visible = true;
-      this.playing = true;
+      this.playing = !REDUCED_MOTION; // otherwise Play in the menu starts it
       this.setW(-REC_HALF_W);
       this._say(this.worldlineDemo ? 'Juggling, with time as w' : 'Your recording, with time as w', 3);
     }
@@ -653,7 +675,7 @@ export class PlaygroundScene extends SceneBase {
     this.stage.add(this.mirrorTarget.group);
     const piece = this.add('screw', { scale: s, pos: [-0.18, restHeight(R0, centers, h) + 0.002, 0.12, 0], rot: R0 });
     const target = centers.map((c) => V.add([0, 0, 0, 0], R4.apply([0, 0, 0, 0], Rt, c), targetPos));
-    this.mirror = { piece, centers, target, done: false };
+    this.mirror = { piece, centers, target, h, done: false };
     this._say('Fit the piece into the outline', 5);
   }
 
@@ -664,7 +686,8 @@ export class PlaygroundScene extends SceneBase {
     if (m.piece.grabbedBy) return false;
     return m.centers.every((c) => {
       V.add(_n4, R4.apply(_n4, b.R, c), b.x);
-      return m.target.some((t) => V.distance(_n4, t) < 0.022);
+      // close in xyz, and anywhere in w where the cube's cross-section is the same
+      return m.target.some((t) => Math.hypot(_n4[0] - t[0], _n4[1] - t[1], _n4[2] - t[2]) < 0.022 && Math.abs(_n4[3] - t[3]) < m.h * 0.9);
     });
   }
 
@@ -686,14 +709,15 @@ export class PlaygroundScene extends SceneBase {
     if (!this.dice) return;
     this.dice.forEach((d, i) => {
       const b = d.toy.body;
-      const a = (i / this.dice.length) * Math.PI * 2 + rand();
+      // Math.random, not the seeded rand() that lays out every preset the same way each time
+      const a = (i / this.dice.length) * Math.PI * 2 + Math.random();
       V.set(b.x, Math.cos(a) * 0.28, 0.22 + i * 0.03, Math.sin(a) * 0.28, 0);
-      R4.randomRotation(b.R, rand);
+      R4.randomRotation(b.R, Math.random);
       // Thrown around the ring so they rarely hit each other, with a tumble in
       // the xyz planes. Rolling on a tilted 4D cell can still move a die in w.
       V.set(b.v, -Math.sin(a) * 0.55 - Math.cos(a) * 0.15, 0.3, Math.cos(a) * 0.55 - Math.sin(a) * 0.15, 0);
       b.wake();
-      b.setAngularVelocity([(rand() - 0.5) * 24, (rand() - 0.5) * 24, 0, (rand() - 0.5) * 24, 0, 0]);
+      b.setAngularVelocity([(Math.random() - 0.5) * 24, (Math.random() - 0.5) * 24, 0, (Math.random() - 0.5) * 24, 0, 0]);
       d.still = 0;
       d.result = null;
     });
@@ -801,6 +825,7 @@ export class PlaygroundScene extends SceneBase {
   // Records the tracked hands (or controllers, or the mouse) for a few seconds
   startRecording() {
     if (this.preset !== 'worldline') this.loadPreset('worldline');
+    if (this.app.presenting) this.app.menu.close(); // out of the way, and so the countdown shows
     this.playing = false;
     this.view.setAngles(0, 0);
     this.setW(0);
@@ -831,7 +856,8 @@ export class PlaygroundScene extends SceneBase {
       if (rec.shown !== n) { rec.shown = n; this._say(`Recording in ${n}`, 1.2); this.app.audio._tone({ freq: 520, dur: 0.08, gain: 0.08 }); }
       return;
     }
-    if (rec.shown !== 'rec') { rec.shown = 'rec'; this._say('Recording: move your hands', REC_TIME); this.app.audio._tone({ freq: 880, dur: 0.12, gain: 0.08 }); }
+    const what = { hands: 'your hands', controllers: 'the controllers', desktop: this.app.touch ? 'your finger' : 'the mouse' }[this.app.inputMode];
+    if (rec.shown !== 'rec') { rec.shown = 'rec'; this._say(`Recording: move ${what}`, REC_TIME); this.app.audio._tone({ freq: 880, dur: 0.12, gain: 0.08 }); }
     const samples = [];
     this._sampleSources(samples);
     rec.frames.push({ t: rec.t, samples });
@@ -863,6 +889,7 @@ export class PlaygroundScene extends SceneBase {
   }
 
   _say(text, seconds = 3) {
+    this.app.announce(text);
     disposeLabel(this.message);
     this.message = makeLabel(text, { size: 0.03, color: '#11131a', bg: 'rgba(244,245,248,0.9)' });
     this.message.position.set(0, 0.42, -0.1);
@@ -921,6 +948,12 @@ export class PlaygroundScene extends SceneBase {
     }
   }
 
+  // Worldline: plays the recording by moving the slice through time. An empty
+  // recording has no w range to play through.
+  togglePlay() {
+    this.playing = !this.playing && !this.worldline?.empty;
+  }
+
   resetSlice() {
     this.playing = false;
     this.setW(0);
@@ -938,11 +971,11 @@ export class PlaygroundScene extends SceneBase {
     const k = e.key.toLowerCase();
     if (k === 'q' || e.key === 'ArrowDown') { this.playing = false; this.setW(this.view.w - 0.02); }
     if (k === 'e' || e.key === 'ArrowUp') { this.playing = false; this.setW(this.view.w + 0.02); }
-    if (k === 'a' || e.key === 'ArrowLeft') this.view.setAngles(this.view.angleXW - 0.05, this.view.angleZW);
-    if (k === 'd' || e.key === 'ArrowRight') this.view.setAngles(this.view.angleXW + 0.05, this.view.angleZW);
+    const turn = (k === 'd' || e.key === 'ArrowRight' ? 1 : 0) - (k === 'a' || e.key === 'ArrowLeft' ? 1 : 0);
+    if (turn) this.view.setAngles(THREE.MathUtils.clamp(this.view.angleXW + turn * 0.05, -Math.PI / 2, Math.PI / 2), this.view.angleZW);
     if (k === 'r') this.loadPreset(this.preset);
     if (k === 'g') this.ghosts = !this.ghosts;
-    if (k === ' ' && this.preset === 'worldline') this.playing = !this.playing;
+    if (k === ' ' && this.preset === 'worldline') this.togglePlay();
     if (k === '0') this.resetSlice();
   }
 
@@ -994,6 +1027,12 @@ export class PlaygroundScene extends SceneBase {
       this.worldline.update(this.view);
     }
 
+    if (this._wTarget != null) {
+      const d = this._wTarget - this.view.w, step = 0.4 * dt;
+      this.view.setW(Math.abs(d) <= step ? this._wTarget : this.view.w + Math.sign(d) * step);
+      if (this.view.w === this._wTarget) this._wTarget = null;
+    }
+
     // W-scrub tone
     const w01 = (this.view.w - this.view.wMin) / (this.view.wMax - this.view.wMin);
     this.app.audio.scrub(w01, this.playing ? 0 : (this._wSpeed || 0) / Math.max(dt, 1e-3));
@@ -1022,7 +1061,8 @@ export class PlaygroundScene extends SceneBase {
     if (shadowsOn) this.shadow4.render(this.app.renderer);
 
     if (this.messageT > 0) {
-      this.messageT -= dt;
+      // in VR the open menu covers it, so it waits for the menu to close
+      if (!this.app.presenting || !this.app.menu.shown) this.messageT -= dt;
       this.message.visible = true;
       const head = this.stage.worldToLocal(_head.copy(this.app.headPosition));
       this.message.lookAt(this.stage.localToWorld(head.setY(this.message.position.y)));
@@ -1071,6 +1111,7 @@ export class PlaygroundScene extends SceneBase {
           controllers: 'Hold the trigger and grip together on an object and move the controller. It turns through w, the fourth direction.',
         },
         fingers: 'middle', tag: 'Trigger and grip: turn through w',
+        start: () => this.easeSliceTo(0), // the last step may have left nothing in the slice to turn
         done: (dt) => { if (held('secondary')) turnT += dt; return turnT > 0.5; },
       },
       {
@@ -1159,13 +1200,13 @@ export class PlaygroundScene extends SceneBase {
         type: 'buttons', columns: 3,
         items: [
           { label: () => (this.rec ? 'Recording…' : 'Record 4 s'), onClick: () => this.startRecording() },
-          { label: () => (this.playing ? 'Pause' : 'Play'), onClick: () => { this.playing = !this.playing; } },
+          { label: () => (this.playing ? 'Pause' : 'Play'), onClick: () => this.togglePlay(), disabled: () => !!this.worldline?.empty },
           { label: 'Juggling', onClick: () => { this._setJuggling(); this.playing = true; this.setW(-REC_HALF_W); } },
         ],
       });
     } else if (this.preset === 'dice') {
       rows.push({ type: 'buttons', items: [{ label: 'Roll the dice', onClick: () => this.rollDice() }] });
-    } else {
+    } else if (this.preset !== 'box') { // a spawned toy can be dragged through the glass box
       rows.push({
         type: 'buttons', columns: 4,
         items: [
@@ -1199,9 +1240,9 @@ export class PlaygroundScene extends SceneBase {
     return rows;
   }
 
-  hint(mode) {
-    const move = { hands: 'by pinching empty space with your other hand', controllers: 'with the stick', desktop: 'with the scroll wheel' }[mode];
-    const turn4 = { hands: 'middle-finger pinch it and move your hand', controllers: 'hold the trigger and grip on it and move the controller', desktop: 'right-drag it' }[mode];
+  hint(mode, { touch } = {}) {
+    const move = { hands: 'by pinching empty space with your other hand', controllers: 'with the stick', desktop: touch ? 'with the slider in the menu' : 'with the scroll wheel' }[mode];
+    const turn4 = { hands: 'middle-finger pinch it and move your hand', controllers: 'hold the trigger and grip on it and move the controller', desktop: touch ? 'drag it with two fingers' : 'right-drag it' }[mode];
     if (this.preset === 'box') {
       return `The box walls only extend a short distance in w. Hold the ball, move the slice along w ${move} until the walls are gone, move the ball out, then move the slice back.`;
     }
@@ -1218,15 +1259,15 @@ export class PlaygroundScene extends SceneBase {
       return 'The 4D sun leans towards ana. Shadows fall on the floor, which is 3D in 4D, and you see the part inside your slice. Objects outside it (the ghosts) cast shadows into it.';
     }
     if (this.preset === 'worldline') {
-      return `A motion recorded with time as w, so moving the slice along w replays it. Rotating the slice in xw mixes time with space, so each x shows a different moment like a slit-scan photo. Record your own ${mode === 'desktop' ? 'mouse movements' : 'hands'} from the menu.`;
+      return `A motion recorded with time as w, so moving the slice along w replays it. Rotating the slice in xw mixes time with space, so each x shows a different moment like a slit-scan photo. Record your own ${{ hands: 'hands', controllers: 'controller movements', desktop: touch ? 'finger movements' : 'mouse movements' }[mode]} from the menu.`;
     }
-    if (mode === 'controllers') return 'Trigger or grip to grab and throw. Hold both on an object and move the controller to turn it through 4D. Stick up/down moves the slice along w and left/right tilts it. Faint ghosts are objects just outside the slice.';
-    if (mode === 'desktop') return 'Each object is shown as its 3D cross-section. Move the slice along w to see the cross-sections change.';
-    return 'Pinch or grab to pick things up and throw them, and middle-finger pinch to turn one through 4D. In empty space, pinch and move up or down to move the slice along w, or middle-finger pinch to tilt it. The ring on the w rail moves it too.';
+    if (mode === 'controllers') return 'Trigger or grip to grab and throw. Hold both on an object and move the controller to turn it through 4D. Stick up/down moves the slice along w and left/right rotates it. Faint ghosts are objects just outside the slice.';
+    if (mode === 'desktop') return 'Each object is shown as its 3D cross-section. Move the slice along w to see the cross-sections change. +w is called ana and −w kata.';
+    return 'Pinch or grab to pick things up and throw them, and middle-finger pinch to turn one through 4D. In empty space, pinch and move up or down to move the slice along w, or middle-finger pinch to rotate it. The slider at the front left of the table moves it too.';
   }
 
   desktopHelp({ touch } = {}) {
-    if (touch) return '<b>Drag</b> an object to move it · <b>Drag</b> empty space to orbit · The menu has sliders to move and rotate the slice.';
+    if (touch) return '<b>Drag</b> an object to move it · <b>Two-finger drag</b> an object to rotate it through 4D · <b>Two-finger drag</b> empty space to rotate the slice · <b>Drag</b> empty space to orbit · The menu has sliders to move and rotate the slice.';
     return '<b>Drag</b> an object to move it · <b>Right-drag</b> an object to rotate it through 4D · <b>Wheel</b> or <b>Q/E</b> move the slice along w · <b>Right-drag</b> empty space or <b>A/D</b> rotate the slice · <b>Drag</b> empty space to orbit · <b>0</b> reset the slice · <b>R</b> restart the preset · <b>G</b> show or hide ghosts';
   }
 }

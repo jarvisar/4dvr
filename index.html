@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#101318" />
     <title>4D VR | 4D Shapes, Polytopes & Non-Euclidean Space in WebXR</title>
-    <meta name="description" content="WebXR app for exploring 4D shapes in VR or a desktop browser. Includes a 4D physics sandbox, the regular 4-polytopes, knots, the Hopf fibration, hyperbolic and spherical space, and a Klein bottle room. Works on Meta Quest with hand tracking." />
+    <meta name="description" content="WebXR app for exploring 4D shapes in VR or a desktop browser. Includes a 4D physics sandbox, the regular 4-polytopes, knots, the Hopf fibration, hyperbolic and spherical space, a Klein bottle room, and quasicrystals. Works on Meta Quest with hand tracking." />
     <link rel="canonical" href="https://4dvr.ajarvis.co/" />
     <!-- Social previews need absolute URLs, so these don't use the relative base -->
     <meta property="og:type" content="website" />
@@ -40,6 +40,8 @@
   </head>
   <body>
     <div id="app"></div>
+    <!-- read out by screen readers: scene changes and messages shown in the scene -->
+    <p id="announce" class="visually-hidden" role="status"></p>
 
     <div id="overlay">
       <main class="console">
@@ -58,14 +60,14 @@
           <li><button data-scene="hyperbolic"><span class="n">5</span><b>Hyperbolic Space</b><span class="d">The {5,3,4} and {4,3,5} honeycombs</span></button></li>
           <li><button data-scene="spherical"><span class="n">6</span><b>Spherical Space</b><span class="d">Walk inside the 120-cell on the 3-sphere</span></button></li>
           <li><button data-scene="klein"><span class="n">7</span><b>Klein Room</b><span class="d">Walk through a wall and come back mirrored</span></button></li>
-          <li><button data-scene="quasicrystal"><span class="n">8</span><b>Quasicrystals</b><span class="d">Penrose tilings as slices of 5D and 6D lattices</span></button></li>
+          <li><button data-scene="quasicrystal"><span class="n">8</span><b>Quasicrystals</b><span class="d">Slices of 5D and 6D lattices that never repeat</span></button></li>
         </ol>
 
         <div class="actions" id="actions">
-          <button id="enter-vr" class="btn primary" disabled>Enter VR</button>
-          <button id="enter-desktop" class="btn">Desktop mode</button>
+          <button id="enter-desktop" class="btn primary">Desktop mode</button>
+          <button id="enter-vr" class="btn" disabled>Enter VR</button>
         </div>
-        <p class="status pending" id="xr-status"><i></i><span id="xr-note">Checking for a headset</span></p>
+        <p class="status pending" id="xr-status" role="status"><i></i><span id="xr-note">Checking for a headset</span></p>
         <p class="keys"><kbd>1</kbd>–<kbd>8</kbd> scenes <kbd>M</kbd> menu <kbd>H</kbd> help</p>
       </main>
     </div>
@@ -74,12 +76,12 @@
       <div class="hud-top">
         <nav id="scene-tabs" aria-label="Scenes"></nav>
         <div class="hud-tools">
-          <button id="hud-menu" class="btn small" title="Menu (M)" aria-pressed="false">Menu <kbd>M</kbd></button>
-          <button id="hud-help-toggle" class="btn small" title="Controls (H)" aria-pressed="false" aria-controls="hud-help">Help <kbd>H</kbd></button>
+          <button id="hud-menu" class="btn small" title="Menu (M)" aria-expanded="false" aria-controls="hud-menu-panel">Menu <kbd>M</kbd></button>
+          <button id="hud-help-toggle" class="btn small" title="Controls (H)" aria-expanded="false" aria-controls="hud-help">Help <kbd>H</kbd></button>
         </div>
       </div>
       <section id="hud-help" aria-label="Controls">
-        <header>Controls</header>
+        <h2>Controls</h2>
         <ul id="hud-help-list"></ul>
       </section>
       <div id="hud-stats" hidden></div>

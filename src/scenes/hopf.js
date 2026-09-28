@@ -220,7 +220,7 @@ export class HopfScene extends SceneBase {
     this.globeCenter = new THREE.Vector3(-0.28, 1.15, -0.42);
     this.globeR = 0.085;
     this.scale = 0.3;
-    this.flow = true;
+    this.flow = !REDUCED_MOTION;
     this.spin4 = !REDUCED_MOTION;
     this.fibers = [];
     this.viewR = R4.mat4();
@@ -231,7 +231,6 @@ export class HopfScene extends SceneBase {
     this._buildFibers();
     this._buildGlobe();
 
-    this.labels = [];
     const l1 = makeLabel('S²: touch to add fibers', { size: 0.016, color: '#e8eaf0', bg: 'rgba(27,31,38,0.92)' });
     this.globeLabel = l1;
     this.root.add(l1);
@@ -386,6 +385,7 @@ export class HopfScene extends SceneBase {
       onHover(ix, on) { s.globeHover = on; },
       onGrabStart(ix, mode, kind) {
         if (ix.isMouse && mode === 'primary') { s.paintRay = ix; return; }
+        if (s.paintRay === ix) s.paintRay = null; // a second finger turned painting into turning
         ix.pose(kind, _hp, _hq);
         s.globeGrab = { ix, kind, startQ: s.globeQ.clone(), startHandInv: _hq.clone().invert(), prev: s.globeQ.clone(), mouseStart: ix.isMouse ? _hp.clone() : null };
         s.globeSpin.set(0, 0, 0);
@@ -423,7 +423,11 @@ export class HopfScene extends SceneBase {
     };
   }
 
-  _paintAt(worldPoint) {
+  _paintAt(worldPoint, ix) {
+    if (this.fibers.length >= MAX_FIBERS) {
+      this.app.hands.readout(ix, `Limit of ${MAX_FIBERS} fibers reached`);
+      return false;
+    }
     _v.copy(worldPoint).sub(this.globeCenter).normalize();
     _v.applyQuaternion(this.globeQ.clone().invert());
     if (this.addFiber([_v.x, _v.y, _v.z])) {
@@ -465,7 +469,7 @@ export class HopfScene extends SceneBase {
 
   onKey(e) {
     const k = e.key.toLowerCase();
-    if (k === 'c') this.clearFibers();
+    if (k === 'c') { this.clearFibers(); this.presetName = null; }
     if (k === 'f') this.flow = !this.flow;
     if (k === ' ') this.spin4 = !this.spin4;
   }
@@ -477,14 +481,14 @@ export class HopfScene extends SceneBase {
         if (!ix.active || !ix.hasPoke || ix.grabbed || ix.uiEngaged) continue;
         const d = ix.pokePos.distanceTo(this.globeCenter);
         if (d < this.globeR + 0.012 && d > this.globeR * 0.4) {
-          if (this._paintAt(ix.pokePos)) ix.pulse(0.2, 10);
+          if (this._paintAt(ix.pokePos, ix)) ix.pulse(0.2, 10);
         }
       }
     }
     if (this.paintRay) {
       const ix = this.paintRay;
       const t = raySphere(ix.rayOrigin, ix.rayDir, this.globeCenter, this.globeR);
-      if (t < Infinity) this._paintAt(ix.rayOrigin.clone().addScaledVector(ix.rayDir, t));
+      if (t < Infinity) this._paintAt(ix.rayOrigin.clone().addScaledVector(ix.rayDir, t), ix);
     }
 
     // globe inertia
@@ -560,7 +564,7 @@ export class HopfScene extends SceneBase {
   }
 
   desktopHelp({ touch } = {}) {
-    if (touch) return '<b>Drag</b> on the globe to add fibers · <b>Drag</b> empty space to orbit';
+    if (touch) return '<b>Drag</b> on the globe to add fibers · <b>Two-finger drag</b> the globe to rotate it · <b>Two-finger drag</b> empty space to rotate S³ in 4D · <b>Drag</b> empty space to orbit';
     return '<b>Drag</b> on the globe to add fibers · <b>Right-drag</b> the globe to rotate it · <b>Right-drag</b> empty space to rotate S³ in 4D · <b>Drag</b> empty space to orbit · <b>C</b> clear the fibers · <b>F</b> turn light pulses on or off · <b>Space</b> start or stop auto-rotate';
   }
 }

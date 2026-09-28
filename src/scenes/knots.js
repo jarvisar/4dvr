@@ -26,6 +26,10 @@ const MARK_LIFT = COLLIDE / 2 + TUBE_R + MARK_TUBE;
 const RADIAL = 8;
 const SUB = 2; // curve samples per bead
 const W_SAT = 0.06;
+// The held bead follows the hand at most this far per step (meters). Moved all
+// the way at once, a fast pull carried it past another strand between two
+// collision checks, and the knot changed without anything moving through w.
+const PIN_STEP = 0.01;
 const COS = Array.from({ length: RADIAL }, (_, j) => Math.cos((j / RADIAL) * Math.PI * 2));
 const SIN = Array.from({ length: RADIAL }, (_, j) => Math.sin((j / RADIAL) * Math.PI * 2));
 const WHITE = new THREE.Color('#f4f1ff');
@@ -54,6 +58,8 @@ void main() {
   vec3 N = normalize(vN);
   vec3 V = normalize(cameraPosition - vP);
   vec3 col = shade(vColor, N, V, 0.75) + vColor * 0.12;
+  // hovered or held: a brighter rim, like the Hopf globe
+  col += vec3(0.6, 0.8, 1.0) * pow(1.0 - max(dot(N, V), 0.0), 2.0) * uHighlight * 0.7;
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -94,6 +100,7 @@ const PRESETS = {
   },
   borromean: {
     label: 'Borromean',
+    name: 'Borromean rings',
     goal: 'unlink',
     loops: () => [
       sampleLoop((t) => [2 * Math.cos(t), Math.sin(t), 0], 80, 0.05),
@@ -132,6 +139,8 @@ class Rope {
     }
     this.pinned = -1;
     this.pinTarget = [0, 0, 0, 0];
+    this._pinAt = new Float64Array(4); // where the held bead is, on its way to pinTarget
+    this._pinFor = -1;
     this.crossings = new Float64Array(MAX_MARKS * 4); // x, y, z, and the number of bead pairs averaged
     this.nCrossings = 0;
   }
@@ -220,13 +229,20 @@ class Rope {
       // move w back towards 0
       if (settle > 0) p[i * 4 + 3] -= p[i * 4 + 3] * Math.min(1, settle * dt);
     }
+    const at = this._pinAt, t = this.pinTarget;
+    if (this.pinned >= 0) {
+      if (this._pinFor !== this.pinned) { this._pinFor = this.pinned; for (let c = 0; c < 4; c++) at[c] = q[this.pinned * 4 + c]; }
+      const d = Math.hypot(t[0] - at[0], t[1] - at[1], t[2] - at[2], t[3] - at[3]);
+      const k = d > PIN_STEP ? PIN_STEP / d : 1;
+      for (let c = 0; c < 4; c++) at[c] += (t[c] - at[c]) * k;
+    } else this._pinFor = -1;
     for (let it = 0; it < 10; it++) {
-      if (this.pinned >= 0) this.p.set(this.pinTarget, this.pinned * 4);
+      if (this.pinned >= 0) this.p.set(at, this.pinned * 4);
       for (let i = 0; i < N; i++) this._constrain(i, this.next1[i], this.rest[i], 1);
       for (let i = 0; i < N; i++) this._constrain(i, this.next2[i], this.bend[i], 0.06);
       if (it % 3 === 2) this._collide(it === 8);
     }
-    if (this.pinned >= 0) this.p.set(this.pinTarget, this.pinned * 4);
+    if (this.pinned >= 0) this.p.set(at, this.pinned * 4);
   }
 
   maxAbsW() {
@@ -423,7 +439,7 @@ export class KnotScene extends SceneBase {
     this.group.add(this.markers);
 
     this.burst = new Burst(this.group);
-    this.wLabel = new TextLabel({ size: 0.016, template: 'w = -00.0 cm', bg: 'rgba(27,31,38,0.92)' });
+    this.wLabel = new TextLabel({ size: 0.016, template: 'w −00.0 cm', bg: 'rgba(27,31,38,0.92)' });
     this.wLabel.mesh.visible = false;
     this.group.add(this.wLabel.mesh);
     this.message = null;
@@ -467,10 +483,12 @@ export class KnotScene extends SceneBase {
     this.solved = false;
     this.lifted = false;
     this.checkT = 0;
-    this._say(this.goal === 'unknot' ? `${PRESETS[name].label} knot: untie it` : `${PRESETS[name].label}: separate the loops`, 3.5);
+    const p = PRESETS[name];
+    this._say(this.goal === 'unknot' ? `${p.label} knot: untie it` : `${p.name || p.label}: separate the loops`, 3.5);
   }
 
   _say(text, seconds = 3, color = '#e8eaf0') {
+    this.app.announce(text);
     disposeLabel(this.message);
     this.message = makeLabel(text, { size: 0.02, color, bg: 'rgba(27,31,38,0.92)' });
     this.message.position.set(0, 0.2, 0);
@@ -523,7 +541,7 @@ export class KnotScene extends SceneBase {
         s.rope.pinned = index;
         s.rope.pinTarget = s.grab.startBead.slice();
       },
-      onGrabUpdate(ix) {
+      onGrabUpdate(ix, dt) {
         const g = s.grab;
         if (!g) return;
         ix.pose(g.kind, _hp, _hq);
@@ -541,7 +559,7 @@ export class KnotScene extends SceneBase {
           t[1] = g.startBead[1] + d.y;
           t[2] = g.startBead[2] + d.z;
           t[3] = g.startBead[3];
-          if (ix.stick) t[3] += -ix.stick.y * 0.004; // controllers: thumbstick adjusts w while dragging
+          t[3] += -ix.stick.y * 0.3 * dt; // controllers: the stick changes w while dragging
           g.startBead[3] = t[3];
         }
         if (Math.abs(t[3]) > 0.02) s.lifted = true;
@@ -586,7 +604,7 @@ export class KnotScene extends SceneBase {
     if (this.grab) {
       const i = this.grab.index, p = this.rope.p;
       const w = p[i * 4 + 3];
-      const text = Math.abs(w) < 0.003 ? 'w = 0' : `w = ${(w * 100).toFixed(1)} cm`;
+      const text = Math.abs(w) < 0.003 ? 'w 0 cm' : `w ${w > 0 ? '+' : '−'}${Math.abs(w * 100).toFixed(1)} cm`;
       this.wLabel.setText(text, w > 0.003 ? '#ff8fbf' : w < -0.003 ? '#7fd8ff' : '#ffffff');
       const lm = this.wLabel.mesh;
       lm.visible = true;
@@ -601,9 +619,13 @@ export class KnotScene extends SceneBase {
       if (this.rope.maxAbsW() < 0.006) this._checkSolved();
     }
 
+    const hl = this.material.uniforms.uHighlight;
+    hl.value += ((this.hover || this.grab ? 1 : 0) - hl.value) * Math.min(1, dt * 12);
+
     this.burst.update(dt);
     if (this.message) {
-      this.messageT -= dt;
+      // in VR the open menu covers it, so it waits for the menu to close
+      if (!this.app.presenting || !this.app.menu.shown) this.messageT -= dt;
       this.message.visible = this.messageT > 0;
       this.message.lookAt(this.app.headPosition);
       this.message.material.opacity = Math.min(1, this.messageT * 2);
@@ -658,14 +680,14 @@ export class KnotScene extends SceneBase {
   }
 
   hint(mode) {
-    const rules = 'Strands at different w do not collide. Released strands move back to w = 0.';
+    const rules = `Strands at different w do not collide. ${this.settle ? 'Released strands move back to w = 0.' : 'Set all w to 0 to check the knot.'}`;
     if (mode === 'desktop') return `Pink is +w, blue is −w. ${rules}`;
-    if (mode === 'controllers') return `Trigger or grip to move a strand. Hold both on a strand and move the controller up or down to change its w (pink is +w, blue is −w). ${rules}`;
+    if (mode === 'controllers') return `Trigger or grip to move a strand. Hold both on a strand and move the controller up or down, or push the stick while holding it, to change its w (pink is +w, blue is −w). ${rules}`;
     return `Pinch a strand to move it. Middle-finger pinch a strand and move your hand up or down to change its w (pink is +w, blue is −w). ${rules}`;
   }
 
   desktopHelp({ touch } = {}) {
-    if (touch) return '<b>Drag</b> a strand to move it · <b>Drag</b> empty space to orbit · Changing a strand\'s w needs a mouse or a headset.';
+    if (touch) return '<b>Drag</b> a strand to move it · <b>Two-finger drag</b> a strand up or down to change its w · <b>Drag</b> empty space to orbit';
     return '<b>Drag</b> a strand to move it · <b>Right-drag</b> a strand up or down to change its w · <b>Drag</b> empty space to orbit · <b>F</b> set all w to 0 · <b>R</b> reset the knot · Strands at different w do not collide.';
   }
 }

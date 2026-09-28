@@ -65,13 +65,18 @@ export class InteractionManager {
 
   // Release everything (used on scene switches)
   releaseAll() {
-    for (const ix of [...this.app.input.xr, this.app.input.mouse]) {
-      if (ix.grabbed) { ix.grabbed.onGrabEnd?.(ix); ix.grabbed = null; }
-      if (ix.emptyGrab) { this.app.activeScene?.onEmptyGrabEnd?.(ix, ix.emptyGrab.mode); ix.emptyGrab = null; }
-      if (ix.hover) { ix.hover.onHover?.(ix, false); ix.hover = null; }
-      if (ix.uiCapture) this.app.ui.endCapture(ix);
-      ix.pullTarget = null;
-    }
+    for (const ix of [...this.app.input.xr, this.app.input.mouse]) this.release(ix);
+  }
+
+  // Ends whatever one interactor is doing. Also used when its hand or
+  // controller goes away mid-grab, since inactive interactors aren't updated.
+  release(ix) {
+    if (ix.grabbed) { ix.grabbed.onGrabEnd?.(ix); ix.grabbed = null; }
+    if (ix.emptyGrab) { this.app.activeScene?.onEmptyGrabEnd?.(ix, ix.emptyGrab.mode); ix.emptyGrab = null; }
+    if (ix.hover) { ix.hover.onHover?.(ix, false); ix.hover = null; }
+    if (ix.uiCapture) this.app.ui.endCapture(ix);
+    this.app.ui.forget(ix);
+    ix.pullTarget = null;
   }
 
   // Drop references to an interactable that's being removed from the scene
@@ -114,8 +119,8 @@ export class InteractionManager {
         audio.release(ix.grabPos);
       } else {
         const mode = this._mode(ix);
-        if (mode !== ix.grabMode && !ix.isMouse) {
-          // second button squeezed or let go, or a hand closed into a fist
+        if (mode !== ix.grabMode && (!ix.isMouse || ix.touch)) {
+          // second button squeezed or let go, a hand closed into a fist, or a second finger on a touch screen
           ix.grabMode = mode;
           ix.grabbed.onGrabStart?.(ix, mode, ix.grabKind === 'pull' ? 'near' : ix.grabKind);
           ix.pulse(0.3, 15);
@@ -132,7 +137,7 @@ export class InteractionManager {
         scene.onEmptyGrabEnd?.(ix, mode);
       } else {
         const mode = this._mode(ix);
-        if (mode !== ix.emptyGrab.mode && !ix.isMouse) {
+        if (mode !== ix.emptyGrab.mode && (!ix.isMouse || ix.touch)) {
           scene.onEmptyGrabEnd?.(ix, ix.emptyGrab.mode);
           if (scene.onEmptyGrabStart(ix, mode) !== false) ix.emptyGrab.mode = mode;
           else ix.emptyGrab = null;
@@ -199,7 +204,10 @@ export class InteractionManager {
       rayT = ix.pullDist;
       rayTarget = ix.pullTarget;
     }
-    const uiFirst = uiHit && uiHit.t < rayT;
+    // A button on a panel that draws over the world (all the interactive ones)
+    // wins even when the ray reaches something else first, since the button is
+    // what you see there. Polytope Lab's grab sphere reaches past the menu.
+    const uiFirst = !!uiHit && (uiHit.t < rayT || (!!uiHit.widget && !uiHit.panel.material.depthTest));
     this._setHover(ix, near || (uiFirst ? null : rayTarget));
     ui.setRayHover(ix, uiFirst ? uiHit : null);
 
@@ -220,7 +228,14 @@ export class InteractionManager {
       // has been on it long enough, otherwise it was probably passing over it.
       if (pull && pressed === 'primary' && !ix.palmGrab) this._grab(ix, pull, pressed, 'pull');
     } else if (rayTarget) {
-      if (ix.isMouse) ix.grabDepth = rayT;
+      if (ix.isMouse) {
+        // Held at the depth the ray hit. grabPos was worked out this frame at
+        // the last grab's depth, so without this the target jumps along the
+        // ray (a knot finds no strand there) and a quick click throws it.
+        ix.grabDepth = rayT;
+        ix.grabPos.copy(ix.rayOrigin).addScaledVector(ix.rayDir, rayT);
+        ix.clearHistory(this.app.time);
+      }
       this._grab(ix, rayTarget, pressed, 'ray');
     } else if (!(ix.isMouse && pressed === 'primary') // on desktop, left-drag on empty space orbits the camera
       && !ix.palmGrab // a fist in empty space is usually just a relaxed hand

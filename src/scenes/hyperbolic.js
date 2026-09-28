@@ -18,7 +18,7 @@
 import * as THREE from 'three';
 import * as R4 from '../math/rot4.js';
 import * as H from '../math/hyperbolic.js';
-import { SceneBase } from './base.js';
+import { SceneBase, WalkControls } from './base.js';
 import { icosphere } from '../four/tetmesh.js';
 
 const PHI = (1 + Math.sqrt(5)) / 2;
@@ -304,7 +304,6 @@ const _m4 = new THREE.Matrix4();
 const _E = R4.mat4();
 const _T = R4.mat4();
 const _eye = [0, 0, 0];
-const _euler = new THREE.Euler();
 const _mv = new THREE.Vector3();
 const _qi = new THREE.Quaternion();
 const _B = R4.mat4();
@@ -364,21 +363,10 @@ export class HyperbolicScene extends SceneBase {
     this.hasPrev = false;
     this.fogOn = true;
     this.showBeacon = true;
-    this.speedBoost = 1;
-    this.yaw = 0;
-    this.pitch = 0;
-    this.keys = new Set();
+    this.walk = new WalkControls(app);
 
     this.setHoneycomb('dodeca');
     this.desktopView = { position: new THREE.Vector3(0, 1.6, 0), target: new THREE.Vector3(0, 1.6, -1) };
-    this._onKeyDown = (e) => { if (!e.ctrlKey && !e.metaKey && !e.altKey) this.keys.add(e.key.toLowerCase()); };
-    this._onKeyUp = (e) => this.keys.delete(e.key.toLowerCase());
-    this._onBlur = () => this.keys.clear(); // keyup never arrives after alt-tab
-    this._onPointerMove = (e) => {
-      if (this.app.presenting || !(e.buttons & 1) || !this.app.pointerOnEmpty) return;
-      this.yaw -= e.movementX * 0.004;
-      this.pitch = THREE.MathUtils.clamp(this.pitch - e.movementY * 0.004, -1.4, 1.4);
-    };
   }
 
   _beaconGeometry() {
@@ -447,23 +435,16 @@ export class HyperbolicScene extends SceneBase {
   enter() {
     super.enter();
     this.hasPrev = false;
-    window.addEventListener('keydown', this._onKeyDown);
-    window.addEventListener('keyup', this._onKeyUp);
-    window.addEventListener('blur', this._onBlur);
-    this.app.renderer.domElement.addEventListener('pointermove', this._onPointerMove);
+    this.walk.attach();
     if (!this.app.presenting) {
-      this.yaw = 0; this.pitch = 0;
+      this.walk.yaw = 0; this.walk.pitch = 0;
       this.app.camera.position.copy(this.desktopView.position);
     }
   }
 
   exit() {
     super.exit();
-    window.removeEventListener('keydown', this._onKeyDown);
-    window.removeEventListener('keyup', this._onKeyUp);
-    window.removeEventListener('blur', this._onBlur);
-    this.keys.clear();
-    this.app.renderer.domElement.removeEventListener('pointermove', this._onPointerMove);
+    this.walk.detach();
   }
 
   onSessionStart() { this.hasPrev = false; }
@@ -520,19 +501,12 @@ export class HyperbolicScene extends SceneBase {
     const L = this.uniforms.uL.value;
 
     if (!app.presenting) {
-      // desktop: mouse look and WASD movement
+      // desktop: drag to look, keys to move
       app.camera.position.copy(this.desktopView.position);
-      app.camera.quaternion.setFromEuler(_euler.set(this.pitch, this.yaw, 0, 'YXZ'));
-      app.camera.updateMatrixWorld();
-      app.camera.getWorldPosition(app.headPosition);
-      app.camera.getWorldQuaternion(app.headQuaternion);
-      const mv = _mv.set(
-        (this.keys.has('d') ? 1 : 0) - (this.keys.has('a') ? 1 : 0),
-        (this.keys.has('e') ? 1 : 0) - (this.keys.has('q') ? 1 : 0),
-        (this.keys.has('s') ? 1 : 0) - (this.keys.has('w') ? 1 : 0),
-      );
+      this.walk.update(dt);
+      const mv = this.walk.direction(_mv);
       if (mv.lengthSq() > 0) {
-        const sp = (this.keys.has('shift') ? 2.2 : 0.9) * dt;
+        const sp = (this.walk.fast ? 2.2 : 0.9) * dt;
         mv.normalize().multiplyScalar(sp);
         _v3[0] = mv.x; _v3[1] = mv.y; _v3[2] = mv.z;
         this._translateLocal(_v3);
@@ -616,13 +590,13 @@ export class HyperbolicScene extends SceneBase {
   hint(mode) {
     const blurb = HONEYCOMBS[this.hcKey].blurb;
     if (mode === 'desktop') return `${blurb} Moving in a loop leaves you rotated (holonomy).`;
-    const sticks = this.app.comfort.snapTurn ? 'Walk, or use the left stick to move and the right stick to turn.' : 'Walk, or use the sticks to move.';
+    const sticks = this.app.comfort.turn !== 'off' ? 'Walk, or use the left stick to move and the right stick to turn.' : 'Walk, or use the sticks to move.';
     if (mode === 'controllers') return `${blurb} ${sticks} You move where the controller points. Walking in a loop leaves you rotated (holonomy).`;
     return `${blurb} Walk around, or pinch empty space and pull to move. Walking in a loop leaves you rotated (holonomy).`;
   }
 
   desktopHelp({ touch } = {}) {
-    if (touch) return '<b>Drag</b> to look around · Moving around needs a keyboard or a headset.';
-    return '<b>WASD</b> move · <b>Q/E</b> move down or up · <b>Shift</b> move faster · <b>Drag</b> to look around · <b>Right-drag</b> to pull yourself along';
+    if (touch) return '<b>Drag</b> to look around · <b>Two-finger drag</b> to pull yourself along';
+    return '<b>WASD</b> move · <b>Arrow keys</b> move and turn · <b>Q/E</b> move down or up · <b>Shift</b> move faster · <b>Drag</b> to look around · <b>Right-drag</b> to pull yourself along';
   }
 }

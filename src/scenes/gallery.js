@@ -35,6 +35,7 @@ const LABELS = { duocylinder: 'Duocylinder', tiger: 'Tiger', spheritorus: 'Spher
 
 const EW = [0, 0, 0, 1];
 const AIR_DEADZONE = 0.012; // meters a pinch in empty space moves before it does anything
+const fmtW = (v) => (Math.abs(v) < 0.005 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`);
 const NAMEPLATE_OUT = 0.205; // nameplate's distance from the column's axis (radius there about 0.163)
 const _E = R4.mat4();
 const _M = R4.mat4();
@@ -42,6 +43,8 @@ const _M2 = R4.mat4();
 const _q = new THREE.Quaternion();
 const _hp = new THREE.Vector3();
 const _hq = new THREE.Quaternion();
+const _d = new THREE.Vector3();
+const _cq = new THREE.Quaternion();
 
 export class GalleryScene extends SceneBase {
   constructor(app) {
@@ -51,6 +54,7 @@ export class GalleryScene extends SceneBase {
     this.short = 'Polytopes';
     this.subtitle = 'Regular 4-polytopes, projected and sliced';
     this.mood = 'dusk';
+    this.crossSections = true; // the How to play card explains slices and w (see guide.js)
 
     this.center = new THREE.Vector3(0, 1.3, -0.62);
     this.S = 0.19; // meters per unit in the projection
@@ -136,7 +140,7 @@ export class GalleryScene extends SceneBase {
 
   setShape(key) {
     this.shapeKey = key;
-    let info;
+    let info = '';
     if (POLYS[key]) {
       const poly = POLYS[key].get();
       const big = poly.faces.length > 200;
@@ -144,7 +148,7 @@ export class GalleryScene extends SceneBase {
       this.wire.edgeMat.uniforms.uRadius.value = big ? 0.0022 : 0.0034;
       this.wire.vertMat.uniforms.uRadius.value = big ? 0.0034 : 0.0065;
       this.faceAlpha = big ? 0.028 : 0.06;
-      info = `${POLYS[key].label} · ${poly.vertices.length} vertices · ${poly.edges.length} edges · ${poly.faces.length} faces · ${poly.cells.length} cells`;
+      info = `${poly.vertices.length} vertices · ${poly.edges.length} edges · ${poly.faces.length} faces · ${poly.cells.length} cells`;
       if (this.mode === 'slice' && this._forcedSlice) { this.mode = 'perspective'; this._forcedSlice = false; }
     } else if (key === 'net') {
       this.fold = 0;
@@ -161,11 +165,9 @@ export class GalleryScene extends SceneBase {
       this.auto = false;
       if (this.mode !== 'perspective') this.mode = 'perspective';
       this._forcedSlice = false;
-      info = 'Tesseract net · 8 cubes';
     } else {
       this.wire.setGeometry({ vertices: [], edges: [], faces: [] });
       if (this.mode !== 'slice') { this.mode = 'slice'; this._forcedSlice = true; }
-      info = `${LABELS[key]} · a curved 4D solid`;
     }
     for (const [k, o] of this.sliceObjs) o.group.visible = false;
     if (key !== 'net') {
@@ -182,7 +184,7 @@ export class GalleryScene extends SceneBase {
       }
       o.group.visible = true;
     }
-    this.info = info;
+    this.info = info; // counts for the menu, polytopes only
     disposeLabel(this.nameplate);
     this.nameplate = makeLabel(POLYS[key]?.label || LABELS[key] || 'Tesseract net', { size: 0.024, color: '#e8eaf0' });
     this.root.add(this.nameplate);
@@ -236,6 +238,13 @@ export class GalleryScene extends SceneBase {
   _grabUpdate(ix, dt) {
     const g = this.grab;
     ix.pose(g.kind, _hp, _hq);
+    if (ix.isMouse && g.mode === 'primary' && !g.air) {
+      // The mouse doesn't turn like a hand, so a drag rolls the shape like a trackball
+      const cam = this.app.camera.quaternion;
+      _d.subVectors(_hp, g.startHand).applyQuaternion(_cq.copy(cam).invert());
+      const len = Math.hypot(_d.x, _d.y);
+      if (len > 1e-6) _hq.setFromAxisAngle(_d.set(-_d.y / len, _d.x / len, 0).applyQuaternion(cam), len / 0.15);
+    }
     const dq = _q.copy(_hq).multiply(g.startQInv);
     R4.fromQuaternion(_E, dq);
     R4.multiply(_M, _E, g.startR);
@@ -290,7 +299,7 @@ export class GalleryScene extends SceneBase {
     if (mode === 'primary' && this.air) {
       ix.pose('near', _hp, _hq);
       this.sliceW = THREE.MathUtils.clamp(this.air.w + (_hp.y - this.air.start.y) * (ix.isMouse ? 3 : 5), -1.05, 1.05);
-      this.app.hands.readout(ix, `slice w ${this.sliceW >= 0 ? '+' : '−'}${Math.abs(this.sliceW).toFixed(2)}`, this.sliceW > 0.005 ? '#ff8fbf' : this.sliceW < -0.005 ? '#7fd8ff' : '#ffffff');
+      this.app.hands.readout(ix, `slice w ${fmtW(this.sliceW)}`, this.sliceW > 0.005 ? '#ff8fbf' : this.sliceW < -0.005 ? '#7fd8ff' : '#ffffff');
     } else if (this.grab?.air && this.grab.ix === ix) {
       this._grabUpdate(ix, dt);
       this.app.hands.readout(ix, 'turning through w');
@@ -406,6 +415,7 @@ export class GalleryScene extends SceneBase {
     const rows = [
       { type: 'buttons', columns: 4, items: polyItems },
       { type: 'buttons', columns: 3, items: smoothItems },
+      ...(this.info ? [{ type: 'text', lines: 1, text: this.info }] : []),
       {
         type: 'tabs',
         options: [
@@ -416,7 +426,7 @@ export class GalleryScene extends SceneBase {
         get: () => this.mode,
         set: (v) => { if (this.isPolytope || v === 'slice' || this.isNet) { if (v !== this.mode) this._forcedSlice = false; this.mode = v; } },
       },
-      { type: 'slider', label: 'Slicing hyperplane (w)', min: -1.05, max: 1.05, center: 0, get: () => this.sliceW, set: (v) => { this.sliceW = v; }, format: (v) => v.toFixed(2), gradient: ['#33c3ff', '#ff4f9a'] },
+      { type: 'slider', label: 'Slicing hyperplane (w)', min: -1.05, max: 1.05, center: 0, get: () => this.sliceW, set: (v) => { this.sliceW = v; }, format: fmtW, gradient: ['#33c3ff', '#ff4f9a'] },
     ];
     if (this.isNet) {
       rows.push({ type: 'slider', label: 'Fold into 4D', min: 0, max: 1, get: () => this.fold, set: (v) => { this.fold = v; this.foldAnim = null; }, format: (v) => `${Math.round(v * 90)}°` });
@@ -445,12 +455,12 @@ export class GalleryScene extends SceneBase {
   hint(mode) {
     const blurb = POLYS[this.shapeKey]?.blurb || SMOOTH[this.shapeKey] || 'The 8 cells of a tesseract, unfolded into 3D. Use the fold slider to fold them back into a tesseract.';
     if (mode === 'desktop') return blurb;
-    if (mode === 'controllers') return `${blurb} Trigger or grip to turn it. Hold both to turn it through 4D. Stick up/down moves the slicing hyperplane, left/right turns it in xw.`;
+    if (mode === 'controllers') return `${blurb} Trigger or grip to turn it. Hold both to turn it through 4D. Stick up/down moves the slicing hyperplane, left/right turns the shape in xw.`;
     return `${blurb} Pinch it to turn it. Middle-finger pinch it and move your hand to turn it through 4D. Pinch empty space next to it and move up or down to move the slicing hyperplane.`;
   }
 
   desktopHelp({ touch } = {}) {
-    if (touch) return '<b>Drag</b> the shape to rotate it · <b>Drag</b> empty space to orbit · The menu moves the slicing hyperplane and rotates the shape through 4D.';
+    if (touch) return '<b>Drag</b> the shape to rotate it · <b>Two-finger drag</b> to rotate it through 4D · <b>Drag</b> empty space to orbit · The menu moves the slicing hyperplane.';
     return '<b>Drag</b> the shape to rotate it · <b>Right-drag</b> to rotate the shape through 4D · <b>Wheel</b> or <b>Q/E</b> move the slicing hyperplane · <b>Drag</b> empty space to orbit · <b>P</b> switch between perspective and stereographic · <b>Space</b> start or stop auto-rotate · <b>F</b> show or hide faces';
   }
 }

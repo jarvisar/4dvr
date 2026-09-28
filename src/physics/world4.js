@@ -57,6 +57,13 @@ export class Body4 {
 
   wake() { this.sleeping = false; this.sleepTimer = 0; }
 
+  sleep() {
+    this.sleeping = true;
+    V.set(this.v, 0, 0, 0, 0);
+    this.L.fill(0);
+    this.w.fill(0);
+  }
+
   // ω = I⁻¹ L, evaluated in the body frame
   updateOmega() {
     if (this.kinematic) return;
@@ -200,9 +207,8 @@ export class World4 {
     this.wallRadius = wallRadius;
     this.wRange = wRange;
     this.gravity = gravity.slice();
-    this.dt = 1 / 120;
+    this.dt = 1 / 120; // longest substep
     this.iterations = 10;
-    this.accum = 0;
     this.time = 0;
     this.contacts = [];
     this._free = []; // recycled contact objects
@@ -214,17 +220,24 @@ export class World4 {
 
   add(body) { this.bodies.push(body); return body; }
 
-  remove(body) { this.bodies = this.bodies.filter((b) => b !== body); }
+  remove(body) {
+    this.bodies = this.bodies.filter((b) => b !== body);
+    // anything asleep on it would otherwise stay put in mid-air
+    for (const b of this.bodies) if (b.sleeping && V.distance(b.x, body.x) < b.bound + body.bound + 0.01) b.wake();
+  }
 
   clear() { this.bodies = []; }
 
+  // Each frame is split into equal substeps no longer than dt. Fixed-length
+  // substeps would land 1 or 2 to a frame at 72 or 90 Hz, and moving things
+  // would visibly judder in the headset.
   step(frameDt) {
-    this.accum = Math.min(this.accum + frameDt, this.dt * 5);
-    const steps = Math.floor(this.accum / this.dt);
+    if (!(frameDt > 0)) return;
+    const steps = Math.min(6, Math.ceil(frameDt / this.dt - 1e-6));
+    const dt = Math.min(frameDt, this.dt * steps) / steps;
     for (let i = 0; i < steps; i++) {
       // kinematic bodies move 1/(substeps left) of the way to their target, so they reach it on the last one
-      this._substep(this.dt, 1 / (steps - i));
-      this.accum -= this.dt;
+      this._substep(dt, 1 / (steps - i));
     }
   }
 
@@ -248,7 +261,7 @@ export class World4 {
     }
 
     // 2. Contacts
-    for (const c of this.contacts) this._free.push(c);
+    for (const c of this.contacts) { c.a = c.b = null; this._free.push(c); } // no hold on removed bodies
     this.contacts.length = 0;
     this._collide();
 
@@ -383,8 +396,9 @@ export class World4 {
         const before = this.contacts.length;
         this._collidePair(A, B);
         if (this.contacts.length > before) {
-          if (A.sleeping && !B.sleeping && (V.lengthSq(B.v) > 0.01 || B.kinematic)) A.wake();
-          if (B.sleeping && !A.sleeping && (V.lengthSq(A.v) > 0.01 || A.kinematic)) B.wake();
+          // a held body wakes what it touches however slowly it moves, or it pushes against a wall
+          if (A.sleeping && !B.sleeping && (V.lengthSq(B.v) > 0.01 || B.kinematic || B.held)) A.wake();
+          if (B.sleeping && !A.sleeping && (V.lengthSq(A.v) > 0.01 || A.kinematic || A.held)) B.wake();
           this._reduce(before);
         }
       }
@@ -397,8 +411,8 @@ export class World4 {
     const R = this.wallRadius, W = this.wRange;
     const tol = 0.001 + this._spec(b);
     const nearFloor = b.x[1] - col.bound < floor + 0.002 + tol;
-    const nearWall = Math.sqrt(b.x[0] * b.x[0] + b.x[2] * b.x[2]) + col.bound > R;
-    const nearW = Math.abs(b.x[3]) + col.bound > W;
+    const nearWall = Math.sqrt(b.x[0] * b.x[0] + b.x[2] * b.x[2]) + col.bound > R - tol;
+    const nearW = Math.abs(b.x[3]) + col.bound > W - tol;
     if (!nearFloor && !nearWall && !nearW) return;
 
     if (col.type === 'sphere') {

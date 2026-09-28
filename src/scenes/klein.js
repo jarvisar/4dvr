@@ -14,7 +14,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { SceneBase } from './base.js';
+import { SceneBase, WalkControls } from './base.js';
 import { BONES } from '../core/handVisuals.js';
 import { J } from '../core/input.js';
 import { FONTS } from '../core/ui.js';
@@ -506,7 +506,6 @@ const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3();
-const _e = new THREE.Euler();
 const _up = new THREE.Vector3(0, 1, 0);
 
 // Clock hand at time t (seconds), one turn per period, dz in front of the clock center, scaled by (sx, sy, sz)
@@ -561,17 +560,7 @@ export class KleinScene extends SceneBase {
     this.joints = inst(new THREE.SphereGeometry(1, 10, 8), skin, COPIES * 50);
     this.bones = inst(new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0), skin, COPIES * BONES.length * 2);
     this.desktopView = { position: new THREE.Vector3(0, 1.6, 0.6), target: new THREE.Vector3(0, 1.4, -1) };
-    this.yaw = 0;
-    this.pitch = 0;
-    this.keys = new Set();
-    this._onKeyDown = (e) => { if (!e.ctrlKey && !e.metaKey && !e.altKey) this.keys.add(e.key.toLowerCase()); };
-    this._onKeyUp = (e) => this.keys.delete(e.key.toLowerCase());
-    this._onBlur = () => this.keys.clear();
-    this._onPointerMove = (e) => {
-      if (this.app.presenting || !(e.buttons & 1) || !this.app.pointerOnEmpty) return;
-      this.yaw -= e.movementX * 0.004;
-      this.pitch = THREE.MathUtils.clamp(this.pitch - e.movementY * 0.004, -1.4, 1.4);
-    };
+    this.walk = new WalkControls(app);
     this._placeRoom();
   }
 
@@ -597,20 +586,13 @@ export class KleinScene extends SceneBase {
   enter() {
     super.enter();
     this.tzOffset = new Date().getTimezoneOffset() * 60000;
-    window.addEventListener('keydown', this._onKeyDown);
-    window.addEventListener('keyup', this._onKeyUp);
-    window.addEventListener('blur', this._onBlur);
-    this.app.renderer.domElement.addEventListener('pointermove', this._onPointerMove);
-    if (!this.app.presenting) { this.yaw = 0; this.pitch = 0; }
+    this.walk.attach();
+    if (!this.app.presenting) { this.walk.yaw = 0; this.walk.pitch = 0; }
   }
 
   exit() {
     super.exit();
-    window.removeEventListener('keydown', this._onKeyDown);
-    window.removeEventListener('keyup', this._onKeyUp);
-    window.removeEventListener('blur', this._onBlur);
-    this.keys.clear();
-    this.app.renderer.domElement.removeEventListener('pointermove', this._onPointerMove);
+    this.walk.detach();
   }
 
   // Moves the room by a real-world offset. The viewer moves the opposite way.
@@ -656,20 +638,20 @@ export class KleinScene extends SceneBase {
     const app = this.app;
     if (!app.presenting) {
       app.camera.position.copy(this.desktopView.position);
-      app.camera.quaternion.setFromEuler(_e.set(this.pitch, this.yaw, 0, 'YXZ'));
-      app.camera.updateMatrixWorld();
-      app.camera.getWorldPosition(app.headPosition);
-      app.camera.getWorldQuaternion(app.headQuaternion);
-      const f = (this.keys.has('w') ? 1 : 0) - (this.keys.has('s') ? 1 : 0), s = (this.keys.has('d') ? 1 : 0) - (this.keys.has('a') ? 1 : 0);
-      if (f || s) {
-        const sp = (this.keys.has('shift') ? 3.0 : 1.4) * dt;
-        const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
-        this._moveRoom(-(fx * f + Math.cos(this.yaw) * s) * sp, -(fz * f - Math.sin(this.yaw) * s) * sp);
+      this.walk.update(dt);
+      const d = this.walk.direction(_v2).setY(0);
+      if (d.lengthSq() > 0) {
+        // along the floor in the direction you face. The room moves the other way.
+        d.normalize().multiplyScalar((this.walk.fast ? 3.0 : 1.4) * dt).applyAxisAngle(_up, this.walk.yaw);
+        this._moveRoom(-d.x, -d.z);
       }
     }
     for (const ix of app.input.xr) {
       if (ix.kind !== 'controller' || (!ix.stick.x && !ix.stick.y)) continue;
-      _v2.set(ix.stick.x, 0, ix.stick.y).applyQuaternion(ix.rayQuat).setY(0).multiplyScalar(-dt * 1.2);
+      // the controller's heading. Flattening its ray instead slows you down when it points at the floor.
+      _v.set(0, 0, -1).applyQuaternion(ix.rayQuat).setY(0);
+      if (_v.lengthSq() < 0.01) _v.set(0, 0, -1).applyQuaternion(app.headQuaternion).setY(0);
+      _v2.set(ix.stick.x, 0, ix.stick.y).applyAxisAngle(_up, Math.atan2(-_v.x, -_v.z)).multiplyScalar(-dt * 1.2);
       app.addMotion(_v2.length());
       this._moveRoom(_v2.x, _v2.z);
     }
@@ -764,12 +746,11 @@ export class KleinScene extends SceneBase {
       }
     }
     this.plateMat.color.set(fits === null ? '#ffffff' : fits ? '#8dff9a' : '#ff8d8d');
-    this.fits = fits;
   }
 
   menuRows() {
     return [
-      { type: 'buttons', items: [{ label: 'Back to the start', onClick: () => this.reset() }] },
+      { type: 'buttons', items: [{ label: 'Return to start', onClick: () => this.reset() }] },
       { type: 'toggles', items: [{ label: 'Show copies of yourself', get: () => this.showSelf, set: (v) => { this.showSelf = v; } }] },
       {
         type: 'text', lines: 2, color: '#dfe2ff',
@@ -778,14 +759,19 @@ export class KleinScene extends SceneBase {
     ];
   }
 
-  hint(mode) {
-    const sticks = this.app.comfort.snapTurn ? 'Walk, or use the left stick (the right stick turns)' : 'Walk, or use the sticks';
-    const move = { hands: 'Walk, or pinch empty space and pull', controllers: sticks, desktop: 'Use WASD' }[mode];
-    return `${move} to move. The cyan walls are glued straight across. The pink walls are glued with a flip, so crossing one leaves you mirror-reversed. Text reads backwards and your left hand fits the right-hand print.`;
+  hint(mode, { touch } = {}) {
+    const move = {
+      hands: 'Walk, or pinch empty space and pull to move.',
+      controllers: this.app.comfort.turn !== 'off' ? 'Walk, or use the left stick to move and the right stick to turn.' : 'Walk, or use the sticks to move.',
+      desktop: touch ? 'Drag with two fingers to move.' : 'Use WASD or the arrow keys to move.',
+    }[mode];
+    // the print only reacts to tracked hands
+    const after = mode === 'hands' ? 'Text reads backwards and your left hand fits the right-hand print.' : 'Text reads backwards.';
+    return `${move} The blue walls are glued straight across. The pink walls are glued with a flip, so crossing one leaves you mirror-reversed. ${after}`;
   }
 
   desktopHelp({ touch } = {}) {
-    if (touch) return '<b>Drag</b> to look around · Moving around needs a keyboard or a headset.';
-    return '<b>WASD</b> move · <b>Shift</b> move faster · <b>Drag</b> to look around · <b>Right-drag</b> to pull yourself along';
+    if (touch) return '<b>Drag</b> to look around · <b>Two-finger drag</b> to pull yourself along';
+    return '<b>WASD</b> move · <b>Arrow keys</b> move and turn · <b>Shift</b> move faster · <b>Drag</b> to look around · <b>Right-drag</b> to pull yourself along';
   }
 }

@@ -13,6 +13,16 @@ export const pref = {
   set(key, value) {
     try { localStorage.setItem(PREFIX + key, value ? '1' : '0'); } catch { /* ignore */ }
   },
+  // A saved choice out of a few options, or the fallback if it isn't one of them
+  choice(key, options, fallback) {
+    try {
+      const v = localStorage.getItem(PREFIX + key);
+      return options.includes(v) ? v : fallback;
+    } catch { return fallback; }
+  },
+  setChoice(key, value) {
+    try { localStorage.setItem(PREFIX + key, value); } catch { /* ignore */ }
+  },
   // Saved list of strings, e.g. the scenes whose tips have been shown
   list(key) {
     try { return new Set((localStorage.getItem(PREFIX + key) || '').split(',').filter(Boolean)); } catch { return new Set(); }

@@ -71,6 +71,8 @@ try {
 }
 window.__app = app; // for debugging from the console and for tools/ci-smoke.mjs
 app.menu.mountHud(hud);
+const menuPanel = app.menu.hud.el;
+menuPanel.id = 'hud-menu-panel';
 
 // --- scenes ---------------------------------------------------------------------
 let pendingScene = null;
@@ -80,6 +82,8 @@ function requestScene(key) {
 }
 
 function renderTabs() {
+  // the tabs are rebuilt, so a keyboard user's focus moves to the new scene's tab
+  const hadFocus = tabs.contains(document.activeElement);
   tabs.innerHTML = '';
   let active = null;
   SCENES.forEach((s, i) => {
@@ -101,6 +105,7 @@ function renderTabs() {
     .map((item) => (item.startsWith('<b>') ? `<li>${item}</li>` : `<li class="note">${item}</li>`))
     .join('');
   markSelected((b) => b.dataset.scene === app.sceneKey);
+  if (hadFocus) active?.focus({ preventScroll: true });
   if (active && !hud.hidden) {
     // keep the current scene's tab in view when the bar scrolls (phones)
     const t = tabs.getBoundingClientRect(), a = active.getBoundingClientRect();
@@ -110,12 +115,13 @@ function renderTabs() {
   measureHud();
 }
 
-// marks the scene VR will start in on the start screen's scene list
+// marks the scene that's showing on the start screen's scene list, which is the one VR starts in
 function markSelected(test) {
   for (const b of index.querySelectorAll('button')) {
     const on = test(b);
     b.classList.toggle('selected', on);
-    b.setAttribute('aria-pressed', String(on));
+    if (on) b.setAttribute('aria-current', 'true');
+    else b.removeAttribute('aria-current');
   }
 }
 
@@ -142,10 +148,27 @@ function measureHud() {
   hud.style.setProperty('--hud-top', `${Math.round(hudTop.getBoundingClientRect().bottom + 10)}px`);
   hud.style.setProperty('--hud-bottom', `${Math.round(H - bottom)}px`);
 }
-window.addEventListener('resize', () => { updateTabFade(); measureHud(); });
+window.addEventListener('resize', () => {
+  // a window made too small for both panels keeps the menu, without saving the help as closed
+  if (cramped() && app.desktopMenu && !helpBox.classList.contains('closed')) setHelp(false, false);
+  updateTabFade();
+  measureHud();
+});
+
+// Screen readers get what's only shown in 3D. Not in VR, where there's no screen reader.
+const announcer = $('announce');
+app.onAnnounce = (text) => {
+  if (app.presenting) return;
+  announcer.textContent = '';
+  setTimeout(() => { announcer.textContent = text; }, 50); // so the same message twice is read twice
+};
+app.renderer.domElement.setAttribute('role', 'img');
 
 app.onSceneChanged = () => {
   renderTabs();
+  const scene = app.activeScene;
+  app.renderer.domElement.setAttribute('aria-label', `${scene.title}, 3D view. ${scene.subtitle}`);
+  if (app.hudActive) app.announce(scene.title);
   const url = new URL(location.href);
   url.searchParams.set('scene', app.sceneKey);
   history.replaceState(null, '', url);
@@ -178,11 +201,11 @@ loadExtraScenes().then(() => {
 }).catch((e) => console.error('Failed to load scenes', e));
 
 // --- HUD toggles ------------------------------------------------------------------
-function setHelp(open) {
+function setHelp(open, save = true) {
   helpBox.classList.toggle('closed', !open);
   helpBtn.classList.toggle('on', open);
-  helpBtn.setAttribute('aria-pressed', String(open));
-  pref.set('help', open);
+  helpBtn.setAttribute('aria-expanded', String(open));
+  if (save) pref.set('help', open);
   if (open && cramped() && app.desktopMenu) app.setDesktopMenu(false);
 }
 app.onDesktopHelp = () => setHelp(helpBox.classList.contains('closed'));
@@ -190,13 +213,19 @@ helpBtn.onclick = app.onDesktopHelp;
 
 function syncMenuButton(on) {
   menuBtn.classList.toggle('on', on);
-  menuBtn.setAttribute('aria-pressed', String(on));
+  menuBtn.setAttribute('aria-expanded', String(on));
 }
 app.onDesktopMenuChanged = (on) => {
   syncMenuButton(on);
   if (on && cramped() && !helpBox.classList.contains('closed')) setHelp(false);
 };
 menuBtn.onclick = () => app.setDesktopMenu(!app.desktopMenu);
+// Escape closes the menu when the keyboard is in it
+hud.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !menuPanel.contains(e.target)) return;
+  app.setDesktopMenu(false);
+  menuBtn.focus();
+});
 // A button clicked with the mouse gives up focus, so Space and Enter go to the
 // scene afterwards instead of clicking it again (detail is 0 for keyboard clicks).
 hud.addEventListener('click', (e) => { if (e.detail > 0) e.target.closest('button')?.blur(); });
@@ -210,6 +239,9 @@ if (app.statsEnabled) {
 
 // --- WebXR availability -------------------------------------------------------
 let xrOk = false;
+// Chrome on Android phones offers VR through a phone viewer (Cardboard), where
+// the controls here don't work well. Touch stays the main way in there.
+const phone = /Android.*Mobile/i.test(navigator.userAgent) && !/VR|Quest|Pico|Wolvic/i.test(navigator.userAgent);
 function setStatus(text, state) {
   note.textContent = text;
   status.className = `status ${state}`;
@@ -225,8 +257,8 @@ async function checkXR() {
     if (xrOk) {
       setStatus(params.has('iwer')
         ? 'Emulated headset (IWER). Use the emulator controls to move the headset, controllers and hands.'
-        : 'Headset ready. Hands and controllers both work.', 'ok');
-      hudVr.hidden = false;
+        : phone ? 'VR works with a phone viewer like Cardboard. Every scene also works with touch.'
+          : 'Headset ready. Hands and controllers both work.', 'ok');
     } else {
       setStatus('No VR headset found. Every scene also works with a mouse, keyboard or touch.', 'off');
     }
@@ -242,12 +274,16 @@ async function checkXR() {
   }
   vrBtn.disabled = !xrOk;
   vrBtn.textContent = xrOk ? 'Enter VR' : 'VR unavailable';
-  vrBtn.classList.toggle('primary', xrOk);
-  deskBtn.classList.toggle('primary', !xrOk);
-  actions.classList.toggle('no-xr', !xrOk);
+  const vrFirst = xrOk && !phone;
+  vrBtn.classList.toggle('primary', vrFirst);
+  deskBtn.classList.toggle('primary', !vrFirst);
+  actions.classList.toggle('xr', vrFirst);
+  hudVr.hidden = !xrOk;
   measureHud();
 }
 checkXR();
+// a headset plugged in after the page loaded, like Quest Link on a PC
+navigator.xr?.addEventListener?.('devicechange', checkXR);
 
 const enterVR = async () => {
   try {
@@ -262,8 +298,9 @@ const enterVR = async () => {
 vrBtn.onclick = enterVR;
 hudVr.onclick = enterVR;
 
-function enterDesktop() {
-  app.audio.unlock();
+// Sound can only start from a click or key press, so ?desktop leaves it for the first one
+function enterDesktop(fromClick = true) {
+  if (fromClick) app.audio.unlock();
   overlay.classList.add('hidden');
   hud.hidden = false;
   app.hudActive = true;
@@ -271,13 +308,13 @@ function enterDesktop() {
 }
 deskBtn.onclick = enterDesktop;
 
-// Scene index. With a headset this picks the scene to enter VR in. Without one it goes straight in.
+// Scene index. With a headset this picks the scene to enter VR in. Without one, or on a phone, it goes straight in.
 index.addEventListener('click', (e) => {
   const b = e.target.closest('button[data-scene]');
   if (!b) return;
   requestScene(b.dataset.scene);
   markSelected((x) => x === b);
-  if (!xrOk) enterDesktop();
+  if (!xrOk || phone) enterDesktop();
 });
 
-if (params.has('desktop')) enterDesktop();
+if (params.has('desktop')) enterDesktop(false);
