@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://4dvr.ajarvis.co/sitemap.xml
+Sitemap: https://4dvr.jarvisar.com/sitemap.xml
