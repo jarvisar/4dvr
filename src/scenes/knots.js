@@ -659,13 +659,13 @@ export class KnotScene extends SceneBase {
 
   hint(mode) {
     const rules = 'Strands at different w do not collide. Released strands move back to w = 0.';
-    if (mode === 'desktop') return `Pink is +w, blue is -w. ${rules}`;
-    if (mode === 'controllers') return `Trigger or grip to move a strand. Hold both on a strand and move the controller up or down to change its w (pink is +w, blue is -w). ${rules}`;
-    return `Pinch a strand to move it. Middle-finger pinch a strand and move your hand up or down to change its w (pink is +w, blue is -w). ${rules}`;
+    if (mode === 'desktop') return `Pink is +w, blue is −w. ${rules}`;
+    if (mode === 'controllers') return `Trigger or grip to move a strand. Hold both on a strand and move the controller up or down to change its w (pink is +w, blue is −w). ${rules}`;
+    return `Pinch a strand to move it. Middle-finger pinch a strand and move your hand up or down to change its w (pink is +w, blue is −w). ${rules}`;
   }
 
   desktopHelp({ touch } = {}) {
-    if (touch) return '<b>Drag</b> a strand to move it · <b>Drag</b> empty space to orbit · changing a strand\'s w needs a mouse (right-drag) or a headset';
-    return '<b>Drag</b> a strand to move it · <b>Right-drag</b> a strand up/down to change its w · strands at different w do not collide · <b>F</b> set all w to 0 · <b>R</b> reset · <b>M</b> menu';
+    if (touch) return '<b>Drag</b> a strand to move it · <b>Drag</b> empty space to orbit · Changing a strand\'s w needs a mouse or a headset.';
+    return '<b>Drag</b> a strand to move it · <b>Right-drag</b> a strand up or down to change its w · <b>Drag</b> empty space to orbit · <b>F</b> set all w to 0 · <b>R</b> reset the knot · Strands at different w do not collide.';
   }
 }

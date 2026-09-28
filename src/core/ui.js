@@ -3,16 +3,24 @@
 // Panels are laid out from a list of rows and only redrawn when a displayed
 // value changes. Buttons are at least 22 mm tall with a gap of about 1 cm,
 // following Meta's hand interaction guidelines.
+//
+// On a flat screen the menu's canvas is shown in the page instead (DomPanel).
 
 import * as THREE from 'three';
 
-const PX_PER_M = 2000;
+// canvas resolution in VR. A panel shown in the page uses the screen's instead.
+export const PX_PER_M = 2000;
 const PAD = 0.014;
 const GAP = 0.009;
 // how far outside a widget a fingertip or ray still hits it. Less than half the
 // gap, so neighbors never overlap.
 const HIT_PAD = 0.003;
-const ROW_H = { title: 0.054, tabs: 0.036, buttons: 0.036, toggles: 0.036, slider: 0.054, text: 0.0 };
+// a title row without a subtitle is shorter
+const ROW_H = { title: 0.054, titleOnly: 0.036, tabs: 0.036, buttons: 0.036, toggles: 0.036, slider: 0.054, text: 0.0 };
+// close button at the right end of a title row. It stays above the subtitle.
+const CLOSE_SIZE = 0.03;
+// inset of the selected page tab on its track (see the 'pages' style)
+const TAB_INSET = 0.0025;
 const TEXT_SIZE = 0.0108;
 const LINE_H = 0.0158;
 const LEGEND_GAP = 0.005; // between the entries of a legend row
@@ -31,9 +39,12 @@ export const COLORS = {
   frame: 'rgba(255, 255, 255, 0.1)',
   ink: '#e6e8ec',
   muted: '#9aa3b0',
+  faint: '#6f7886',
   btn: '#2c323c',
   btnHover: '#3b4350',
   btnPress: '#4a5362',
+  btnOff: 'rgba(44, 50, 60, 0.45)', // a button that does nothing right now
+  track: '#15181e', // behind the menu's page tabs, like the scene tab bar on desktop
   select: '#1f6bd1',
   selectHover: '#2a76db',
   accent: '#1a9fff',
@@ -64,6 +75,9 @@ function panelGeometry() {
 }
 
 const isLabelled = (w) => w.type === 'button' || w.type === 'tab' || w.type === 'toggle';
+// Items (and slider rows) can have disabled(), for options that don't apply
+// right now. They're drawn faded and can't be pressed.
+const isDisabled = (w) => !!(w.type === 'slider' ? w.row.disabled?.() : w.item?.disabled?.());
 const _band = new THREE.Box2();
 const _bandAt = new THREE.Vector2();
 
@@ -93,6 +107,8 @@ export class UIPanel {
     this.pokeZ = new Map();
     this.opacity = 1;
     this.interactive = true;
+    this.px = PX_PER_M;       // canvas pixels per meter
+    this.dom = false;         // true while the canvas is shown in the page (see DomPanel)
     this._drawn = [];         // what each widget showed when last drawn (see _changedBand)
     this._fit = new Map();    // label font size per row, as { key, size } (see _fitRow)
     this._hovered = new Set();
@@ -122,8 +138,14 @@ export class UIPanel {
     const w = this.width - PAD * 2;
     for (const row of rows) {
       if (row.type === 'title') {
-        this.widgets.push({ type: 'title', row, x: PAD, y, w, h: ROW_H.title });
-        y += ROW_H.title;
+        const h = row.sub ? ROW_H.title : ROW_H.titleOnly;
+        this.widgets.push({ type: 'title', row, x: PAD, y, w, h });
+        if (row.close) {
+          // its own row object, so its label isn't fitted along with anything else
+          const item = { label: 'Close', icon: 'close', onClick: row.close };
+          this.widgets.push({ type: 'button', row: { type: 'buttons', items: [item] }, item, x: PAD + w - CLOSE_SIZE, y, w: CLOSE_SIZE, h: CLOSE_SIZE });
+        }
+        y += h;
       } else if (row.type === 'tabs' || row.type === 'buttons' || row.type === 'toggles') {
         const items = row.type === 'tabs' ? row.options : row.items;
         const cols = row.columns || items.length;
@@ -146,8 +168,8 @@ export class UIPanel {
         y += h;
       } else if (row.type === 'legend') {
         // two columns: a gesture or button, then what it does
-        setFont(this.ctx, 600, TEXT_SIZE * PX_PER_M, FONTS.sans);
-        const widest = Math.max(...row.items.map(([key]) => this.ctx.measureText(key).width)) / PX_PER_M;
+        setFont(this.ctx, 600, TEXT_SIZE * this.px, FONTS.sans);
+        const widest = Math.max(...row.items.map(([key]) => this.ctx.measureText(key).width)) / this.px;
         const kw = Math.min(w * 0.4, widest + 0.014);
         const items = row.items.map(([key, text]) => {
           const k = this._wrapString(key, kw - 0.008, 600);
@@ -164,8 +186,8 @@ export class UIPanel {
       y += GAP;
     }
     this.height = y - GAP + PAD;
-    this.canvas.width = Math.round(this.width * PX_PER_M);
-    this.canvas.height = Math.round(this.height * PX_PER_M);
+    this.canvas.width = Math.round(this.width * this.px);
+    this.canvas.height = Math.round(this.height * this.px);
     this.mesh.scale.set(this.width, this.height, 1);
     this.mesh.position.y = this.anchorTop ? -this.height / 2 : 0;
     this.texture.dispose();
@@ -180,6 +202,7 @@ export class UIPanel {
     this._drawn.length = 0;
     this._changedBand(); // record what the widgets show now
     this.draw();
+    this.onLayout?.();
   }
 
   // What a widget shows, as a string that changes whenever it needs a redraw
@@ -193,6 +216,7 @@ export class UIPanel {
     else if (w.type === 'slider') s += r.get().toFixed(3);
     else if (w.type === 'text' && typeof r.text === 'function') s += r.text();
     else if (w.type === 'title') s += (typeof r.text === 'function' ? r.text() : '') + (typeof r.sub === 'function' ? r.sub() : '');
+    if (isDisabled(w)) s += 'd';
     if (hovered) s += 'h';
     if (pressed) s += 'p';
     return s;
@@ -219,7 +243,7 @@ export class UIPanel {
   }
 
   update(time) {
-    if (!this.group.visible) return;
+    if (!this.group.visible && !this.dom) return;
     if (time - this._lastDraw > 0.03) {
       const band = this._changedBand();
       if (band) {
@@ -238,8 +262,15 @@ export class UIPanel {
   }
 
   _wrapString(text, w, weight) {
-    setFont(this.ctx, weight, TEXT_SIZE * PX_PER_M, FONTS.sans);
-    return wrapText(this.ctx, text, w * PX_PER_M);
+    setFont(this.ctx, weight, TEXT_SIZE * this.px, FONTS.sans);
+    return wrapText(this.ctx, text, w * this.px);
+  }
+
+  // Lays the panel out again at a new canvas resolution
+  setPixelsPerMeter(px) {
+    if (px === this.px) return;
+    this.px = px;
+    this.setRows(this.rows);
   }
 
   // Font size (px) for a button row's labels. It's the largest size that fits
@@ -252,7 +283,7 @@ export class UIPanel {
     const known = this._fit.get(row);
     if (known && known.key === key) return known.size;
     const ctx = this.ctx;
-    const S = PX_PER_M;
+    const S = this.px;
     let fit = Infinity;
     for (const w of ws) {
       const label = labelText(w.item);
@@ -276,7 +307,9 @@ export class UIPanel {
   // the whole panel texture.
   draw(band = null) {
     const ctx = this.ctx;
-    const S = PX_PER_M;
+    const S = this.px;
+    // line widths are in canvas pixels at the VR resolution, scaled with it
+    const lw = (n) => Math.max(1, (n * S) / PX_PER_M);
     const W = this.canvas.width, H = this.canvas.height;
     let y0 = 0, y1 = H;
     if (band) {
@@ -301,11 +334,11 @@ export class UIPanel {
     ctx.clearRect(0, y0, W, y1 - y0);
 
     // panel: plate with a hairline frame
-    const inset = 2;
+    const inset = lw(2);
     roundRect(ctx, inset, inset, W - 2 * inset, H - 2 * inset, 0.01 * S);
     ctx.fillStyle = COLORS.bg;
     ctx.fill();
-    ctx.lineWidth = 2;
+    ctx.lineWidth = lw(2);
     ctx.strokeStyle = COLORS.frame;
     ctx.stroke();
 
@@ -331,19 +364,49 @@ export class UIPanel {
           ctx.fillText(String(sub), x, y + 0.0385 * S);
         }
         ctx.fillStyle = COLORS.frame;
-        ctx.fillRect(x, y + hh - 0.004 * S, ww, 2);
+        ctx.fillRect(x, y + hh - 0.004 * S, ww, lw(2));
       } else if (w.type === 'button' || w.type === 'tab' || w.type === 'toggle') {
         const on = w.type === 'tab' ? r.get() === w.item.value : w.type === 'toggle' ? w.item.get() : (w.item.active ? w.item.active() : false);
-        const isHover = hovered.has(w), isPressed = pressed.has(w);
-        const selected = on && w.type !== 'toggle';
-        roundRect(ctx, x, y, ww, hh, 0.0035 * S);
-        ctx.fillStyle = selected ? (isHover ? COLORS.selectHover : COLORS.select) : isPressed ? COLORS.btnPress : isHover ? COLORS.btnHover : COLORS.btn;
-        ctx.fill();
+        const off = isDisabled(w);
+        const isHover = !off && hovered.has(w), isPressed = !off && pressed.has(w);
+        const selected = on && w.type !== 'toggle' && !off;
+        const pages = r.style === 'pages';
+        let bx = x, by = y, bw = ww, bh = hh;
+        if (pages) {
+          // The menu's page tabs sit on one darker track, so they read as
+          // switching pages rather than as more buttons. The selected page
+          // is a blue tab inset on the track.
+          const ws = this._rowWidgets.get(r);
+          if (w === ws[0]) {
+            const last = ws[ws.length - 1];
+            roundRect(ctx, x, y, (last.x + last.w) * S - x, hh, 0.0045 * S);
+            ctx.fillStyle = COLORS.track;
+            ctx.fill();
+          }
+          const inset = TAB_INSET * S;
+          bx += inset; by += inset; bw -= 2 * inset; bh -= 2 * inset;
+        }
+        roundRect(ctx, bx, by, bw, bh, 0.0035 * S);
+        if (!pages || selected || isHover || isPressed) {
+          ctx.fillStyle = off ? COLORS.btnOff : selected ? (isHover ? COLORS.selectHover : COLORS.select) : isPressed ? COLORS.btnPress : isHover ? COLORS.btnHover : COLORS.btn;
+          ctx.fill();
+        }
         // a ring on hover shows what a finger or ray is on
         if (isHover || isPressed) {
-          ctx.lineWidth = 3;
+          ctx.lineWidth = lw(3);
           ctx.strokeStyle = selected ? '#fff' : 'rgba(255, 255, 255, 0.5)';
           ctx.stroke();
+        }
+        if (w.item.icon === 'close') {
+          const c = 0.0052 * S, cx = x + ww / 2, cy = y + hh / 2;
+          ctx.beginPath();
+          ctx.moveTo(cx - c, cy - c); ctx.lineTo(cx + c, cy + c);
+          ctx.moveTo(cx + c, cy - c); ctx.lineTo(cx - c, cy + c);
+          ctx.lineWidth = 0.0017 * S;
+          ctx.lineCap = 'round';
+          ctx.strokeStyle = COLORS.ink;
+          ctx.stroke();
+          continue;
         }
         let tx = x + ww / 2;
         ctx.textAlign = 'center';
@@ -352,26 +415,26 @@ export class UIPanel {
           const sz = CHECK.size * S, px = x + CHECK.x * S, py = y + hh / 2 - sz / 2;
           roundRect(ctx, px, py, sz, sz, 0.0022 * S);
           if (on) {
-            ctx.fillStyle = COLORS.accent;
+            ctx.fillStyle = off ? COLORS.faint : COLORS.accent;
             ctx.fill();
             ctx.beginPath();
             ctx.moveTo(px + sz * 0.24, py + sz * 0.52);
             ctx.lineTo(px + sz * 0.43, py + sz * 0.7);
             ctx.lineTo(px + sz * 0.77, py + sz * 0.32);
-            ctx.lineWidth = 4;
+            ctx.lineWidth = lw(4);
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.strokeStyle = '#0e1116';
             ctx.stroke();
           } else {
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = COLORS.muted;
+            ctx.lineWidth = lw(3);
+            ctx.strokeStyle = off ? COLORS.faint : COLORS.muted;
             ctx.stroke();
           }
           tx = x + CHECK.textX * S;
           ctx.textAlign = 'left';
         }
-        ctx.fillStyle = selected ? '#fff' : (w.type === 'toggle' && !on ? '#c3c8d0' : COLORS.ink);
+        ctx.fillStyle = off ? COLORS.faint : selected ? '#fff' : pages ? '#c9ced6' : (w.type === 'toggle' && !on ? '#c3c8d0' : COLORS.ink);
         setFont(ctx, 600, this._fitRow(r), FONTS.sans);
         ctx.textBaseline = 'middle';
         ctx.fillText(labelText(w.item), tx, y + hh / 2 + 0.0006 * S);
@@ -379,13 +442,14 @@ export class UIPanel {
         const v = r.get();
         const span = r.max - r.min;
         const t = THREE.MathUtils.clamp((v - r.min) / span, 0, 1);
+        const off = isDisabled(w);
         ctx.textBaseline = 'alphabetic';
         ctx.textAlign = 'left';
-        ctx.fillStyle = COLORS.muted;
+        ctx.fillStyle = off ? COLORS.faint : COLORS.muted;
         setFont(ctx, 500, 0.0106 * S, FONTS.sans);
         ctx.fillText(String(r.label), x, y + 0.0125 * S);
         ctx.textAlign = 'right';
-        ctx.fillStyle = COLORS.ink;
+        ctx.fillStyle = off ? COLORS.faint : COLORS.ink;
         setFont(ctx, 500, 0.0108 * S, FONTS.mono);
         ctx.fillText(r.format ? r.format(v) : v.toFixed(2), x + ww, y + 0.0125 * S);
 
@@ -397,13 +461,13 @@ export class UIPanel {
         // center detent mark
         const from = r.center !== undefined ? (r.center - r.min) / span : 0;
         if (r.center !== undefined) {
-          ctx.fillStyle = COLORS.muted;
-          ctx.fillRect(x + ww * from - 1.5, ty - 0.0075 * S, 3, 0.015 * S);
+          ctx.fillStyle = off ? COLORS.faint : COLORS.muted;
+          ctx.fillRect(x + ww * from - lw(3) / 2, ty - 0.0075 * S, lw(3), 0.015 * S);
         }
         // fill from the center detent (or the minimum) to the value
         const x0 = x + ww * Math.min(from, t), x1 = x + ww * Math.max(from, t);
-        let fill = COLORS.accent;
-        if (r.gradient) {
+        let fill = off ? COLORS.btnPress : COLORS.accent;
+        if (r.gradient && !off) {
           fill = ctx.createLinearGradient(x, 0, x + ww, 0);
           fill.addColorStop(0, r.gradient[0]); fill.addColorStop(1, r.gradient[1]);
         }
@@ -412,7 +476,7 @@ export class UIPanel {
         ctx.fill();
         // knob: a round handle, larger with a halo while hovered or held
         const kx = x + ww * t;
-        const active = hovered.has(w) || pressed.has(w);
+        const active = !off && (hovered.has(w) || pressed.has(w));
         const kr = (active ? 0.0075 : 0.0062) * S;
         if (active) {
           ctx.beginPath();
@@ -422,9 +486,9 @@ export class UIPanel {
         }
         ctx.beginPath();
         ctx.arc(kx, ty, kr, 0, Math.PI * 2);
-        ctx.fillStyle = COLORS.ink;
+        ctx.fillStyle = off ? COLORS.faint : COLORS.ink;
         ctx.fill();
-        ctx.lineWidth = 2;
+        ctx.lineWidth = lw(2);
         ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
         ctx.stroke();
       } else if (w.type === 'text') {
@@ -452,7 +516,9 @@ export class UIPanel {
     }
     ctx.restore();
     setFont(ctx, 400, 10, FONTS.sans);
-    if (band) this._uploadRows(y0, y1);
+    // In the page the canvas is shown as it is. The texture is uploaded whole
+    // if the panel is drawn in 3D again.
+    if (band && !this.dom) this._uploadRows(y0, y1);
     else this.texture.needsUpdate = true;
   }
 
@@ -482,12 +548,13 @@ export class UIPanel {
   widgetAt(px, py, pad = HIT_PAD) {
     for (const w of this.widgets) {
       if (w.type === 'title' || w.type === 'text' || w.type === 'legend') continue;
-      if (px >= w.x - pad && px <= w.x + w.w + pad && py >= w.y - pad && py <= w.y + w.h + pad) return w;
+      if (px >= w.x - pad && px <= w.x + w.w + pad && py >= w.y - pad && py <= w.y + w.h + pad) return isDisabled(w) ? null : w;
     }
     return null;
   }
 
   activate(w, px) {
+    if (isDisabled(w)) return;
     const audio = this.ui.app.audio;
     if (w.type === 'button') { w.item.onClick?.(); audio.click(); }
     else if (w.type === 'tab') { w.row.set(w.item.value); audio.click(); }
@@ -497,6 +564,7 @@ export class UIPanel {
 
   dragSlider(w, px) {
     const r = w.row;
+    if (isDisabled(w)) return;
     let t = THREE.MathUtils.clamp((px - w.x) / w.w, 0, 1);
     let v = r.min + t * (r.max - r.min);
     if (r.step) v = Math.round(v / r.step) * r.step;
@@ -520,6 +588,137 @@ function wrapText(ctx, text, maxW) {
     out.push(line);
   }
   return out;
+}
+
+// Shows a panel's canvas in the page instead of in 3D. The menu uses this on
+// a flat screen. It then keeps one size in every scene and scrolls when it
+// doesn't fit, instead of shrinking with the window.
+//
+// The canvas is drawn at the screen's resolution. The mouse and touch use the
+// same widgets as in VR, but buttons act on release like normal buttons, so a
+// touch that scrolls the panel doesn't press anything. Sliders act on press.
+const DOM_POINTER = { index: -1 }; // hover and press key, separate from the 3D interactors
+const TAP_SLOP = 8; // CSS pixels a press can move and still be a click
+
+export class DomPanel {
+  constructor(panel, parent) {
+    this.panel = panel;
+    this.shown = false;
+    this.el = document.createElement('div');
+    this.el.className = 'hud-panel';
+    this.el.hidden = true;
+    this.el.append(panel.canvas);
+    parent.append(this.el);
+    this._w = 0;
+    this._h = 0;
+    this._down = null;
+    this._drag = null;
+    panel.onLayout = () => this.update();
+    const c = panel.canvas;
+    c.style.touchAction = 'pan-y'; // vertical swipes scroll the panel
+    c.addEventListener('pointermove', (e) => this._move(e));
+    c.addEventListener('pointerdown', (e) => this._press(e));
+    c.addEventListener('pointerup', (e) => this._release(e));
+    c.addEventListener('pointercancel', () => this._end());
+    c.addEventListener('pointerleave', () => { if (!this._drag) { this._hover(null); this._end(); } });
+    c.addEventListener('contextmenu', (e) => e.preventDefault()); // no "Save image" menu, same as the 3D canvas
+    this.el.addEventListener('scroll', () => this._fade(), { passive: true });
+    new ResizeObserver(() => this._fade()).observe(this.el); // its height depends on the window and the page's other controls
+    window.addEventListener('resize', () => { if (this.shown) this.fit(); });
+  }
+
+  setShown(on) {
+    if (on === this.shown) return;
+    this.shown = on;
+    this.el.hidden = !on;
+    this.panel.dom = on;
+    if (on) {
+      this.fit();
+    } else {
+      this._end();
+      this._hover(null);
+      this.panel.setPixelsPerMeter(PX_PER_M); // back to the VR resolution
+    }
+  }
+
+  // Draw the canvas at the width CSS gives the panel, in device pixels
+  fit() {
+    const dpr = window.devicePixelRatio || 1;
+    this.panel.setPixelsPerMeter(Math.max(1, Math.round(this.el.clientWidth * dpr)) / this.panel.width);
+    this.update();
+    this._fade();
+  }
+
+  // Sizes the canvas element after the panel is laid out (its height depends on its rows)
+  update() {
+    const c = this.panel.canvas;
+    if (!this.shown || (c.width === this._w && c.height === this._h)) return;
+    this._w = c.width;
+    this._h = c.height;
+    const dpr = window.devicePixelRatio || 1;
+    c.style.width = `${c.width / dpr}px`;
+    c.style.height = `${c.height / dpr}px`;
+    this.el.style.borderRadius = `${(0.01 * this.panel.px) / dpr}px`; // the plate's corners
+    this._fade();
+  }
+
+  // fade the edge that has more of the panel past it, like the scene tabs
+  _fade() {
+    const el = this.el, max = el.scrollHeight - el.clientHeight;
+    el.classList.toggle('more-below', max > 1 && el.scrollTop < max - 1);
+    el.classList.toggle('more-above', max > 1 && el.scrollTop > 1);
+  }
+
+  _at(e) {
+    const r = this.panel.canvas.getBoundingClientRect();
+    return [((e.clientX - r.left) / r.width) * this.panel.width, ((e.clientY - r.top) / r.height) * this.panel.height];
+  }
+
+  _hover(w) {
+    const p = this.panel;
+    if (w) p.hover.set(DOM_POINTER, w);
+    else p.hover.delete(DOM_POINTER);
+    p.canvas.style.cursor = w ? 'pointer' : '';
+  }
+
+  _move(e) {
+    const [x, y] = this._at(e);
+    if (this._drag) { this.panel.dragSlider(this._drag, x); return; }
+    if (e.pointerType !== 'touch') this._hover(this.panel.widgetAt(x, y, 0));
+    const d = this._down;
+    if (d && Math.hypot(e.clientX - d.cx, e.clientY - d.cy) > TAP_SLOP) this._end();
+  }
+
+  _press(e) {
+    if (e.button !== 0) return;
+    this.panel.ui.app.audio.unlock(); // like a press on the 3D canvas, since ?desktop skips the start screen's click
+    const [x, y] = this._at(e);
+    const w = this.panel.widgetAt(x, y, 0);
+    if (!w) return;
+    this.panel.pressed.set(DOM_POINTER, w);
+    if (w.type === 'slider') {
+      this._drag = w;
+      this.panel.canvas.setPointerCapture(e.pointerId);
+      this.panel.activate(w, x);
+    } else {
+      this._down = { w, cx: e.clientX, cy: e.clientY };
+    }
+  }
+
+  _release(e) {
+    const d = this._down;
+    if (d) {
+      const [x, y] = this._at(e);
+      if (this.panel.widgetAt(x, y, 0) === d.w) this.panel.activate(d.w, x);
+    }
+    this._end();
+  }
+
+  _end() {
+    this._down = null;
+    this._drag = null;
+    this.panel.pressed.delete(DOM_POINTER);
+  }
 }
 
 const _p = new THREE.Vector3();

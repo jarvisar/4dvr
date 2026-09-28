@@ -510,7 +510,7 @@ export class QuasicrystalScene extends SceneBase {
   }
 
   desktopHelp({ touch } = {}) {
-    if (touch) return '<b>Drag</b> to orbit · <b>Menu</b>: drift the slice';
-    return '<b>Right-drag</b> to move the slice through the hidden dimensions · drag to orbit · <b>M</b> menu';
+    if (touch) return '<b>Drag</b> to orbit · The menu can drift the slice through the hidden dimensions.';
+    return '<b>Right-drag</b> to move the slice through the hidden dimensions · <b>Drag</b> to orbit';
   }
 }

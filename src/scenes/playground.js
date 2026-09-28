@@ -1177,10 +1177,13 @@ export class PlaygroundScene extends SceneBase {
       });
     }
     if (this.preset === 'shadows') {
+      // the Low graphics preset turns the 4D shadows off (App rebuilds the menu when it changes)
+      const noShadows = () => !this.app.env.shadows;
       rows.push({
         type: 'slider', label: 'Sun angle towards ana', min: -THREE.MathUtils.degToRad(60), max: THREE.MathUtils.degToRad(60), center: 0,
-        get: () => this.sunW, set: (v) => { this.sunW = v; }, format: deg, gradient: W_GRADIENT,
+        get: () => this.sunW, set: (v) => { this.sunW = v; }, format: deg, gradient: W_GRADIENT, disabled: noShadows,
       });
+      if (noShadows()) rows.push({ type: 'text', lines: 2, text: 'Shadows are off at Low graphics quality.' });
     }
     rows.push(
       {
@@ -1188,7 +1191,8 @@ export class PlaygroundScene extends SceneBase {
         items: [
           { label: 'Ghosts', get: () => this.ghosts, set: (v) => { this.ghosts = v; } },
           { label: 'Slow-mo', get: () => this.slowmo, set: (v) => { this.slowmo = v; } },
-          { label: 'Low gravity', get: () => this.lowGravity, set: (v) => { this.lowGravity = v; } },
+          // orbits have no gravity towards the table
+          { label: 'Low gravity', get: () => this.lowGravity, set: (v) => { this.lowGravity = v; }, disabled: () => this.preset === 'orbits' },
         ],
       },
     );
@@ -1222,8 +1226,8 @@ export class PlaygroundScene extends SceneBase {
   }
 
   desktopHelp({ touch } = {}) {
-    if (touch) return '<b>Drag</b> an object to move it · <b>Drag</b> empty space to orbit · <b>Menu</b>: move and rotate the slice';
-    return '<b>Drag</b> an object to move it · <b>Right-drag</b> an object to rotate it through 4D · <b>Wheel</b> or <b>Q/E</b>: move the slice along w · <b>Right-drag</b> empty space or <b>A/D</b>: rotate the slice · <b>R</b> reset · <b>G</b> ghosts · <b>M</b> menu · drag empty space to orbit';
+    if (touch) return '<b>Drag</b> an object to move it · <b>Drag</b> empty space to orbit · The menu has sliders to move and rotate the slice.';
+    return '<b>Drag</b> an object to move it · <b>Right-drag</b> an object to rotate it through 4D · <b>Wheel</b> or <b>Q/E</b> move the slice along w · <b>Right-drag</b> empty space or <b>A/D</b> rotate the slice · <b>Drag</b> empty space to orbit · <b>0</b> reset the slice · <b>R</b> restart the preset · <b>G</b> show or hide ghosts';
   }
 }
 

@@ -62,7 +62,7 @@ In the curved spaces and the Klein Room, the left stick moves and the right stic
 
 ### Desktop
 
-Left drag to grab, move, and throw objects. Right drag to rotate them through 4D, or right drag empty space to rotate the slice. Use the scroll wheel or `Q`/`E` to move the slice along W, and `A`/`D` to rotate it. Press `1`-`8` to switch scenes, `M` to toggle the menu, and `H` to toggle the controls.
+Left drag to grab, move, and throw objects. Right drag to rotate them through 4D, or right drag empty space to rotate the slice. Use the scroll wheel or `Q`/`E` to move the slice along W, `A`/`D` to rotate it, and `0` to reset it. Press `1`-`8` to switch scenes, `M` to toggle the menu, and `H` to toggle the controls.
 
 In the curved spaces and the Klein Room, use `WASD` to move and drag to look.
 

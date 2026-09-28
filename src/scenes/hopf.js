@@ -560,7 +560,7 @@ export class HopfScene extends SceneBase {
   }
 
   desktopHelp({ touch } = {}) {
-    if (touch) return '<b>Drag on the globe</b> to add fibers · <b>Drag</b> empty space to orbit · <b>Menu</b>: presets and settings';
-    return '<b>Drag on the globe</b> to add fibers · <b>Right-drag the globe</b> to rotate it · <b>Right-drag empty space</b> to rotate S³ in 4D · drag empty space to orbit · <b>C</b> clear · <b>F</b> pulses · <b>Space</b> auto-rotate · <b>M</b> menu';
+    if (touch) return '<b>Drag</b> on the globe to add fibers · <b>Drag</b> empty space to orbit';
+    return '<b>Drag</b> on the globe to add fibers · <b>Right-drag</b> the globe to rotate it · <b>Right-drag</b> empty space to rotate S³ in 4D · <b>Drag</b> empty space to orbit · <b>C</b> clear the fibers · <b>F</b> turn light pulses on or off · <b>Space</b> start or stop auto-rotate';
   }
 }

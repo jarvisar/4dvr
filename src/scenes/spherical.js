@@ -744,17 +744,18 @@ export class SphericalScene extends SceneBase {
       },
       { type: 'slider', label: 'Radius of the 3-sphere', min: 0.5, max: 3.0, get: L, set: (v) => { this.uniforms.uL.value = v; }, format: (v) => `${v.toFixed(1)} m` },
       {
-        type: 'toggles', columns: 3,
+        // two columns like Hyperbolic Space. In three the labels shrink to 8 mm.
+        type: 'toggles', columns: 2,
         items: [
-          { label: 'Show yourself', get: () => this.showSelf, set: (v) => { this.showSelf = v; } },
           { label: 'Distance fog', get: () => this.fogOn, set: (v) => { this.fogOn = v; } },
           { label: 'Start marker', get: () => this.showBeacon, set: (v) => { this.showBeacon = v; } },
+          { label: 'Show yourself', get: () => this.showSelf, set: (v) => { this.showSelf = v; } },
         ],
       },
       { type: 'buttons', items: [{ label: 'Return to start', onClick: () => this.goHome() }] },
       {
         type: 'text', lines: 2, color: '#dfe2ff',
-        text: () => `Distance from start ${(this.homeDistance * L()).toFixed(1)} m. All the way around: ${(2 * Math.PI * L()).toFixed(1)} m.`,
+        text: () => `Distance from start: ${(this.homeDistance * L()).toFixed(1)} m. All the way around: ${(2 * Math.PI * L()).toFixed(1)} m.`,
       },
     ];
   }
@@ -769,7 +770,7 @@ export class SphericalScene extends SceneBase {
   }
 
   desktopHelp({ touch } = {}) {
-    if (touch) return '<b>Drag</b> to look around · moving needs a keyboard or a headset';
-    return '<b>WASD</b> move (<b>Shift</b> faster, <b>Q/E</b> down/up) · <b>drag</b> to look · <b>right-drag</b> to pull · <b>M</b> menu';
+    if (touch) return '<b>Drag</b> to look around · Moving around needs a keyboard or a headset.';
+    return '<b>WASD</b> move · <b>Q/E</b> move down or up · <b>Shift</b> move faster · <b>Drag</b> to look around · <b>Right-drag</b> to pull yourself along';
   }
 }

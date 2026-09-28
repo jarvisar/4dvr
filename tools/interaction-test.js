@@ -225,7 +225,7 @@
       out.demoTargets = ['grab', 'air'].map((k) => pg.demoTarget(k, new THREE.Vector3()));
     }
 
-    // UI poke on the (desktop-placed) menu, pressing the "Tower" preset button
+    // UI poke on the menu (placed in the world by the bar test above), pressing the "Tower" preset button
     const menu = app.menu.panel;
     menu.group.visible = true; menu.opacity = 1; menu.group.updateMatrixWorld(true);
     const btn = menu.widgets.find((w) => w.item && w.item.label === 'Tower');

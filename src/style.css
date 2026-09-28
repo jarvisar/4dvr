@@ -104,7 +104,8 @@ kbd, #hud-help li b {
   z-index: 10;
   display: flex;
   align-items: center;
-  padding: 32px clamp(20px, 6vw, 88px);
+  /* vertical spacing shrinks on short windows so the whole screen fits at 1280x650 */
+  padding: clamp(16px, 4vh, 32px) clamp(20px, 6vw, 88px);
   overflow-y: auto;
   /* dark on the left for the text, the live scene shows through on the right */
   background: linear-gradient(90deg, rgba(16, 19, 24, 0.97) 0%, rgba(16, 19, 24, 0.93) 40%, rgba(16, 19, 24, 0.35) 72%, rgba(16, 19, 24, 0.15) 100%);
@@ -114,19 +115,19 @@ kbd, #hud-help li b {
 /* visibility (not just opacity) so the browser stops compositing it over the canvas */
 #overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.35s ease, visibility 0s linear 0.35s; }
 
-.console { width: min(540px, 100%); margin: auto 0; }
+.console { width: min(580px, 100%); margin: auto 0; }
 
 .wordmark {
-  margin: 0 0 10px;
-  font: 700 clamp(36px, min(6vw, 9vh), 56px)/1.05 var(--sans);
+  margin: 0 0 clamp(6px, 1.4vh, 10px);
+  font: 700 clamp(34px, min(6vw, 7.5vh), 56px)/1.05 var(--sans);
   letter-spacing: -0.02em;
 }
 
-.lede { color: var(--muted); font-size: 16px; line-height: 1.6; margin: 0 0 24px; max-width: 48ch; }
+.lede { color: var(--muted); font-size: 16px; line-height: 1.6; margin: 0 0 clamp(14px, 3vh, 24px); }
 
 /* one grid shared by all rows (subgrid), so the descriptions line up */
 /* the first column includes the button's left padding */
-.index { list-style: none; margin: 0 0 24px; padding: 0; display: grid; grid-template-columns: 20px max-content 1fr; gap: 2px 12px; }
+.index { list-style: none; margin: 0 0 clamp(14px, 3vh, 24px); padding: 0; display: grid; grid-template-columns: 20px max-content 1fr; gap: 2px 12px; }
 .index li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
 
 .index button {
@@ -138,7 +139,7 @@ kbd, #hud-help li b {
   grid-template-columns: subgrid;
   align-items: baseline;
   gap: 2px 12px;
-  padding: 11px 12px 11px 10px;
+  padding: clamp(5px, 1vh, 11px) 12px clamp(5px, 1vh, 11px) 10px;
   border-radius: var(--radius-sm);
   transition: background 0.15s;
 }
@@ -157,14 +158,14 @@ kbd, #hud-help li b {
 /* without a headset, desktop mode is the main action, so it goes first */
 .actions.no-xr #enter-desktop { order: -1; }
 
-.status { display: flex; align-items: baseline; gap: 10px; color: var(--muted); font-size: 14px; line-height: 1.5; margin: 16px 0 0; min-height: 1.5em; }
+.status { display: flex; align-items: baseline; gap: 10px; color: var(--muted); font-size: 14px; line-height: 1.5; margin: clamp(10px, 2vh, 16px) 0 0; min-height: 1.5em; }
 .status i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); transform: translateY(-1px); }
 .status.ok i { background: var(--ok); }
 .status.pending i { animation: blink 1s steps(2) infinite; }
-.status a { color: var(--ink); }
+.status a { color: var(--ink); white-space: nowrap; }
 @keyframes blink { 50% { opacity: 0.2; } }
 
-.keys { color: var(--muted); font-size: 13px; margin: 12px 0 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.keys { color: var(--muted); font-size: 13px; margin: clamp(8px, 1.5vh, 12px) 0 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .keys kbd { margin-left: 8px; }
 .keys kbd:first-child { margin-left: 0; }
 
@@ -252,6 +253,32 @@ kbd, #hud-help li b {
 #hud-help ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
 #hud-help li { font-size: 14px; line-height: 1.45; color: var(--muted); }
 #hud-help li b { font-size: 12px; margin-right: 2px; }
+/* rows without a key, like what needs a mouse or a headset */
+#hud-help li.note { margin-top: 3px; padding-top: 8px; border-top: 1px solid var(--line); }
+
+/* The menu. Its canvas (plate and all) is drawn by src/core/ui.js, the same
+   panel as in VR. It keeps one width and scrolls when it doesn't fit, and main.js
+   sets --hud-top and --hud-bottom so it fits between the other controls. */
+.hud-panel {
+  position: absolute;
+  top: var(--hud-top, 67px);
+  right: var(--edge);
+  width: clamp(340px, 27vw, 400px);
+  max-height: calc(100% - var(--hud-top, 67px) - var(--hud-bottom, 16px));
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.hud-panel::-webkit-scrollbar { display: none; }
+.hud-panel canvas { display: block; }
+/* fade the edge that has more of the panel past it */
+.hud-panel.more-below { mask-image: linear-gradient(#000 calc(100% - 40px), transparent); }
+.hud-panel.more-above { mask-image: linear-gradient(transparent, #000 40px); }
+.hud-panel.more-above.more-below { mask-image: linear-gradient(transparent, #000 40px, #000 calc(100% - 40px), transparent); }
 
 #hud-stats {
   position: absolute;
@@ -276,7 +303,7 @@ kbd, #hud-help li b {
 
 /* touch screens have no keyboard shortcuts to show */
 @media (hover: none) and (pointer: coarse) {
-  .keys { display: none; }
+  .keys, .btn kbd, #scene-tabs button i { display: none; }
 }
 
 /* phones (portrait): tabs across the top, tools at the bottom */
@@ -289,6 +316,7 @@ kbd, #hud-help li b {
   #hud-help { bottom: 60px; max-height: calc(100% - 136px); }
   #hud-help li { font-size: 13px; }
   #hud-vr { right: auto; left: var(--edge); }
+  .hud-panel { left: var(--edge); width: auto; max-width: 440px; margin: 0 auto; }
   .index { grid-template-columns: 20px 1fr; }
   .index .d { grid-column: 2; }
   .lede { font-size: 15px; }
@@ -297,13 +325,31 @@ kbd, #hud-help li b {
 
 /* short screens (phones in landscape) */
 @media (max-height: 520px) {
-  #overlay { padding-top: 20px; padding-bottom: 20px; }
-  .lede { margin-bottom: 16px; }
-  .index button { padding-top: 7px; padding-bottom: 7px; }
   #hud-help { padding: 8px 12px 10px; max-height: calc(100% - 76px); }
   #hud-help li { font-size: 13px; line-height: 1.35; }
   #hud-help ul { gap: 3px; }
   #hud-stats { top: 56px; }
+}
+
+/* Phones in landscape: the scene list goes in a second column, so the start
+   screen fits without scrolling */
+@media (max-height: 520px) and (min-width: 600px) {
+  #overlay { align-items: center; padding-inline: 28px; }
+  .console {
+    width: 100%;
+    max-width: 920px;
+    margin: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1fr);
+    grid-template-rows: repeat(4, auto) 1fr;
+    column-gap: 28px;
+  }
+  .console > * { grid-column: 1; }
+  .console > .index { grid-column: 2; grid-row: 1 / -1; align-self: center; margin: 0; }
+  .wordmark { font-size: 34px; }
+  .lede { font-size: 14px; line-height: 1.5; }
+  .index b { font-size: 15px; }
+  .index .d { font-size: 12.5px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

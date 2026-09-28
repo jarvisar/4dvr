@@ -50,8 +50,9 @@ const index = $('scene-index');
 
 // touch screens get touch instructions in the controls card
 const touch = matchMedia('(hover: none) and (pointer: coarse)').matches;
-// below this width the controls card and the menu would overlap, so only one is open at a time
-const cramped = () => window.innerWidth < 800;
+// On narrow or short screens (phones) the controls card and the menu would
+// overlap or leave no room for the scene, so only one is open at a time
+const cramped = () => window.innerWidth < 800 || window.innerHeight < 540;
 
 const params = new URLSearchParams(location.search);
 if (params.has('iwer')) {
@@ -69,6 +70,7 @@ try {
   throw e;
 }
 window.__app = app; // for debugging from the console and for tools/ci-smoke.mjs
+app.menu.mountHud(hud);
 
 // --- scenes ---------------------------------------------------------------------
 let pendingScene = null;
@@ -92,10 +94,11 @@ function renderTabs() {
     b.onclick = () => app.setScene(s.key);
     tabs.appendChild(b);
   });
-  // split the help string ("<b>Key</b> does something · ...") into one row per control
+  // split the help string ("<b>Key</b> does something · ...") into one row per
+  // control. A row that doesn't start with a key is a note, like what needs a mouse.
   helpList.innerHTML = (app.activeScene?.desktopHelp({ touch }) || '')
     .split(' · ')
-    .map((item) => `<li>${item}</li>`)
+    .map((item) => (item.startsWith('<b>') ? `<li>${item}</li>` : `<li class="note">${item}</li>`))
     .join('');
   markSelected((b) => b.dataset.scene === app.sceneKey);
   if (active && !hud.hidden) {
@@ -123,8 +126,9 @@ function updateTabFade() {
 }
 tabs.addEventListener('scroll', updateTabFade, { passive: true });
 
-// The desktop menu is drawn in the 3D canvas. Tell it where the HTML controls
-// are so it fits between them.
+// The menu panel fits between the tab bar and whatever is along the bottom
+// edge (the Enter VR button, or the Menu and Help buttons on phones).
+// style.css places it with these.
 function measureHud() {
   if (hud.hidden) return;
   const H = window.innerHeight;
@@ -135,7 +139,8 @@ function measureHud() {
     const r = el.getBoundingClientRect();
     if (r.height && r.top > H / 2) bottom = Math.min(bottom, r.top - 10);
   }
-  app.hudInsets = { top: hudTop.getBoundingClientRect().bottom + 10, bottom: H - bottom, right: edge };
+  hud.style.setProperty('--hud-top', `${Math.round(hudTop.getBoundingClientRect().bottom + 10)}px`);
+  hud.style.setProperty('--hud-bottom', `${Math.round(H - bottom)}px`);
 }
 window.addEventListener('resize', () => { updateTabFade(); measureHud(); });
 

@@ -58,7 +58,7 @@ export class App {
     this.largeUI = pref.get('largeui', false);
     this.menu = new HandMenu(this);
     this.guide = new Guide(this);
-    this.desktopMenu = window.innerWidth >= 720; // phones start with the menu closed
+    this.desktopMenu = window.innerWidth >= 720 && window.innerHeight >= 540; // phones start with the menu closed
     this.hudActive = false; // set by main.js once the start screen is dismissed
     // comfort options for scenes you move through (see setComfort)
     this.comfort = { vignette: pref.get('vignette', true), snapTurn: pref.get('snapturn', true) };
@@ -403,7 +403,7 @@ export class App {
     }
     this.camera.quaternion.identity();
     this.orbit.update();
-    this.menu.rebuild(); // desktop and VR menus differ slightly (no pin button on desktop)
+    this.menu.rebuild(); // the VR menu has pages, the desktop one doesn't
     this.activeScene?.onSessionEnd?.();
     this.onSessionChange?.(false);
   }
@@ -438,6 +438,7 @@ export class App {
     this.quality = key;
     saveQuality(key);
     this._applyQuality();
+    this.menu.rebuild(); // a scene's options can depend on it (Hyperplay's shadows)
   }
 
   _applyQuality() {

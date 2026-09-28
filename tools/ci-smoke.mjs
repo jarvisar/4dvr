@@ -5,7 +5,8 @@
 //    uncaught errors or shader/WebGL errors
 // 3. runs tools/interaction-test.js, which drives fake tracked hands through
 //    the real interaction code, and checks the outcomes
-// 4. enters a real WebXR session on an emulated Quest 3 (IWER, `?iwer=headless`)
+// 4. clicks, drags and scrolls the menu on a flat screen with the mouse
+// 5. enters a real WebXR session on an emulated Quest 3 (IWER, `?iwer=headless`)
 //    and checks the tutorial, controller ray, menus, the palm button and the menu's grab bar
 // Screenshots land in smoke-artifacts/ (uploaded by the CI workflow).
 
@@ -167,12 +168,61 @@ try {
   for (const [name, ok, detail] of checks) (ok ? pass(name) : fail(`${name} (${detail})`));
   await page.close();
 
+  // On a flat screen the menu is the VR panel's canvas shown in the page. 640
+  // px tall so the Hyperplay page has to scroll.
+  console.log('desktop menu');
+  const dm = await browser.newPage();
+  await dm.setViewport({ width: 1280, height: 640 });
+  dm.on('pageerror', (e) => fail(`desktop menu pageerror: ${e.message}`));
+  await dm.goto(`${BASE}?desktop`, { waitUntil: 'networkidle0', timeout: 60000 });
+  await new Promise((r) => setTimeout(r, 3000));
+  // page coordinates of the center of a menu widget, found by its label
+  const menuAt = (label) => dm.evaluate((label) => {
+    const p = window.__app.menu.panel, r = p.canvas.getBoundingClientRect();
+    const text = (w) => (w.item ? (typeof w.item.label === 'function' ? w.item.label() : w.item.label) : w.row.label);
+    const w = p.widgets.find((w) => text(w) === label);
+    return w && [r.left + ((w.x + w.w / 2) / p.width) * r.width, r.top + ((w.y + w.h / 2) / p.height) * r.height];
+  }, label);
+  const inPage = await dm.evaluate(() => ({ dom: __app.menu.panel.dom, in3D: __app.menu.panel.group.visible, shown: !document.querySelector('.hud-panel').hidden }));
+  let [mx, my] = await menuAt('Tower');
+  await dm.mouse.click(mx, my);
+  await new Promise((r) => setTimeout(r, 300));
+  const clicked = await dm.evaluate(() => __app.activeScene.preset);
+  const [kx, ky] = await menuAt('Slice position (w)');
+  await dm.mouse.move(kx, ky + 6);
+  await dm.mouse.down();
+  await dm.mouse.move(kx + 60, ky + 6, { steps: 6 });
+  await dm.mouse.up();
+  await new Promise((r) => setTimeout(r, 300));
+  const dragged = await dm.evaluate(() => __app.activeScene.view.w);
+  await dm.evaluate(() => __app.activeScene.setW(0));
+  await dm.mouse.move(mx, my);
+  await dm.mouse.wheel({ deltaY: 300 });
+  await new Promise((r) => setTimeout(r, 500));
+  const wheeled = await dm.evaluate(() => ({ scrollTop: document.querySelector('.hud-panel').scrollTop, w: __app.activeScene.view.w }));
+  await dm.evaluate(() => { document.querySelector('.hud-panel').scrollTop = 0; });
+  [mx, my] = await menuAt('Close');
+  await dm.mouse.click(mx, my);
+  await new Promise((r) => setTimeout(r, 300));
+  const closedMenu = await dm.evaluate(() => ({ open: __app.desktopMenu, shown: !document.querySelector('.hud-panel').hidden }));
+  await dm.screenshot({ path: path.join(OUT, 'desktop-menu.png') });
+  await dm.close();
+  const menuChecks = [
+    ['the menu is drawn in the page, not in 3D', inPage.dom && !inPage.in3D && inPage.shown, JSON.stringify(inPage)],
+    ['clicking a button in it works', clicked === 'tower', clicked],
+    ['dragging its slider moves the slice', dragged > 0.05, dragged],
+    ['the wheel over it scrolls it and leaves the slice alone', wheeled.scrollTop > 0 && wheeled.w === 0, JSON.stringify(wheeled)],
+    ['its close button closes it', !closedMenu.open && !closedMenu.shown, JSON.stringify(closedMenu)],
+  ];
+  for (const [name, ok, detail] of menuChecks) (ok ? pass(name) : fail(`${name} (${detail})`));
+
   // A real WebXR session on an emulated Quest 3 (IWER), rendered as one view.
   console.log('vr (IWER emulator)');
   const vr = await browser.newPage();
   await vr.setViewport({ width: 1000, height: 900 });
   vr.on('pageerror', (e) => fail(`vr pageerror: ${e.message}`));
-  await vr.goto(`${BASE}?iwer=headless`, { waitUntil: 'networkidle0', timeout: 60000 });
+  // from desktop mode, so the menu goes from the page into the headset
+  await vr.goto(`${BASE}?iwer=headless&desktop`, { waitUntil: 'networkidle0', timeout: 60000 });
   await new Promise((r) => setTimeout(r, 2500));
   const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
   const ev = (js) => vr.evaluate(js);
@@ -183,7 +233,7 @@ try {
   })()`);
   await sleep(2000);
   // First time in VR: the tutorial starts in Hyperplay, with labels on the controllers
-  const started = await ev(`({ presenting: __app.presenting, mode: __app.inputMode, guide: __app.guide.mode, step: __app.guide.tut?.i, card: __app.guide.panel.group.visible, tags: __app.hands.tags.filter((t) => t.mesh.visible).length })`);
+  const started = await ev(`({ presenting: __app.presenting, mode: __app.inputMode, guide: __app.guide.mode, step: __app.guide.tut?.i, card: __app.guide.panel.group.visible, tags: __app.hands.tags.filter((t) => t.mesh.visible).length, menuInPage: __app.menu.panel.dom, menuPx: __app.menu.panel.px })`);
   await vr.screenshot({ path: path.join(OUT, 'vr-tutorial.png') });
   // Point a controller or tracked hand (its target ray) from `from` at a world point
   const aim = (device, target, from = '[0.15, 1.3, -0.1]') => ev(`(() => {
@@ -333,6 +383,7 @@ try {
   const turnDeg = Math.round((Math.atan2(-turned.fx, -turned.fz) - Math.atan2(-recentred.fx, -recentred.fz)) * 180 / Math.PI);
   const vrChecks = [
     ['enters an immersive session', started.presenting, JSON.stringify(started)],
+    ['the menu leaves the page and is drawn at full resolution', !started.menuInPage && started.menuPx === 2000, JSON.stringify(started)],
     ['the tutorial starts the first time, with labels on the controllers', started.guide === 'tutorial' && started.step === 0 && started.card && started.tags > 0, JSON.stringify(started)],
     ['a controller ray grabs a toy', grabbedByRay],
     ['grabbing and letting go finishes the first step', afterGrab.step === 1, JSON.stringify(afterGrab)],

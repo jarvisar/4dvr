@@ -2,14 +2,15 @@
 // next to that hand, and tapping it with the other hand opens the menu in
 // front of you. A/X does the same on controllers. The menu stays where it
 // opened until it's closed (it doesn't follow the hand or the head), and the
-// bar under it moves it. On desktop it's a HUD fixed to the camera.
+// bar under it moves it. On a flat screen the same panel is shown in the page
+// (see DomPanel), and main.js decides where.
 //
 // The palm used to open the whole menu next to the hand. That opened every
 // time someone looked at their hand, and it invited pinching with the palm
 // towards the face, which Quest keeps for its own menu.
 
 import * as THREE from 'three';
-import { UIPanel, PanelHandle, COLORS, facePanel } from './ui.js';
+import { UIPanel, PanelHandle, DomPanel, COLORS, facePanel } from './ui.js';
 import { J } from './input.js';
 import { QUALITY } from './quality.js';
 
@@ -19,10 +20,6 @@ const _to = new THREE.Vector3();
 const _side = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
 const _loc = new THREE.Vector3();
-
-// Desktop HUD layout in CSS pixels. main.js replaces the margins with
-// app.hudInsets, measured from the HTML tab bar and buttons.
-const HUD = { top: 76, bottom: 76, right: 16, minW: 280, maxW: 440 };
 
 // The palm button shows when a flat, open hand has its palm towards the head
 // (cosine of the angle between the palm normal and the direction to the head)
@@ -82,6 +79,12 @@ export class HandMenu {
     this.dwellBar.position.set(0, -this.button.height / 2 - 0.006, 0.001);
     this.button.group.add(this.dwellBar);
     this.palm = { ix: null, t: 0, hideT: 0, shown: false, dwell: 0, armed: true, seen: [-Infinity, -Infinity] };
+    this.hud = null; // the panel in the page on a flat screen (mountHud)
+  }
+
+  // Show the menu inside `parent` (an HTML element) when not in VR
+  mountHud(parent) {
+    this.hud = new DomPanel(this.panel, parent);
   }
 
   // The VR menu has three short pages instead of one long one. The pages are
@@ -91,7 +94,8 @@ export class HandMenu {
     const app = this.app;
     const scene = app.activeScene;
     if (!scene) return;
-    const title = { type: 'title', text: scene.title, sub: scene.subtitle };
+    const close = () => (app.presenting ? this.close() : app.setDesktopMenu(false));
+    const title = { type: 'title', text: scene.title, sub: scene.subtitle, close };
     const hint = { type: 'text', text: () => scene.hint(app.inputMode), lines: 5 };
     const quality = [
       {
@@ -109,10 +113,10 @@ export class HandMenu {
     if (!app.presenting) {
       rows = [title, ...scene.menuRows(), ...quality, hint];
     } else {
-      const page = (label, key) => ({ label, small: true, onClick: () => this.setPage(key), active: () => this.page === key });
+      const page = (label, key) => ({ label, onClick: () => this.setPage(key), active: () => this.page === key });
       rows = [title, {
-        type: 'buttons', columns: 4,
-        items: [page(scene.short, 'scene'), page('Scenes', 'scenes'), page('Settings', 'settings'), { label: 'Close', small: true, onClick: () => this.close() }],
+        type: 'buttons', style: 'pages',
+        items: [page(scene.short, 'scene'), page('Scenes', 'scenes'), page('Settings', 'settings')],
       }];
       if (this.page === 'scenes') {
         rows.push({
@@ -216,40 +220,18 @@ export class HandMenu {
     return _loc.x > -m && _loc.x < pn.width + m && _loc.y > -m && _loc.y < pn.height + m && _loc.z > -0.05 && _loc.z < 0.15;
   }
 
-  // Desktop only. Parks the panel in camera space so it sits at a fixed spot on
-  // screen (right edge, below the tab bar), scaled to fit the viewport.
-  _placeHud() {
-    const cam = this.app.camera;
-    const W = window.innerWidth, H = window.innerHeight;
-    const pw = this.panel.width, ph = this.panel.height;
-    const tan = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
-    const { top, bottom, right } = this.app.hudInsets || HUD;
-    const narrow = W < 720;
-    let wpx = narrow ? Math.min(W - 2 * right, HUD.maxW) : THREE.MathUtils.clamp(W * 0.27, HUD.minW, HUD.maxW);
-    let hpx = (wpx * ph) / pw;
-    const availH = H - top - bottom;
-    if (hpx > availH) { hpx = Math.max(120, availH); wpx = (hpx * pw) / ph; }
-    const d = (ph * H) / (hpx * 2 * tan); // distance at which ph meters spans hpx pixels
-    const cx = narrow ? W / 2 : W - right - wpx / 2;
-    const cy = top; // the panel hangs from its top edge (anchor: 'top')
-    const g = this.panel.group;
-    g.position.set((cx / W * 2 - 1) * d * tan * cam.aspect, (1 - (cy / H) * 2) * d * tan, -d);
-    g.quaternion.identity();
-    g.scale.setScalar(1);
-  }
-
   update(dt) {
     const app = this.app;
     const g = this.panel.group;
     if (!app.activeScene) return;
     if (!app.presenting) {
-      if (g.parent !== app.camera) app.camera.add(g);
-      g.visible = app.desktopMenu && app.hudActive;
-      if (g.visible) this._placeHud();
+      g.visible = false; // shown in the page instead
+      this.hud?.setShown(app.desktopMenu && app.hudActive);
       this.panel.opacity = 1;
       this.button.group.visible = false;
       return;
     }
+    this.hud?.setShown(false);
     if (g.parent !== app.ui.root) app.ui.root.add(g);
 
     // Controllers: A/X opens and closes it

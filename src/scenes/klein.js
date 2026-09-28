@@ -785,7 +785,7 @@ export class KleinScene extends SceneBase {
   }
 
   desktopHelp({ touch } = {}) {
-    if (touch) return '<b>Drag</b> to look around · moving needs a keyboard or a headset';
-    return '<b>WASD</b> move (<b>Shift</b> faster) · <b>drag</b> to look · <b>right-drag</b> to pull · <b>M</b> menu';
+    if (touch) return '<b>Drag</b> to look around · Moving around needs a keyboard or a headset.';
+    return '<b>WASD</b> move · <b>Shift</b> move faster · <b>Drag</b> to look around · <b>Right-drag</b> to pull yourself along';
   }
 }

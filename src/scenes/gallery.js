@@ -401,12 +401,18 @@ export class GalleryScene extends SceneBase {
     const polyItems = Object.entries(POLYS).map(([k, v]) => ({ label: v.short || v.label, small: true, onClick: () => this.setShape(k), active: () => this.shapeKey === k }));
     polyItems.push({ label: 'Net fold', small: true, onClick: () => this.setShape('net'), active: () => this.shapeKey === 'net' });
     const smoothItems = Object.keys(SMOOTH).map((k) => ({ label: LABELS[k], small: true, onClick: () => this.setShape(k), active: () => this.shapeKey === k }));
+    const curved = () => !this.isPolytope && !this.isNet; // curved shapes are only shown as slices
+    const sliceOnly = () => this.mode === 'slice'; // no projection, so no faces or slice inside it
     const rows = [
       { type: 'buttons', columns: 4, items: polyItems },
       { type: 'buttons', columns: 3, items: smoothItems },
       {
         type: 'tabs',
-        options: [{ label: 'Perspective', value: 'perspective', small: true }, { label: 'Stereographic', value: 'stereo', small: true }, { label: 'Slice only', value: 'slice', small: true }],
+        options: [
+          { label: 'Perspective', value: 'perspective', small: true, disabled: curved },
+          { label: 'Stereographic', value: 'stereo', small: true, disabled: curved },
+          { label: 'Slice only', value: 'slice', small: true, disabled: () => this.isNet }, // the net has no solid to slice
+        ],
         get: () => this.mode,
         set: (v) => { if (this.isPolytope || v === 'slice' || this.isNet) { if (v !== this.mode) this._forcedSlice = false; this.mode = v; } },
       },
@@ -420,8 +426,8 @@ export class GalleryScene extends SceneBase {
         type: 'toggles', columns: 3,
         items: [
           { label: 'Auto-rotate', get: () => this.auto, set: (v) => { this.auto = v; } },
-          { label: 'Faces', get: () => this.showFaces, set: (v) => { this.showFaces = v; } },
-          { label: 'Slice', get: () => this.showSlice, set: (v) => { this.showSlice = v; } },
+          { label: 'Faces', get: () => this.showFaces, set: (v) => { this.showFaces = v; }, disabled: sliceOnly },
+          { label: 'Slice', get: () => this.showSlice, set: (v) => { this.showSlice = v; }, disabled: sliceOnly },
         ],
       },
       {
@@ -444,7 +450,7 @@ export class GalleryScene extends SceneBase {
   }
 
   desktopHelp({ touch } = {}) {
-    if (touch) return '<b>Drag</b> the shape to rotate it · <b>Drag</b> empty space to orbit · <b>Menu</b>: slicing hyperplane and 4D rotation';
-    return '<b>Drag</b> the shape to rotate it · <b>Right-drag</b> to rotate it through 4D · <b>Wheel</b> or <b>Q/E</b>: move the slicing hyperplane · <b>P</b> perspective/stereographic · <b>Space</b> auto-rotate · <b>F</b> faces · <b>M</b> menu';
+    if (touch) return '<b>Drag</b> the shape to rotate it · <b>Drag</b> empty space to orbit · The menu moves the slicing hyperplane and rotates the shape through 4D.';
+    return '<b>Drag</b> the shape to rotate it · <b>Right-drag</b> to rotate the shape through 4D · <b>Wheel</b> or <b>Q/E</b> move the slicing hyperplane · <b>Drag</b> empty space to orbit · <b>P</b> switch between perspective and stereographic · <b>Space</b> start or stop auto-rotate · <b>F</b> show or hide faces';
   }
 }
