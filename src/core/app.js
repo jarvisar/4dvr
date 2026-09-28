@@ -5,7 +5,8 @@ import { AudioEngine } from './audio.js';
 import { InputSystem } from './input.js';
 import { InteractionManager } from './interaction.js';
 import { UISystem } from './ui.js';
-import { HandMenu, WelcomePanel } from './menu.js';
+import { HandMenu } from './menu.js';
+import { Guide } from './guide.js';
 import { HandVisuals } from './handVisuals.js';
 import { QUALITY, initialQuality, saveQuality } from './quality.js';
 import { pref } from './prefs.js';
@@ -53,8 +54,10 @@ export class App {
     this.ui = new UISystem(this);
     this.interaction = new InteractionManager(this);
     this.hands = new HandVisuals(this);
+    // Larger menus and cards, for anyone who finds the text small (an accessibility setting)
+    this.largeUI = pref.get('largeui', false);
     this.menu = new HandMenu(this);
-    this.welcome = new WelcomePanel(this);
+    this.guide = new Guide(this);
     this.desktopMenu = window.innerWidth >= 720; // phones start with the menu closed
     this.hudActive = false; // set by main.js once the start screen is dismissed
     // comfort options for scenes you move through (see setComfort)
@@ -199,6 +202,25 @@ export class App {
     pref.set(key.toLowerCase(), on);
   }
 
+  get uiScale() { return this.largeUI ? 1.25 : 1; }
+
+  setLargeUI(on) {
+    this.largeUI = on;
+    pref.set('largeui', on);
+    if (this.menu.shown) this.menu.open(); // placed again at the new size
+  }
+
+  // Menu > Settings > Recenter. Puts the scene in front of the person again and
+  // fits it to their height, for example after sitting down. Not in the scenes you move
+  // through, which track the head from frame to frame.
+  refit() {
+    if (!this.presenting || this.activeScene?.locomotion) return;
+    const moved = this.recenter();
+    if (this.menu.shown) this.menu.panel.group.applyMatrix4(moved); // the menu stays where it was relative to the person
+    this.activeScene?.onUserReady?.();
+    this.audio.click();
+  }
+
   // Right stick left/right turns in 30° steps in scenes you move through
   _updateSnapTurn() {
     if (!this.presenting || !this.activeScene?.locomotion || !this.comfort.snapTurn) return;
@@ -284,7 +306,7 @@ export class App {
     if (inVR) {
       const moved = this.recenter();
       this.menu.sceneChanged();
-      if (this.menu.pinned) this.menu.panel.group.applyMatrix4(moved); // a pinned menu stays where it was relative to the person
+      if (this.menu.shown) this.menu.panel.group.applyMatrix4(moved); // an open menu stays where it was relative to the person
     }
     let scene = this.scenes.get(key);
     if (!scene) {
@@ -298,7 +320,7 @@ export class App {
     if (this._rates) this._setFrameRate(this._rates.length - 1); // happens during the fade
     if (inVR) {
       scene.onUserReady?.(); // fit to the person's height
-      this._guidePending = true; // the scene's tips, placed once the head pose is up to date
+      this._guidePending = true; // the scene's tips or tutorial, placed once the head pose is up to date
     }
     this.menu.rebuild();
     if (!this.presenting && scene.desktopView) {
@@ -371,11 +393,9 @@ export class App {
     this._xrScaleUsed = null;
     this._applyQuality(); // three.js restored the pixel ratio from before the session
     this.orbit.enabled = true;
-    this.welcome.hide();
-    this.menu.pinned = false;
+    this.guide.sessionEnded();
     this.menu.shown = false;
-    this.menu.summoned = false;
-    this.menu.owner = null;
+    this.menu.palm.shown = false;
     this._resize();
     if (this.activeScene?.desktopView) {
       this.camera.position.copy(this.activeScene.desktopView.position);
@@ -454,12 +474,12 @@ export class App {
     if (this._sessionJustStarted && --this._sessionJustStarted === 0) {
       // head pose is valid now, so scenes can position themselves relative to the user
       this.activeScene?.onUserReady?.();
-      this.welcome.show();
       this.menu.rebuild();
+      this.guide.sessionStarted();
     }
     if (this._guidePending) {
       this._guidePending = false;
-      this.welcome.showSceneTips();
+      this.guide.sceneEntered();
     }
 
     // scene fade
@@ -477,6 +497,7 @@ export class App {
     this.interaction.update(dt);
     this.activeScene?.update(dt, this.time);
     this.menu.update(dt);
+    this.guide.update(dt);
     this.ui.update(this.time);
     this.hands.update();
     this._updateVignette(dt);

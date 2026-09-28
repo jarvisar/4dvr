@@ -439,7 +439,7 @@ export class GalleryScene extends SceneBase {
   hint(mode) {
     const blurb = POLYS[this.shapeKey]?.blurb || SMOOTH[this.shapeKey] || 'The 8 cells of a tesseract, unfolded into 3D. Use the fold slider to fold them back into a tesseract.';
     if (mode === 'desktop') return blurb;
-    if (mode === 'controllers') return `${blurb} Trigger to turn it, grip to turn it through 4D. Stick up/down moves the slicing hyperplane, left/right turns it in xw.`;
+    if (mode === 'controllers') return `${blurb} Trigger or grip to turn it. Hold both to turn it through 4D. Stick up/down moves the slicing hyperplane, left/right turns it in xw.`;
     return `${blurb} Pinch it to turn it. Middle-finger pinch it and move your hand to turn it through 4D. Pinch empty space next to it and move up or down to move the slicing hyperplane.`;
   }
 

@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { J } from './input.js';
 import { FONTS } from './ui.js';
+import { JOINT_RADII } from './handPoses.js';
 
 const CHAINS = [
   ['wrist', 'thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip'],
@@ -46,9 +47,9 @@ void main() {
 }
 `;
 
-function handMaterial() {
+function handMaterial(color = '#dfe6ff', opacity = 0.85) {
   return new THREE.ShaderMaterial({
-    uniforms: { uBase: { value: new THREE.Color('#dfe6ff') }, uOpacity: { value: 0.85 } },
+    uniforms: { uBase: { value: new THREE.Color(color) }, uOpacity: { value: opacity } },
     vertexShader: HAND_VERT,
     fragmentShader: HAND_FRAG,
     transparent: true,
@@ -68,6 +69,55 @@ const TINT_POKE = new THREE.Color('#eceef4');
 const RING_IDLE = new THREE.Color('#ffffff');
 const POKE_PRESS = new THREE.Color('#1a9fff');
 const READOUT_HOLD = 0.12; // seconds a readout stays up after its last update
+const TIPS = [J['thumb-tip'], J['index-finger-tip'], J['middle-finger-tip'], J['ring-finger-tip'], J['pinky-finger-tip']];
+
+const _joints = Array.from({ length: 25 }, () => new THREE.Vector3());
+const _w = new THREE.Vector3();
+
+// A see-through hand that shows a gesture, for the tutorial. Drawn like the
+// tracked hands but in light blue, from the poses in handPoses.js.
+export class GhostHand {
+  constructor(parent) {
+    this.joints = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 12, 8), handMaterial('#5ab8ff', 0), 25);
+    this.bones = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 1, 8, 1, true).translate(0, 0.5, 0), handMaterial('#5ab8ff', 0), BONES.length);
+    for (const im of [this.joints, this.bones]) {
+      im.frustumCulled = false;
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      // brighter than the shader's shading alone, so it stands out on the light table
+      const tint = new Float32Array(im.count * 3);
+      for (let i = 0; i < tint.length; i += 3) { tint[i] = 0.1; tint[i + 1] = 0.3; tint[i + 2] = 0.5; }
+      im.geometry.setAttribute('instanceTint', new THREE.InstancedBufferAttribute(tint, 3));
+      im.renderOrder = 29;
+      im.visible = false;
+      parent.add(im);
+    }
+  }
+
+  // Joints from blendPose(), relative to the wrist, placed at a wrist pose in world space
+  set(local, wristPos, wristQuat, opacity) {
+    const on = opacity > 0.01;
+    this.joints.visible = this.bones.visible = on;
+    if (!on) return;
+    for (let j = 0; j < 25; j++) _joints[j].copy(local[j]).applyQuaternion(wristQuat).add(wristPos);
+    for (let j = 0; j < 25; j++) {
+      const r = JOINT_RADII[j] * 0.7;
+      this.joints.setMatrixAt(j, _m.compose(_joints[j], _q.identity(), _s.set(r, r, r)));
+    }
+    BONES.forEach(([a, b], i) => {
+      _w.subVectors(_joints[b], _joints[a]);
+      const len = _w.length();
+      const r = Math.max(0.003, Math.min(JOINT_RADII[a], JOINT_RADII[b]) * 0.38);
+      _q.setFromUnitVectors(_up, _w.divideScalar(len || 1));
+      this.bones.setMatrixAt(i, _m.compose(_joints[a], _q, _s.set(r, len, r)));
+    });
+    this.joints.instanceMatrix.needsUpdate = true;
+    this.bones.instanceMatrix.needsUpdate = true;
+    this.joints.material.uniforms.uOpacity.value = opacity * 0.9;
+    this.bones.material.uniforms.uOpacity.value = opacity * 0.9;
+  }
+
+  hide() { this.joints.visible = this.bones.visible = false; }
+}
 
 // One-line label on a dark plate that hugs the text. Redrawn in place on a
 // fixed size canvas, so updates allocate nothing.
@@ -177,6 +227,25 @@ export class HandVisuals {
       this.group.add(r.mesh);
       return r;
     });
+    // tutorial labels above each controller, e.g. which button grabs
+    this.tags = [0, 1].map(() => {
+      const r = new Readout();
+      this.group.add(r.mesh);
+      return r;
+    });
+    // tutorial: fingertips that pulse on the tracked hands, e.g. the thumb
+    // and middle finger for a middle-finger pinch. { joints, color } or null.
+    this.fingerHint = null;
+    this._hintTint = new THREE.Color();
+  }
+
+  // Label above a controller for as long as it's called every frame
+  tag(ix, text) {
+    const r = this.tags[ix.index];
+    if (!r) return;
+    r.set(text, '#ffffff');
+    r.ix = ix;
+    r.t = this.app.time;
   }
 
   // Show a short readout next to an interactor's hand, e.g. the slice position
@@ -194,6 +263,8 @@ export class HandVisuals {
     let ji = 0, bi = 0;
     const tintJ = this.joints.geometry.attributes.instanceTint;
     const tintB = this.bones.geometry.attributes.instanceTint;
+    const hint = this.fingerHint;
+    if (hint) this._hintTint.copy(hint.color).multiplyScalar(0.35 + 0.35 * Math.sin(app.time * 6));
     app.input.xr.forEach((ix, h) => {
       const ring = this.rings[h];
       ring.visible = false;
@@ -204,7 +275,9 @@ export class HandVisuals {
         _m.compose(jt.pos, _q.identity(), _s.set(r, r, r));
         this.joints.setMatrixAt(ji, _m);
         let tint = TINT_NONE;
-        if ((j === J['thumb-tip'] || j === J['index-finger-tip']) && ix.pinchStrength > 0.4) tint = ix.pinch.pressed ? TINT_PINCH : TINT_NONE;
+        if (hint && hint.joints.includes(j) && !ix.pinch.pressed && !ix.grip.pressed) tint = this._hintTint;
+        if ((j === J['thumb-tip'] || j === J['index-finger-tip']) && ix.pinchStrength > 0.4) tint = ix.pinch.pressed ? TINT_PINCH : tint;
+        if (ix.palmGrab && TIPS.includes(j)) tint = TINT_PINCH;
         if ((j === J['thumb-tip'] || j === J['middle-finger-tip']) && ix.grip.pressed) tint = TINT_GRIP;
         if (j === J['index-finger-tip'] && ix.uiEngaged) tint = TINT_POKE;
         tintJ.setXYZ(ji, tint.r, tint.g, tint.b);
@@ -225,7 +298,7 @@ export class HandVisuals {
       // shrinks as they close, so both pinches show before they trigger.
       const middle = ix.grip.pressed || (!ix.pinch.pressed && ix.gripStrength > ix.pinchStrength);
       const strength = middle ? ix.gripStrength : ix.pinchStrength;
-      if (strength > 0.25 && !ix.uiEngaged) {
+      if (strength > 0.25 && !ix.uiEngaged && !ix.fist && !ix.palmGrab) {
         const thumb = ix.joints[J['thumb-tip']].pos;
         const other = ix.joints[middle ? J['middle-finger-tip'] : J['index-finger-tip']].pos;
         ring.visible = true;
@@ -255,16 +328,9 @@ export class HandVisuals {
     });
 
     // readouts sit just above the hand (or the mouse's drag point) and face the head,
-    // at the size they would have half a meter away
-    for (const r of this.readouts) {
-      const on = !!r.ix && app.time - r.t < READOUT_HOLD;
-      r.mesh.visible = on;
-      if (!on) continue;
-      const s = Math.max(1, r.ix.grabPos.distanceTo(app.headPosition) / 0.5);
-      r.mesh.position.copy(r.ix.grabPos).addScaledVector(_up, 0.045 * s);
-      r.mesh.scale.setScalar(s);
-      r.mesh.lookAt(app.headPosition);
-    }
+    // at the size they would have half a meter away. Controller tags sit a little higher.
+    for (const r of this.readouts) this._placeLabel(r, 0.045);
+    for (const r of this.tags) this._placeLabel(r, 0.08, !!this.readouts[r.ix?.index]?.mesh.visible);
     this.joints.count = ji;
     this.bones.count = bi;
     this.joints.instanceMatrix.needsUpdate = true;
@@ -290,5 +356,16 @@ export class HandVisuals {
       const s = 0.6 + ix.rayLength * 0.5;
       r.cursor.scale.setScalar(ix.pinch.pressed || ix.grip.pressed ? s * 0.7 : s);
     });
+  }
+
+  _placeLabel(r, above, hidden = false) {
+    const app = this.app;
+    const on = !hidden && !!r.ix && app.time - r.t < READOUT_HOLD;
+    r.mesh.visible = on;
+    if (!on) return;
+    const s = Math.max(1, r.ix.grabPos.distanceTo(app.headPosition) / 0.5);
+    r.mesh.position.copy(r.ix.grabPos).addScaledVector(_up, above * s);
+    r.mesh.scale.setScalar(s);
+    r.mesh.lookAt(app.headPosition);
   }
 }

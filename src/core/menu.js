@@ -1,12 +1,17 @@
-// Hand menu and the guide panel. The menu opens when a palm faces the head, or
-// with A/X on controllers. On desktop it's a HUD fixed to the camera. The guide
-// shows when entering VR and the first time each scene is opened.
+// The menu. In VR, turning a palm towards your face shows a small Menu button
+// next to that hand, and tapping it with the other hand opens the menu in
+// front of you. A/X does the same on controllers. The menu stays where it
+// opened until it's closed (it doesn't follow the hand or the head), and the
+// bar under it moves it. On desktop it's a HUD fixed to the camera.
+//
+// The palm used to open the whole menu next to the hand. That opened every
+// time someone looked at their hand, and it invited pinching with the palm
+// towards the face, which Quest keeps for its own menu.
 
 import * as THREE from 'three';
-import { UIPanel, COLORS } from './ui.js';
+import { UIPanel, PanelHandle, COLORS, facePanel } from './ui.js';
 import { J } from './input.js';
 import { QUALITY } from './quality.js';
-import { pref } from './prefs.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _pos = new THREE.Vector3();
@@ -14,46 +19,74 @@ const _to = new THREE.Vector3();
 const _side = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
 const _loc = new THREE.Vector3();
-const _m = new THREE.Matrix4();
-const _q = new THREE.Quaternion();
 
 // Desktop HUD layout in CSS pixels. main.js replaces the margins with
 // app.hudInsets, measured from the HTML tab bar and buttons.
 const HUD = { top: 76, bottom: 76, right: 16, minW: 280, maxW: 440 };
 
-// Palm menu: how directly the palm has to face the head to open it and to keep
-// it open, and how close to the hand the person has to be looking to open it
-// (cosine of the angle between the view direction and the hand, about 50°).
-const PALM_OPEN = 0.72;
-const PALM_KEEP = 0.4;
-const LOOK_OPEN = 0.64;
+// The palm button shows when a flat, open hand has its palm towards the head
+// (cosine of the angle between the palm normal and the direction to the head)
+// while the person looks towards it (cosine of the angle between the view
+// direction and the hand, about 37°), for SHOW_DELAY seconds. The looser KEEP
+// values keep it up once it's showing.
+const PALM_SHOW = 0.72;
+const PALM_KEEP = 0.45;
+const LOOK_SHOW = 0.8;
+const LOOK_KEEP = 0.55;
+const FLAT = 0.8;
+const SHOW_DELAY = 0.3;
+const HIDE_DELAY = 0.35;
+// One-handed use: when the other hand hasn't been seen for ALONE_AFTER
+// seconds, holding the palm up for DWELL_OPEN seconds opens the menu too. A bar
+// under the button fills up meanwhile.
+const ALONE_AFTER = 4;
+const DWELL_OPEN = 1.5;
+
+// Where the menu opens: this far in front of the head, with its top edge this
+// far below eye level. A 50 cm tall page then centers about 30° below eye
+// level, where Meta and Microsoft put panels you touch.
+const OPEN_DIST = 0.45;
+const OPEN_TOP = 0.05;
 
 export class HandMenu {
   constructor(app) {
     this.app = app;
     // anchored at the top edge, so switching pages doesn't move the buttons at the top
     this.panel = app.ui.add(new UIPanel(app.ui, { width: 0.3, name: 'hand-menu', anchor: 'top' }));
-    // Drawn over the world. On desktop it's a HUD, and in VR it's always held
-    // close in front, where a long page shouldn't disappear into the Hyperplay
+    // Drawn over the world, so a long page doesn't disappear into the Hyperplay
     // table. Hands still draw over it.
     this.panel.material.depthTest = false;
     this.panel.group.visible = false;
     this.panel.opacity = 0;
+    this.handle = new PanelHandle(app.ui, this.panel);
+    app.ui.handles.push(this.handle);
     this.page = 'scene'; // in VR: 'scene', 'scenes' or 'settings'
     this.hiddenT = 0;
-    this.pinned = false;
-    this.summoned = false; // opened in front of the head with A/X, rather than pinned by hand
-    this.owner = null;
-    this.showT = 0;
-    this.hideT = 0;
     this.shown = false;
-    this.inUse = false;
+
+    // the Menu / Close button next to a palm
+    this.button = app.ui.add(new UIPanel(app.ui, {
+      width: 0.09, name: 'palm-button',
+      rows: [{ type: 'buttons', height: 0.04, items: [{ label: () => (this.shown ? 'Close' : 'Menu'), onClick: () => this.toggle(this.palm.ix?.palmPos), active: () => !this.shown }] }],
+    }));
+    this.button.material.depthTest = false;
+    this.button.group.visible = false;
+    this.button.opacity = 0;
+    this.dwellBar = new THREE.Mesh(new THREE.PlaneGeometry(0.062, 0.004), new THREE.ShaderMaterial({
+      uniforms: { uFill: { value: 0 }, uOpacity: { value: 0 } },
+      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: 'uniform float uFill; uniform float uOpacity; varying vec2 vUv; void main() { vec3 c = vUv.x < uFill ? vec3(0.1, 0.62, 1.0) : vec3(0.23, 0.26, 0.31); gl_FragColor = vec4(c, uOpacity); }',
+      transparent: true, depthTest: false, depthWrite: false,
+    }));
+    this.dwellBar.renderOrder = 21;
+    this.dwellBar.position.set(0, -this.button.height / 2 - 0.006, 0.001);
+    this.button.group.add(this.dwellBar);
+    this.palm = { ix: null, t: 0, hideT: 0, shown: false, dwell: 0, armed: true, seen: [-Infinity, -Infinity] };
   }
 
-  // The VR menu has three short pages instead of one long one, since it's held
-  // up next to a hand. The pages are this scene's options, the list of scenes,
-  // and settings. The desktop menu is one page, and the HTML HUD has the scene
-  // tabs and help.
+  // The VR menu has three short pages instead of one long one. The pages are
+  // this scene's options, the list of scenes, and settings. The desktop menu is
+  // one page, and the HTML HUD has the scene tabs and help.
   rebuild() {
     const app = this.app;
     const scene = app.activeScene;
@@ -79,10 +112,7 @@ export class HandMenu {
       const page = (label, key) => ({ label, small: true, onClick: () => this.setPage(key), active: () => this.page === key });
       rows = [title, {
         type: 'buttons', columns: 4,
-        items: [
-          page(scene.short, 'scene'), page('Scenes', 'scenes'), page('Settings', 'settings'),
-          { label: () => (this.summoned ? 'Close' : this.pinned ? 'Unpin' : 'Pin'), small: true, onClick: () => this.togglePin(), active: () => this.pinned && !this.summoned },
-        ],
+        items: [page(scene.short, 'scene'), page('Scenes', 'scenes'), page('Settings', 'settings'), { label: 'Close', small: true, onClick: () => this.close() }],
       }];
       if (this.page === 'scenes') {
         rows.push({
@@ -92,16 +122,24 @@ export class HandMenu {
           set: (k) => app.setScene(k),
         });
       } else if (this.page === 'settings') {
+        const howTo = { label: 'How to play', onClick: () => { this.close(); app.guide.howToPlay(); } };
         rows.push(
-          { type: 'buttons', items: [{ label: 'How to play', onClick: () => app.welcome.show() }] },
+          ...(scene.locomotion ? [{ type: 'buttons', items: [howTo] }] : [
+            { type: 'buttons', columns: 2, items: [howTo, { label: 'Recenter', onClick: () => app.refit() }] },
+            { type: 'text', lines: 2, text: 'Recenter moves the scene in front of you and fits it to your height, for example after sitting down.' },
+          ]),
           ...quality,
-          { type: 'text', lines: 1, text: 'Comfort, in scenes you move through' },
+          { type: 'text', lines: 3, text: 'Comfort, in scenes you move through. The vignette darkens the edges of your view while you move, and snap turn turns in 30° steps.' },
           {
             type: 'toggles', columns: 2,
             items: [
               { label: 'Vignette', get: () => app.comfort.vignette, set: (v) => app.setComfort('vignette', v) },
               { label: 'Snap turn', get: () => app.comfort.snapTurn, set: (v) => app.setComfort('snapTurn', v) },
             ],
+          },
+          {
+            type: 'toggles', columns: 2,
+            items: [{ label: 'Larger menus', get: () => app.largeUI, set: (v) => app.setLargeUI(v) }],
           },
         );
       } else {
@@ -118,56 +156,63 @@ export class HandMenu {
     this.rebuild();
   }
 
-  togglePin() {
-    this.pinned = !this.pinned;
-    this.summoned = false;
-    if (!this.pinned && this.owner === null) this.shown = false;
+  toggle(from) {
+    if (this.shown) this.close();
+    else this.open(from);
   }
 
-  // Pin the menu in front of the head, with its top edge just above eye level
-  summonInFront() {
-    const cam = this.app.camera;
-    const head = this.app.headPosition;
-    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.getWorldQuaternion(new THREE.Quaternion()));
-    fwd.y = 0;
-    fwd.normalize();
-    this._opening();
-    this.panel.group.position.copy(head).addScaledVector(fwd, 0.45).addScaledVector(UP, 0.05);
-    this._face(this.panel.group.position, head, 1);
-    this.pinned = true;
-    this.summoned = true;
-    this.shown = true;
-  }
-
-  // After a scene switch the menu shows the new scene's page, and a menu opened
-  // with A/X closes (the new scene's tips appear where it was).
-  sceneChanged() {
-    this.page = 'scene';
-    if (!this.summoned) return;
-    this.summoned = false;
-    this.pinned = false;
-    this.shown = false;
-  }
-
-  // A menu that's been closed for a while opens on the scene's page again
-  _opening() {
+  // Open in front of the head, turned a little towards `from` (the hand or
+  // controller that opened it)
+  open(from = null) {
     if (this.hiddenT > 2) this.setPage('scene');
     this.hiddenT = 0;
+    this._place(from);
+    this.shown = true;
+    this.app.audio.toggle(true);
+    this.app.guide.menuOpened();
   }
 
-  _face(pos, head, alpha) {
-    // Matrix4.lookAt(eye, target) builds a basis whose +Z points from target to
-    // eye, so passing (head, pos) turns the panel's front (+Z) toward the head.
-    _m.lookAt(head, pos, UP);
-    _q.setFromRotationMatrix(_m);
-    this.panel.group.quaternion.slerp(_q, alpha);
+  close() {
+    if (!this.shown) return;
+    this.shown = false;
+    this.app.audio.toggle(false);
   }
 
-  // Is a point (a fingertip) just in front of the panel?
-  _nearPanel(p) {
-    const pn = this.panel;
+  _place(from) {
+    const app = this.app;
+    const head = app.headPosition;
+    _fwd.set(0, 0, -1).applyQuaternion(app.headQuaternion).setY(0);
+    if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1); // looking straight up or down
+    _fwd.normalize();
+    if (from) {
+      _to.subVectors(from, head).setY(0);
+      if (_to.lengthSq() > 1e-4) {
+        // signed angle from the view direction to the hand, about the vertical
+        const a = Math.atan2(_fwd.z * _to.x - _fwd.x * _to.z, _fwd.x * _to.x + _fwd.z * _to.z);
+        _fwd.applyAxisAngle(UP, THREE.MathUtils.clamp(a * 0.6, -0.45, 0.45));
+      }
+    }
+    const pn = this.panel, g = pn.group;
+    const s = app.uiScale;
+    let top = head.y - OPEN_TOP;
+    // a finger pressing a button that hangs below a table top would disappear into the table
+    const floor = app.activeScene?.menuFloorY;
+    if (floor !== undefined) top = Math.max(top, floor + pn.height * s);
+    g.position.copy(head).addScaledVector(_fwd, OPEN_DIST * Math.sqrt(s));
+    g.position.y = top;
+    g.scale.setScalar(s);
+    facePanel(pn, head);
+  }
+
+  // After a scene switch the menu shows the new scene's page. An open menu
+  // stays open where it was relative to the person (App moves it).
+  sceneChanged() {
+    this.page = 'scene';
+  }
+
+  // Is a point (a fingertip) just in front of a panel?
+  _nearPanel(pn, p, m = 0.06) {
     pn.toPanel(p, _loc);
-    const m = 0.06;
     return _loc.x > -m && _loc.x < pn.width + m && _loc.y > -m && _loc.y < pn.height + m && _loc.z > -0.05 && _loc.z < 0.15;
   }
 
@@ -202,71 +247,83 @@ export class HandMenu {
       g.visible = app.desktopMenu && app.hudActive;
       if (g.visible) this._placeHud();
       this.panel.opacity = 1;
+      this.button.group.visible = false;
       return;
     }
     if (g.parent !== app.ui.root) app.ui.root.add(g);
 
-    // Controllers: A/X toggles a floating menu
+    // Controllers: A/X opens and closes it
     for (const ix of app.input.xr) {
-      if (ix.kind === 'controller' && ix.btnA.down) {
-        if (this.pinned && this.shown) { this.pinned = false; this.summoned = false; this.shown = false; } else this.summonInFront();
-      }
+      if (ix.kind === 'controller' && ix.btnA.down) this.toggle(ix.grabPos);
     }
-
-    this.panel.ownerIx = this.pinned ? null : this.owner; // the hand holding the menu can't poke it
-    this.inUse = false;
-    if (this.pinned) {
-      this.shown = true;
-    } else {
-      // Hands: show the menu next to a hand whose palm faces the head, while
-      // the person is looking toward it (a palm turned up at waist height, or
-      // while looking at something else, doesn't open it)
-      const head = app.headPosition;
-      _fwd.set(0, 0, -1).applyQuaternion(app.headQuaternion);
-      let cand = null;
-      for (const ix of app.input.xr) {
-        if (ix.kind !== 'hand' || !ix.jointsValid || ix.grabbed || ix.emptyGrab) continue;
-        const showing = this.owner === ix && this.shown;
-        if (ix.palmFacingHead < (showing ? PALM_KEEP : PALM_OPEN)) continue;
-        if (!showing && _to.subVectors(ix.joints[J.wrist].pos, head).normalize().dot(_fwd) < LOOK_OPEN) continue;
-        if (!cand || ix.palmFacingHead > cand.palmFacingHead) cand = ix;
-      }
-      // The other hand reaching for the open menu keeps it open and holds it
-      // still, so a button doesn't drift away from the finger about to press it.
-      this.inUse = this.shown && this.panel.opacity > 0.3
-        && app.input.xr.some((ix) => ix !== this.owner && ix.active && ix.hasPoke && this._nearPanel(ix.pokePos));
-      if (this.inUse) {
-        this.showT = 0;
-        this.hideT = 0;
-      } else if (cand) {
-        this.hideT = 0;
-        this.showT += dt;
-        if (this.showT > 0.12) {
-          if (!this.shown || this.owner !== cand) this._snap = true;
-          if (!this.shown) this._opening();
-          this.shown = true;
-          this.owner = cand;
-        }
-      } else {
-        this.showT = 0;
-        this.hideT += dt;
-        if (this.hideT > 0.25) { this.shown = false; }
-      }
-      if (this.shown && !this.inUse && this.owner && this.owner.jointsValid) this._follow(this.owner, dt);
-    }
+    this._updatePalm(dt);
 
     this.hiddenT = this.shown ? 0 : this.hiddenT + dt;
     const target = this.shown ? 1 : 0;
     this.panel.opacity += (target - this.panel.opacity) * Math.min(1, dt * 14);
     g.visible = this.panel.opacity > 0.02;
-    const s = 0.92 + 0.08 * this.panel.opacity;
-    g.scale.setScalar(s);
+    g.scale.setScalar((0.92 + 0.08 * this.panel.opacity) * app.uiScale);
   }
 
-  // Place the panel beside the palm on the side toward the body's midline (the
-  // little-finger side), where the other hand can reach all of it without
-  // crossing over, instead of towering above the hand. Its top edge is a little
-  // above the hand, but not above eye level.
+  _updatePalm(dt) {
+    const app = this.app;
+    const P = this.palm;
+    const head = app.headPosition;
+    _fwd.set(0, 0, -1).applyQuaternion(app.headQuaternion);
+    let cand = null;
+    for (const ix of app.input.xr) {
+      if (ix.kind !== 'hand' || !ix.jointsValid) continue;
+      P.seen[ix.index] = app.time;
+      if (ix.busy || ix.fist) continue;
+      const showing = P.shown && P.ix === ix;
+      if (ix.palmFacingHead < (showing ? PALM_KEEP : PALM_SHOW)) continue;
+      if (!showing && (ix.openness < FLAT || ix.pinchStrength > 0.5)) continue;
+      const look = _to.subVectors(ix.joints[J.wrist].pos, head).normalize().dot(_fwd);
+      if (look < (showing ? LOOK_KEEP : LOOK_SHOW)) continue;
+      if (!cand || ix.palmFacingHead > cand.palmFacingHead) cand = ix;
+    }
+    // The other hand reaching for the button keeps it up and holds it still,
+    // so it doesn't drift away from the finger about to press it.
+    const reaching = P.shown && this.button.opacity > 0.3
+      && app.input.xr.some((ix) => ix !== P.ix && ix.active && ix.hasPoke && this._nearPanel(this.button, ix.pokePos, 0.04));
+    if (reaching) {
+      P.hideT = 0;
+    } else if (cand) {
+      if (cand !== P.ix) { P.ix = cand; P.t = 0; P.shown = false; }
+      P.hideT = 0;
+      P.t += dt;
+      if (!P.shown && P.t > SHOW_DELAY) { P.shown = true; this._snap = true; }
+    } else {
+      P.t = 0;
+      P.hideT += dt;
+      if (P.hideT > HIDE_DELAY) { P.shown = false; P.armed = true; }
+    }
+    this.button.ownerIx = P.ix; // the hand it's next to can't press it
+    if (P.shown && !reaching && P.ix?.jointsValid) this._follow(P.ix, dt);
+
+    // one-handed: hold the palm up to open it
+    const other = app.input.xr.find((ix) => ix !== P.ix);
+    const alone = P.shown && cand === P.ix && !reaching && !this.shown && P.armed && other
+      && app.time - P.seen[other.index] > ALONE_AFTER;
+    P.dwell = alone ? P.dwell + dt : 0;
+    if (P.dwell > DWELL_OPEN) {
+      P.dwell = 0;
+      P.armed = false; // the palm has to go down before it can open it again
+      this.open(P.ix.palmPos);
+    }
+
+    const b = this.button;
+    b.opacity += ((P.shown ? 1 : 0) - b.opacity) * Math.min(1, dt * 16);
+    b.group.visible = b.opacity > 0.02;
+    b.group.scale.setScalar((0.85 + 0.15 * b.opacity) * app.uiScale);
+    const bar = this.dwellBar.material.uniforms;
+    bar.uFill.value = P.dwell / DWELL_OPEN;
+    bar.uOpacity.value = P.dwell > 0.15 ? b.opacity : 0;
+  }
+
+  // Keep the button beside the palm on the side towards the body's midline
+  // (the little-finger side), where the other hand reaches it without crossing
+  // over, and away from the thumb and index where Quest shows its own menu icon.
   _follow(o, dt) {
     const app = this.app;
     const head = app.headPosition;
@@ -275,122 +332,11 @@ export class HandMenu {
     _pos.addVectors(wrist, knuckle).multiplyScalar(0.5);
     _side.set(1, 0, 0).applyQuaternion(app.headQuaternion).setY(0).normalize();
     if (o.handedness === 'right') _side.negate();
-    _to.subVectors(head, _pos).setY(0).normalize();
-    const pn = this.panel;
-    let top = Math.min(_pos.y + 0.2, head.y + 0.05);
-    // The menu draws over the world, but a finger pressing a button that hangs
-    // below a table top would disappear into the table. Keep the bottom above it.
-    const floor = app.activeScene?.menuFloorY;
-    if (floor !== undefined) top = Math.max(top, floor + pn.height);
-    _pos.addScaledVector(_side, pn.width / 2 + 0.06).addScaledVector(_to, 0.02);
-    _pos.y = top;
-    const g = pn.group;
-    const a = this._snap ? 1 : 1 - Math.exp(-dt * 16);
-    g.position.lerp(_pos, a);
-    this._face(g.position, head, this._snap ? 1 : 1 - Math.exp(-dt * 12));
+    _to.subVectors(head, _pos).normalize();
+    _pos.addScaledVector(_side, 0.1 * app.uiScale).addScaledVector(_to, 0.03).addScaledVector(UP, 0.02);
+    const g = this.button.group;
+    g.position.lerp(_pos, this._snap ? 1 : 1 - Math.exp(-dt * 18));
+    facePanel(this.button, head, this._snap ? 1 : 1 - Math.exp(-dt * 12));
     this._snap = false;
-  }
-}
-
-const INTRO = '4D objects are shown as their 3D cross-sections, or slices. The fourth direction is called w: +w is ana (pink) and −w is kata (blue).';
-
-// Controls that work the same way in every scene. What pinching empty space or
-// the sticks do depends on the scene, so that's in each scene's tips.
-const LEGEND = {
-  hands: [
-    ['Pinch', 'Grab, move and throw, with your thumb and index finger.'],
-    ['Middle-finger pinch', 'Turn or move things through w, the fourth direction.'],
-    ['Palm to your face', 'Open the menu next to your hand.'],
-    ['Fingertip', 'Press buttons. Point and pinch to use distant ones.'],
-  ],
-  controllers: [
-    ['Trigger', 'Grab, move and throw. Point and pull it to use distant objects and buttons.'],
-    ['Grip', 'Turn or move things through w, the fourth direction.'],
-    ['A or X', 'Open the menu.'],
-  ],
-};
-
-// How to play panel. Shown on entering VR, from the menu, and the first time each scene opens.
-export class WelcomePanel {
-  constructor(app) {
-    this.app = app;
-    this.panel = app.ui.add(new UIPanel(app.ui, { width: 0.46, name: 'welcome' }));
-    // Drawn over the world like the hand menu. It opens 55 cm in front of the
-    // head, where a scene's exhibit (a polytope, a knot) would cut through it.
-    this.panel.material.depthTest = false;
-    this.panel.group.visible = false;
-    this.seen = pref.list('tips'); // scenes whose tips have been shown in this browser
-    this.rebuild(true);
-  }
-
-  rebuild(intro) {
-    const app = this.app;
-    const scene = app.activeScene;
-    const mode = app.inputMode === 'controllers' ? 'controllers' : 'hands';
-    const tips = scene ? scene.hint(mode) : '';
-    const done = { type: 'buttons', items: [{ label: 'Got it', onClick: () => this.hide(), active: () => true }], height: 0.042 };
-    if (intro || !scene) {
-      this.panel.width = 0.46;
-      this.panel.setRows([
-        { type: 'title', text: '4D VR', sub: 'How to play' },
-        { type: 'text', text: INTRO, lines: 3, color: COLORS.ink },
-        { type: 'legend', items: LEGEND[mode] },
-        ...(scene ? [
-          { type: 'spacer', h: 0.004 },
-          { type: 'text', text: scene.title, bold: true, lines: 1, color: COLORS.ink },
-          { type: 'text', text: tips, lines: 6 },
-        ] : []),
-        done,
-      ]);
-    } else {
-      const menu = mode === 'controllers' ? 'Press A or X for the menu.' : 'Turn a palm towards your face for the menu.';
-      this.panel.width = 0.4;
-      this.panel.setRows([
-        { type: 'title', text: scene.title, sub: scene.subtitle },
-        { type: 'text', text: tips, lines: 7, color: COLORS.ink },
-        { type: 'text', text: `${menu} "How to play" in it shows this again.`, lines: 2 },
-        done,
-      ]);
-    }
-  }
-
-  // Full guide, with the general controls and the current scene's tips
-  show() {
-    this.rebuild(true);
-    this._markSeen();
-    this._place();
-  }
-
-  // Show the current scene's tips the first time it's opened in this browser, otherwise hide the guide
-  showSceneTips() {
-    const key = this.app.sceneKey;
-    if (!key || this.seen.has(key)) { this.hide(); return; }
-    this.rebuild(false);
-    this._markSeen();
-    this._place();
-  }
-
-  _markSeen() {
-    const key = this.app.sceneKey;
-    if (!key || this.seen.has(key)) return;
-    this.seen.add(key);
-    pref.setList('tips', this.seen);
-  }
-
-  _place() {
-    const app = this.app;
-    const head = app.headPosition;
-    const q = app.camera.getWorldQuaternion(new THREE.Quaternion());
-    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q).setY(0).normalize();
-    const g = this.panel.group;
-    g.position.copy(head).addScaledVector(fwd, 0.55).addScaledVector(UP, -0.1);
-    _m.lookAt(head, g.position, UP);
-    g.quaternion.setFromRotationMatrix(_m);
-    g.visible = true;
-    this.panel.opacity = 1;
-  }
-
-  hide() {
-    this.panel.group.visible = false;
   }
 }

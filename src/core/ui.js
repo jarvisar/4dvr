@@ -1,14 +1,17 @@
 // VR UI panels drawn to a canvas texture, with fingertip and ray input.
 //
 // Panels are laid out from a list of rows and only redrawn when a displayed
-// value changes. Buttons are at least 22 mm tall, following Meta's hand
-// interaction guidelines.
+// value changes. Buttons are at least 22 mm tall with a gap of about 1 cm,
+// following Meta's hand interaction guidelines.
 
 import * as THREE from 'three';
 
 const PX_PER_M = 2000;
 const PAD = 0.014;
-const GAP = 0.007;
+const GAP = 0.009;
+// how far outside a widget a fingertip or ray still hits it. Less than half the
+// gap, so neighbors never overlap.
+const HIT_PAD = 0.003;
 const ROW_H = { title: 0.054, tabs: 0.036, buttons: 0.036, toggles: 0.036, slider: 0.054, text: 0.0 };
 const TEXT_SIZE = 0.0108;
 const LINE_H = 0.0158;
@@ -189,7 +192,7 @@ export class UIPanel {
     else if (w.type === 'button' && w.item.active) s += w.item.active() ? '1' : '0';
     else if (w.type === 'slider') s += r.get().toFixed(3);
     else if (w.type === 'text' && typeof r.text === 'function') s += r.text();
-    else if (w.type === 'title' && typeof r.text === 'function') s += r.text();
+    else if (w.type === 'title') s += (typeof r.text === 'function' ? r.text() : '') + (typeof r.sub === 'function' ? r.sub() : '');
     if (hovered) s += 'h';
     if (pressed) s += 'p';
     return s;
@@ -321,10 +324,11 @@ export class UIPanel {
         ctx.fillStyle = COLORS.ink;
         setFont(ctx, 700, 0.0195 * S, FONTS.sans);
         ctx.fillText(String(text), x, y + 0.022 * S);
-        if (r.sub) {
+        const sub = typeof r.sub === 'function' ? r.sub() : r.sub;
+        if (sub) {
           ctx.fillStyle = COLORS.muted;
           setFont(ctx, 500, 0.0106 * S, FONTS.sans);
-          ctx.fillText(String(r.sub), x, y + 0.0385 * S);
+          ctx.fillText(String(sub), x, y + 0.0385 * S);
         }
         ctx.fillStyle = COLORS.frame;
         ctx.fillRect(x, y + hh - 0.004 * S, ww, 2);
@@ -475,7 +479,7 @@ export class UIPanel {
     return this.group.localToWorld(out);
   }
 
-  widgetAt(px, py, pad = 0.004) {
+  widgetAt(px, py, pad = HIT_PAD) {
     for (const w of this.widgets) {
       if (w.type === 'title' || w.type === 'text' || w.type === 'legend') continue;
       if (px >= w.x - pad && px <= w.x + w.w + pad && py >= w.y - pad && py <= w.y + w.h + pad) return w;
@@ -523,11 +527,113 @@ const _n = new THREE.Vector3();
 const _c = new THREE.Vector3();
 const _hp = new THREE.Vector3();
 const _wq = new THREE.Quaternion();
+const _a = new THREE.Vector3();
+const _b = new THREE.Vector3();
+const _u = new THREE.Vector3();
+const _m4 = new THREE.Matrix4();
+const UP = new THREE.Vector3(0, 1, 0);
+const HANDLE_HALF = 0.04;
+const HANDLE_IDLE = new THREE.Color('#9aa3b0');
+const HANDLE_HOT = new THREE.Color('#ffffff');
+
+// Bar under a VR panel for moving it, like the one under Quest system windows.
+// It's grabbed like an object (pinch, trigger or grip, up close or with a ray,
+// including a tracked hand's ray). The panel keeps facing the head as it moves.
+export class PanelHandle {
+  constructor(ui, panel) {
+    this.ui = ui;
+    this.panel = panel;
+    this.isUI = true;
+    this.nearRadius = 0.025;
+    this.mat = new THREE.MeshBasicMaterial({ color: HANDLE_IDLE.clone(), transparent: true, depthTest: false, depthWrite: false, toneMapped: false });
+    this.mesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.0045, HANDLE_HALF * 2, 4, 12).rotateZ(Math.PI / 2), this.mat);
+    this.mesh.renderOrder = 21;
+    panel.group.add(this.mesh);
+    this.hovers = 0;
+    this.grabbedBy = null;
+    this._offset = new THREE.Vector3();
+  }
+
+  get enabled() { return this.ui.app.presenting && this.panel.visible; }
+
+  // Centered 16 mm under the panel. Called every frame since the panel's height changes with its page.
+  update() {
+    const p = this.panel;
+    this.mesh.visible = this.ui.app.presenting; // the menu is also the desktop HUD, which doesn't move
+    this.mesh.position.set(0, (p.anchorTop ? -p.height : -p.height / 2) - 0.016, 0.002);
+    const hot = this.hovers > 0 || this.grabbedBy;
+    this.mat.color.copy(hot ? HANDLE_HOT : HANDLE_IDLE);
+    this.mat.opacity = p.opacity * (hot ? 1 : 0.8);
+    this.mesh.scale.set(hot ? 1.15 : 1, hot ? 1.4 : 1, hot ? 1.4 : 1);
+  }
+
+  _segment() {
+    this.mesh.updateWorldMatrix(true, false);
+    this.mesh.localToWorld(_a.set(-HANDLE_HALF, 0, 0));
+    this.mesh.localToWorld(_b.set(HANDLE_HALF, 0, 0));
+  }
+
+  nearDistance(p) {
+    this._segment();
+    _u.subVectors(_b, _a);
+    const t = THREE.MathUtils.clamp(_c.subVectors(p, _a).dot(_u) / _u.lengthSq(), 0, 1);
+    return _c.copy(_a).addScaledVector(_u, t).distanceTo(p) - 0.006;
+  }
+
+  // Ray parameter where the ray passes within 2 cm of the bar, or Infinity
+  rayDistance(o, d) {
+    this._segment();
+    _u.subVectors(_b, _a);
+    const w0 = _c.subVectors(o, _a);
+    const b = d.dot(_u), c = _u.dot(_u), dd = d.dot(w0), e = _u.dot(w0);
+    const den = c - b * b;
+    if (den < 1e-9) return Infinity;
+    const s = Math.max(0, (b * e - c * dd) / den);
+    const t = THREE.MathUtils.clamp((e - b * dd) / den, 0, 1);
+    const gap = _hp.copy(o).addScaledVector(d, s).distanceTo(_p.copy(_a).addScaledVector(_u, t));
+    return gap < 0.02 ? s : Infinity;
+  }
+
+  _grabPoint(ix, out) {
+    if (this.kind === 'ray') return out.copy(ix.rayOrigin).addScaledVector(ix.rayDir, this._rayT);
+    return out.copy(ix.grabPos);
+  }
+
+  onHover(ix, on) { this.hovers = Math.max(0, this.hovers + (on ? 1 : -1)); }
+
+  onGrabStart(ix, mode, kind) {
+    this.grabbedBy = ix;
+    this.kind = kind === 'ray' ? 'ray' : 'near';
+    if (this.kind === 'ray') this._rayT = Math.min(this.rayDistance(ix.rayOrigin, ix.rayDir), 3);
+    this._offset.copy(this.panel.group.position).sub(this._grabPoint(ix, _hp));
+  }
+
+  onGrabUpdate(ix) {
+    const g = this.panel.group;
+    g.position.copy(this._grabPoint(ix, _hp)).add(this._offset);
+    facePanel(this.panel, this.ui.app.headPosition);
+  }
+
+  onGrabEnd() { this.grabbedBy = null; }
+}
+
+// Turn a panel so its center faces the head, without rolling it
+export function facePanel(panel, head, alpha = 1) {
+  const g = panel.group;
+  _c.copy(g.position);
+  if (panel.anchorTop) _c.y -= (panel.height / 2) * g.scale.y;
+  // Matrix4.lookAt(eye, target) builds a basis whose +Z points from target to
+  // eye, so passing (head, center) turns the panel's front (+Z) toward the head.
+  _m4.lookAt(head, _c, UP);
+  _wq.setFromRotationMatrix(_m4);
+  g.quaternion.slerp(_wq, alpha);
+}
 
 export class UISystem {
   constructor(app) {
     this.app = app;
     this.panels = [];
+    this.handles = []; // PanelHandles, which the InteractionManager treats like interactables
     this.root = new THREE.Group();
     this.root.name = 'ui';
     app.scene.add(this.root);
@@ -554,6 +660,7 @@ export class UISystem {
 
   update(time) {
     for (const p of this.panels) p.update(time);
+    for (const h of this.handles) h.update();
   }
 
   // Fingertip poke. Returns true when the finger is engaged with a panel.
@@ -608,7 +715,7 @@ export class UISystem {
   raycast(ix) {
     let best = null;
     for (const p of this.panels) {
-      if (!p.visible || !p.interactive) continue;
+      if (!p.visible || !p.interactive || p.ownerIx === ix) continue;
       p.group.getWorldPosition(_c);
       _n.set(0, 0, 1).applyQuaternion(p.group.getWorldQuaternion(_wq));
       const denom = _n.dot(ix.rayDir);
@@ -618,7 +725,7 @@ export class UISystem {
       _hp.copy(ix.rayOrigin).addScaledVector(ix.rayDir, t);
       p.toPanel(_hp, _p);
       if (_p.x < 0 || _p.x > p.width || _p.y < 0 || _p.y > p.height) continue;
-      best = { t, panel: p, widget: p.widgetAt(_p.x, _p.y, 0.002), x: _p.x, y: _p.y };
+      best = { t, panel: p, widget: p.widgetAt(_p.x, _p.y), x: _p.x, y: _p.y };
     }
     return best;
   }

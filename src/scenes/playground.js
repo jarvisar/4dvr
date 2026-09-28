@@ -22,6 +22,13 @@ const W_GRADIENT = ['#33c3ff', '#ff4f9a']; // kata (-w) to ana (+w)
 // A pinch in empty space has to move this far (meters) before it moves the
 // slice, so a pinch that just missed an object doesn't nudge it.
 const AIR_DEADZONE = 0.012;
+// How far from a toy's surface a hand or controller can still grab it. Bigger
+// than the default, since a cross-section is hard to judge the depth of.
+const TOY_REACH = 0.055;
+// A pinch in empty space this close to a toy's surface was probably meant for
+// the toy, so it doesn't move the slice either
+const NEAR_MISS = 0.1;
+const PULL_TIME = 0.35; // seconds for a pulled toy to fly to the hand
 
 const fmtW = (v) => (Math.abs(v) < 0.005 ? '0' : `${v > 0 ? 'ana' : 'kata'} ${Math.abs(v * 100).toFixed(0)} cm`);
 const wColor = (v) => (v > 0.005 ? '#ff8fbf' : v < -0.005 ? '#7fd8ff' : '#ffffff');
@@ -66,6 +73,7 @@ const _hq = new THREE.Quaternion();
 const _oc = new THREE.Vector3();
 const _rp = new THREE.Vector3();
 const _head = new THREE.Vector3();
+const _air = new THREE.Vector3();
 const _n4 = [0, 0, 0, 0];
 const EW = [0, 0, 0, 1];
 
@@ -95,6 +103,7 @@ class Toy {
   }
 
   get enabled() { return !this.fixed; }
+  get nearRadius() { return TOY_REACH; }
 
   sync(dt) {
     V.copy(this.obj.pos, this.body.x);
@@ -119,10 +128,11 @@ class Toy {
     return R4.applyT(out, this.body.R, _q4);
   }
 
-  nearDistance(p) {
+  // Infinity past `range` from the cross-section's bounding sphere
+  nearDistance(p, range = 0.06) {
     if (!this.obj.inSlice) return Infinity;
     const local = this.pg.stage.worldToLocal(_v3.copy(p));
-    if (local.distanceTo(_hp.set(this.obj.slicePos[0], this.obj.slicePos[1], this.obj.slicePos[2])) > this.obj.sliceRadius + 0.05) return Infinity;
+    if (local.distanceTo(_hp.set(this.obj.slicePos[0], this.obj.slicePos[1], this.obj.slicePos[2])) > this.obj.sliceRadius + range) return Infinity;
     return this.body.collider.sdf(this._sliceToBody(local, _p4));
   }
 
@@ -147,6 +157,14 @@ class Toy {
     return Infinity;
   }
 
+  // For tracked hands pulling it from out of reach (see InteractionManager)
+  pullPoint(out) {
+    if (!this.obj.inSlice) return 0;
+    const s = this.obj.slicePos;
+    this.pg.stage.localToWorld(out.set(s[0], s[1], s[2]));
+    return this.obj.sliceRadius;
+  }
+
   onHover(ix, on) { this.obj.setHighlight(on ? 0.6 : (this.grabbedBy ? 1 : 0)); }
 
   onGrabStart(ix, mode, kind) {
@@ -154,6 +172,7 @@ class Toy {
     this.grabbedBy = ix;
     this.mode = mode;
     this.kind = kind;
+    this.pullT = kind === 'pull' ? 0 : PULL_TIME;
     this.body.held = true;
     this.body.invMass = this.body.baseInvMass * 0.25; // held objects push others harder
     this.body.wake();
@@ -166,7 +185,7 @@ class Toy {
     this.startSlicePos = view.toSlice([0, 0, 0, 0], this.body.x);
   }
 
-  onGrabUpdate(ix) {
+  onGrabUpdate(ix, dt = 0) {
     const view = this.pg.view;
     ix.pose(this.kind, _hp, _hq);
     const hand = this.pg.stage.worldToLocal(_hp.clone());
@@ -189,7 +208,16 @@ class Toy {
       }
     } else {
       // carrying follows the hand rigidly in xyz and keeps the same offset in w
-      _v3.set(sp[0], sp[1], sp[2]).sub(this.startHand).applyQuaternion(dq).add(hand);
+      _v3.set(sp[0], sp[1], sp[2]).sub(this.startHand);
+      if (this.pullT < PULL_TIME) {
+        // pulled from out of reach: the offset shrinks until it sits just past the fingers
+        this.pullT += dt;
+        const len = _v3.length();
+        const end = Math.min(len, this.obj.sliceRadius * 0.7 + 0.01);
+        _v3.setLength(len + (end - len) * THREE.MathUtils.smootherstep(this.pullT / PULL_TIME, 0, 1));
+        if (this.pullT >= PULL_TIME) { sp[0] = this.startHand.x + _v3.x; sp[1] = this.startHand.y + _v3.y; sp[2] = this.startHand.z + _v3.z; }
+      }
+      _v3.applyQuaternion(dq).add(hand);
       pos[0] = _v3.x; pos[1] = _v3.y; pos[2] = _v3.z;
     }
     view.rotToWorld(this.body.target.R, _M);
@@ -341,6 +369,7 @@ export class PlaygroundScene extends SceneBase {
     this.orbitTilt = false; // orbits: tilt the orbits into w
     this.orbitStats = { fell: 0, escaped: 0 };
     this.playing = false;   // worldline: move the slice through time
+    this.wTravel = 0;
 
     this.stage = new THREE.Group(); // the 4D slice lives here (origin is the table center)
     this.root.add(this.stage);
@@ -447,6 +476,7 @@ export class PlaygroundScene extends SceneBase {
     const before = this.view.w;
     this.view.setW(w);
     this._wSpeed = Math.abs(this.view.w - before);
+    this.wTravel += this._wSpeed; // how far the person has moved the slice, for the tutorial
   }
 
   _removeToy(t) {
@@ -858,6 +888,11 @@ export class PlaygroundScene extends SceneBase {
   // Middle-finger pinching empty space and dragging rotates the slice (xw / zw).
 
   onEmptyGrabStart(ix, mode) {
+    if (!ix.isMouse) {
+      for (const t of this.toys) {
+        if (t.enabled && t.nearDistance(ix.grabPos, NEAR_MISS) < NEAR_MISS) return false;
+      }
+    }
     this._air = { start: ix.grabPos.clone(), w: this.view.w, xw: this.view.angleXW, zw: this.view.angleZW, mode, live: false };
     return true;
   }
@@ -1003,6 +1038,86 @@ export class PlaygroundScene extends SceneBase {
     this._say(text, 4);
   }
 
+  // --- tutorial (see core/guide.js) ------------------------------------------------
+
+  tutorial() {
+    if (this.preset !== 'sandbox') this.loadPreset('sandbox');
+    const app = this.app;
+    const held = (mode) => app.input.xr.some((ix) => ix.grabbed instanceof Toy && (!mode || ix.grabMode === mode));
+    let grabbed = false, w0 = null, turnT = 0;
+    return [
+      {
+        title: 'Pick something up',
+        text: {
+          hands: 'Pinch an object between your thumb and index finger, or close your hand around it. Let go to drop or throw it. For objects out of reach, point at one with your arm out and pinch.',
+          controllers: 'Hold the trigger or grip with the controller in an object, or point at one further away. Let go to drop or throw it.',
+        },
+        demo: 'grab', fingers: 'index', tag: 'Trigger or grip: grab',
+        done: () => { if (held()) grabbed = true; return grabbed && !held(); },
+      },
+      {
+        title: 'Move the slice',
+        text: {
+          hands: 'Pinch empty space away from the objects and move your hand up or down. This moves the slice along w, and the cross-sections change as it goes.',
+          controllers: 'Push a thumbstick up or down. This moves the slice along w, and the cross-sections change as it goes.',
+        },
+        demo: 'air', fingers: 'index', tag: 'Stick up or down: move the slice',
+        done: () => { if (w0 === null) w0 = this.wTravel; return this.wTravel - w0 > 0.15; },
+      },
+      {
+        title: 'Turn through w',
+        text: {
+          hands: 'Pinch an object between your thumb and middle finger and move your hand. It turns through w, the fourth direction.',
+          controllers: 'Hold the trigger and grip together on an object and move the controller. It turns through w, the fourth direction.',
+        },
+        fingers: 'middle', tag: 'Trigger and grip: turn through w',
+        done: (dt) => { if (held('secondary')) turnT += dt; return turnT > 0.5; },
+      },
+      {
+        title: 'Open the menu',
+        text: {
+          hands: "Turn a palm towards you and tap the Menu button next to it with your other hand. Don't pinch with that hand, since the Quest uses that for its own menu.",
+          controllers: 'Press A or X.',
+        },
+        demo: 'palm', tag: 'A or X: menu',
+        done: () => app.menu.shown,
+      },
+    ];
+  }
+
+  // Where the tutorial's demonstration hand pinches. 'grab': the top of the
+  // nearest object in reach. 'air': empty space over the near half of the table.
+  demoTarget(kind, out) {
+    const head = this.stage.worldToLocal(_head.copy(this.app.headPosition));
+    if (kind === 'grab') {
+      let best = null, bestD = 0.75;
+      for (const t of this.toys) {
+        if (!t.enabled || t.grabbedBy || !t.obj.inSlice || t.obj.sliceRadius < 0.03) continue;
+        const p = t.obj.slicePos;
+        const d = Math.hypot(p[0] - head.x, p[2] - head.z);
+        if (d < bestD) { bestD = d; best = t; }
+      }
+      if (!best) return false;
+      const p = best.obj.slicePos;
+      this.stage.localToWorld(out.set(p[0], p[1] + best.obj.sliceRadius * 0.45, p[2]));
+      return true;
+    }
+    // halfway from the table's center to the person, a little to the right, above the objects
+    const p = _air.set(head.x * 0.5 + 0.1, 0.28, head.z * 0.5);
+    for (let i = 0; i < 4; i++) {
+      this.stage.localToWorld(out.copy(p));
+      if (!this.toys.some((t) => t.enabled && t.nearDistance(out, NEAR_MISS) < NEAR_MISS + 0.03)) break;
+      p.y += 0.08;
+    }
+    return true;
+  }
+
+  // The tutorial card floats over the far side of the table
+  guideAnchor(out) {
+    this.stage.localToWorld(out.set(0, 0.5, -0.45));
+    return true;
+  }
+
   menuRows() {
     const preset = (label, key) => ({ label, onClick: () => this.loadPreset(key), active: () => this.preset === key });
     const rows = [
@@ -1082,7 +1197,7 @@ export class PlaygroundScene extends SceneBase {
 
   hint(mode) {
     const move = { hands: 'by pinching empty space with your other hand', controllers: 'with the stick', desktop: 'with the scroll wheel' }[mode];
-    const turn4 = { hands: 'middle-finger pinch it and move your hand', controllers: 'grip it and move the controller', desktop: 'right-drag it' }[mode];
+    const turn4 = { hands: 'middle-finger pinch it and move your hand', controllers: 'hold the trigger and grip on it and move the controller', desktop: 'right-drag it' }[mode];
     if (this.preset === 'box') {
       return `The box walls only extend a short distance in w. Hold the ball, move the slice along w ${move} until the walls are gone, move the ball out, then move the slice back.`;
     }
@@ -1101,9 +1216,9 @@ export class PlaygroundScene extends SceneBase {
     if (this.preset === 'worldline') {
       return `A motion recorded with time as w, so moving the slice along w replays it. Rotating the slice in xw mixes time with space, so each x shows a different moment like a slit-scan photo. Record your own ${mode === 'desktop' ? 'mouse movements' : 'hands'} from the menu.`;
     }
-    if (mode === 'controllers') return 'Trigger to grab and throw. Grip an object and move the controller to turn it through 4D. Stick up/down moves the slice along w and left/right tilts it. Faint ghosts are objects just outside the slice. The menu has puzzles.';
+    if (mode === 'controllers') return 'Trigger or grip to grab and throw. Hold both on an object and move the controller to turn it through 4D. Stick up/down moves the slice along w and left/right tilts it. Faint ghosts are objects just outside the slice.';
     if (mode === 'desktop') return 'Each object is shown as its 3D cross-section. Move the slice along w to see the cross-sections change.';
-    return 'Pinch to grab and throw, middle-finger pinch to turn an object through 4D. In empty space, pinch and move up or down to move the slice along w, or middle-finger pinch to tilt it. The ring on the w rail moves it too. Faint ghosts are objects just outside the slice.';
+    return 'Pinch or grab to pick things up and throw them, and middle-finger pinch to turn one through 4D. In empty space, pinch and move up or down to move the slice along w, or middle-finger pinch to tilt it. The ring on the w rail moves it too.';
   }
 
   desktopHelp({ touch } = {}) {

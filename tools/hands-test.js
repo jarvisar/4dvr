@@ -70,7 +70,7 @@
 
   const head = app.camera.position.clone();
   app.headPosition.copy(head);
-  // left hand with the palm turned towards the face, which summons the menu
+  // left hand with the palm turned towards the face, which shows the Menu button next to it
   const lw = new V3(-0.17, 1.13, -0.12);
   const toHead = head.clone().sub(lw).normalize();
   const lq = new Q().setFromUnitVectors(new V3(0, -1, 0), toHead);

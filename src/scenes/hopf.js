@@ -555,7 +555,7 @@ export class HopfScene extends SceneBase {
   hint(mode) {
     const n = `${this.fibers.length} fibers.`;
     if (mode === 'desktop') return `${n} Each point on the globe corresponds to one circle (fiber) of the 3-sphere.`;
-    if (mode === 'controllers') return `${n} Touch the globe with a controller to add the fiber for that point. Trigger on the globe and turn the controller to rotate all fibers. Trigger in empty space and drag to rotate S³ in 4D.`;
+    if (mode === 'controllers') return `${n} Touch the globe with a controller to add the fiber for that point. Trigger or grip on the globe and turn the controller to rotate all fibers. Trigger or grip in empty space and drag to rotate S³ in 4D.`;
     return `${n} Touch the globe to add the fiber for that point. Pinch the globe and rotate your hand to rotate all fibers. Pinch empty space and drag to rotate S³ in 4D.`;
   }
 

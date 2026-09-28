@@ -1,8 +1,10 @@
 // Input from tracked hands, controllers and the mouse. Each one is wrapped in
 // an Interactor with the same fields:
 //
-//   pinch            primary action (thumb+index pinch, trigger or left mouse)
-//   grip             secondary action (thumb+middle pinch, squeeze or right mouse)
+//   pinch            primary action (thumb+index pinch or a closed hand, trigger
+//                    or grip alone, or left mouse)
+//   grip             secondary action (thumb+middle pinch, trigger and grip
+//                    together, or right mouse)
 //   grabPos/grabQuat where grabbed objects are held
 //   rayOrigin/rayDir pointer ray for distant objects and UI
 //   pokePos          index fingertip (or controller tip) for pressing UI
@@ -53,6 +55,28 @@ export function classifyPinch(dI, dM, pinchHeld, gripHeld) {
   return { pinch, grip: !pinch && dM < PINCH_ON && dM < dI - 0.006 };
 }
 
+// How straight a finger is: knuckle to tip distance over the length of the
+// bones in between. About 1 when straight and 0.5 when curled into the palm.
+// `base` is the index of its proximal phalanx joint.
+function curl(joints, base) {
+  const p = joints[base].pos, i = joints[base + 1].pos, d = joints[base + 2].pos, t = joints[base + 3].pos;
+  const chain = p.distanceTo(i) + i.distanceTo(d) + d.distanceTo(t);
+  return p.distanceTo(t) / Math.max(chain, 1e-4);
+}
+
+// Closed hand (a fist or grabbing with the whole hand). New users often grab
+// this way instead of pinching, so it grabs too. It starts when the index,
+// middle and ring fingers are all curled and ends once they're mostly open
+// again. Pointing (index straight, the rest curled) doesn't count.
+export function classifyFist(ci, cm, cr, held) {
+  if (held) return (ci + cm + cr) / 3 < 0.74;
+  return Math.max(ci, cm, cr) < 0.62;
+}
+// A thumb to middle finger touch while the ring finger is curled this much is
+// part of a closing fist, not a middle-finger pinch
+const RING_CLOSING = 0.72;
+const RELEASE_DELAY = 0.075;
+
 const strength = (d) => 1 - THREE.MathUtils.clamp((d - 0.012) / 0.05, 0, 1);
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -68,11 +92,23 @@ export class Interactor {
 
     this.pinch = new Button();
     this.grip = new Button();
+    this.trigger = new Button(); // controllers: the raw buttons behind pinch and grip
+    this.squeeze = new Button();
     this.btnA = new Button();
     this.btnB = new Button();
     this.stick = new THREE.Vector2();
     this.pinchStrength = 0; // thumb and index, 0 (fingers apart) to 1 (touching)
     this.gripStrength = 0;  // the same for the thumb and middle finger
+    this.fist = false;      // hands: closed hand (see classifyFist)
+    // Hands: true while the current pinch is a closed hand rather than a thumb
+    // and index pinch. Objects are then held at the palm, and it doesn't start
+    // empty-space gestures.
+    this.palmGrab = false;
+    this.palmPos = new THREE.Vector3(); // hands: a few cm in front of the palm
+    this.hasPalm = false;
+    this.openness = 1;  // hands: how straight the least straight of the index, middle and ring fingers is
+    this._pinchOffT = 0; // seconds a held pinch or grip has looked released (see RELEASE_DELAY)
+    this._gripOffT = 0;
 
     this.grabPos = new THREE.Vector3();
     this.grabQuat = new THREE.Quaternion();
@@ -107,6 +143,9 @@ export class Interactor {
     this.rayVisible = false;
     this.rayLength = 0.5;
     this.grabDepth = 1;
+    this.pullTarget = null; // hands: what a pinch would pull from out of reach
+    this.pullT = 0;         // seconds the ray has been on it
+    this.pullDist = 0;
   }
 
   get isHand() { return this.kind === 'hand'; }
@@ -174,6 +213,7 @@ class Smoother {
 
 export class InputSystem {
   static classifyPinch = classifyPinch; // for tools/interaction-test.js
+  static classifyFist = classifyFist;
 
   constructor(app) {
     this.app = app;
@@ -214,10 +254,13 @@ export class InputSystem {
         ix.source = null;
         ix.kind = 'none';
         ix.active = false;
-        ix.pinch.reset(); ix.grip.reset(); ix.btnA.reset(); ix.btnB.reset();
+        ix.pinch.reset(); ix.grip.reset(); ix.trigger.reset(); ix.squeeze.reset(); ix.btnA.reset(); ix.btnB.reset();
         ix.stick.set(0, 0);
         ix.jointsValid = false;
         ix.hasPoke = false;
+        ix.hasPalm = false;
+        ix.fist = false;
+        ix.palmGrab = false;
         model.visible = false;
       });
       this.spaces.push({ ctrl, grip, hand, model });
@@ -265,6 +308,7 @@ export class InputSystem {
         ix.pinch.set(hold && ix.pinch.pressed, ix.pinch.value);
         ix.grip.set(hold && ix.grip.pressed, ix.grip.value);
         ix.hasPoke = false;
+        ix.hasPalm = false;
         // after a longer gap, start the filter afresh where the hand reappears
         // instead of sweeping across from where it was lost
         if (!hold) smoother.reset();
@@ -279,25 +323,58 @@ export class InputSystem {
       const dM = thumb.distanceTo(middle);
       ix.pinchStrength = strength(dI);
       ix.gripStrength = strength(dM);
-      const p = classifyPinch(dI, dM, ix.pinch.pressed, ix.grip.pressed);
+      const ci = curl(ix.joints, J['index-finger-phalanx-proximal']);
+      const cm = curl(ix.joints, J['middle-finger-phalanx-proximal']);
+      const cr = curl(ix.joints, J['ring-finger-phalanx-proximal']);
+      ix.openness = Math.min(ci, cm, cr);
+      ix.fist = classifyFist(ci, cm, cr, ix.fist);
+      const wasPalm = ix.palmGrab;
+      const p = classifyPinch(dI, dM, ix.pinch.pressed && !ix.palmGrab, ix.grip.pressed);
+      if (p.grip && !ix.grip.pressed && cr < RING_CLOSING) p.grip = false;
+      if (ix.fist) {
+        // a closed hand is always a primary grab, even if the thumb brushed the middle finger on the way
+        if (!ix.pinch.pressed) ix.palmGrab = !p.pinch;
+        p.pinch = true;
+        p.grip = false;
+      } else if (ix.palmGrab) {
+        p.pinch = false; // opening the hand lets go
+      }
+      // Tracking noise can open a pinch for a frame or two, so letting go has
+      // to last RELEASE_DELAY (Meta's First Steps waits 75 ms)
+      if (ix.pinch.pressed && !p.pinch && !p.grip) {
+        ix._pinchOffT += dt;
+        if (ix._pinchOffT < RELEASE_DELAY) p.pinch = true;
+      } else ix._pinchOffT = 0;
+      if (ix.grip.pressed && !p.grip && !p.pinch) {
+        ix._gripOffT += dt;
+        if (ix._gripOffT < RELEASE_DELAY) p.grip = true;
+      } else ix._gripOffT = 0;
+      if (!p.pinch) ix.palmGrab = false;
       ix.pinch.set(p.pinch, ix.pinchStrength);
       ix.grip.set(p.grip, ix.gripStrength);
 
-      // grab point is between the thumb and the pinching finger
-      const other = ix.grip.pressed ? middle : index;
-      ix.grabPos.addVectors(thumb, other).multiplyScalar(0.5);
-      ix.grabQuat.copy(ix.joints[J.wrist].quat);
+      // palm normal is -Y of the wrist joint (WebXR hand joint convention)
+      const wrist = ix.joints[J.wrist];
+      ix.palmNormal.set(0, -1, 0).applyQuaternion(wrist.quat);
+      _v2.subVectors(head, wrist.pos).normalize();
+      ix.palmFacingHead = ix.palmNormal.dot(_v2);
+      ix.palmPos.addVectors(wrist.pos, ix.joints[J['middle-finger-phalanx-proximal']].pos).multiplyScalar(0.5).addScaledVector(ix.palmNormal, 0.035);
+      ix.hasPalm = true;
+
+      // Grab point is between the thumb and the pinching finger, or in front of
+      // the palm for a closed hand. The filter restarts when it switches, so a
+      // held object doesn't drift across the gap between the two.
+      if (ix.palmGrab !== wasPalm) smoother.reset();
+      if (ix.palmGrab) ix.grabPos.copy(ix.palmPos);
+      else ix.grabPos.addVectors(thumb, ix.grip.pressed ? middle : index).multiplyScalar(0.5);
+      ix.grabQuat.copy(wrist.quat);
       smoother.apply(ix.grabPos, ix.grabQuat, dt);
 
       ix.pokePos.copy(index);
       ix.hasPoke = true;
-
-      // palm normal is -Y of the wrist joint (WebXR hand joint convention)
-      ix.palmNormal.set(0, -1, 0).applyQuaternion(ix.joints[J.wrist].quat);
-      _v2.subVectors(head, ix.joints[J.wrist].pos).normalize();
-      ix.palmFacingHead = ix.palmNormal.dot(_v2);
     } else {
       ix.jointsValid = false;
+      ix.hasPalm = false;
       sp.grip.matrixWorld.decompose(_v2, ix.grabQuat, _v);
       // hold point is 5 cm in front of the controller
       ix.grabPos.set(0, -0.01, -0.05).applyQuaternion(ix.grabQuat).add(_v2);
@@ -307,8 +384,13 @@ export class InputSystem {
       if (gp) {
         const trig = gp.buttons[0]?.value || 0;
         const sq = gp.buttons[1]?.value || 0;
-        ix.pinch.set(ix.pinch.pressed ? trig > 0.35 : trig > 0.6, trig);
-        ix.grip.set(ix.grip.pressed ? sq > 0.35 : sq > 0.6, sq);
+        ix.trigger.set(ix.trigger.pressed ? trig > 0.35 : trig > 0.6, trig);
+        ix.squeeze.set(ix.squeeze.pressed ? sq > 0.35 : sq > 0.6, sq);
+        // Either button grabs, since Quest apps usually grab with the grip and
+        // pointers select with the trigger. Holding both is the secondary action.
+        const both = ix.trigger.pressed && ix.squeeze.pressed;
+        ix.pinch.set((ix.trigger.pressed || ix.squeeze.pressed) && !both, Math.max(trig, sq));
+        ix.grip.set(both, Math.min(trig, sq));
         ix.btnA.set(!!gp.buttons[4]?.pressed);
         ix.btnB.set(!!gp.buttons[5]?.pressed);
         const a = gp.axes.length >= 4 ? 2 : 0; // the thumbstick (xr-standard), else the only axes

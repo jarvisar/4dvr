@@ -87,6 +87,144 @@
     press(hand.pinch, false);
     step(hand, 1);
 
+    {
+      // ---------------- forgiving grabs ----------------
+      pg.loadPreset('sandbox');
+      for (let i = 0; i < 90; i++) pg.update(1 / 72, app.time += 1 / 72);
+      const t3 = pg.toys.find((t) => t.obj.inSlice && t.enabled && t.obj.key === 'tesseract');
+      const c3 = () => pg.stage.localToWorld(new THREE.Vector3(...t3.obj.slicePos.slice(0, 3)));
+      // a point straight above the toy, `d` meters outside its surface
+      const aboveBy = (d) => {
+        let lo = 0, hi = 0.5;
+        const p = new THREE.Vector3();
+        for (let k = 0; k < 40; k++) {
+          const mid = (lo + hi) / 2;
+          p.copy(c3()); p.y += mid;
+          if (t3.nearDistance(p, 0.5) < d) lo = mid; else hi = mid;
+        }
+        p.copy(c3()); p.y += lo;
+        return p;
+      };
+      const h2 = fakeHand();
+      // press for one frame (set() again clears `down`, like the input system does every frame)
+      const tap = (ix, btn) => { step(ix, 1); press(ix[btn], true); step(ix, 1); press(ix[btn], true); };
+      const untap = (ix, btn) => { press(ix[btn], false); step(ix, 1); };
+      h2.grabPos.copy(aboveBy(0.045));
+      tap(h2, 'pinch');
+      out.grabAt45mm = h2.grabbed === t3;
+      untap(h2, 'pinch');
+      // Quest keeps pinching with the palm towards your face for its own menu
+      h2.palmFacingHead = 0.9;
+      h2.grabPos.copy(c3());
+      tap(h2, 'pinch');
+      out.palmFacingIgnored = !h2.grabbed && !h2.emptyGrab;
+      untap(h2, 'pinch');
+      h2.palmFacingHead = 0;
+      // closing the whole hand around it grabs it, at the palm
+      h2.hasPalm = true;
+      h2.palmGrab = true;
+      h2.palmPos.copy(c3());
+      h2.grabPos.copy(h2.palmPos);
+      tap(h2, 'pinch');
+      out.fistGrab = h2.grabbed === t3;
+      untap(h2, 'pinch');
+      // but a fist in empty space doesn't move the slice
+      h2.grabPos.set(0.9, 1.3, 0.4);
+      h2.palmPos.copy(h2.grabPos);
+      const wFist = pg.view.w;
+      tap(h2, 'pinch');
+      for (let i = 0; i < 10; i++) { h2.grabPos.y += 0.01; h2.palmPos.y += 0.01; step(h2, 1); }
+      out.fistInEmptySpace = !h2.emptyGrab && !h2.grabbed && pg.view.w === wFist;
+      untap(h2, 'pinch');
+      h2.hasPalm = false;
+      h2.palmGrab = false;
+      // a pinch that just missed (7 cm off) grabs nothing and doesn't move the slice either
+      h2.grabPos.copy(aboveBy(0.07));
+      const wMiss = pg.view.w;
+      tap(h2, 'pinch');
+      for (let i = 0; i < 10; i++) { h2.grabPos.y += 0.01; step(h2, 1); }
+      out.nearMiss = { grabbed: !!h2.grabbed, emptyGrab: !!h2.emptyGrab, w: +(pg.view.w - wMiss).toFixed(4) };
+      untap(h2, 'pinch');
+
+      // controllers: trigger or grip carries, squeezing both turns it through 4D,
+      // and switching between them doesn't drop it
+      const ctrl = fakeHand();
+      ctrl.kind = 'controller';
+      ctrl.grabPos.copy(c3());
+      tap(ctrl, 'pinch');
+      const carried = ctrl.grabbed === t3 && ctrl.grabMode === 'primary';
+      ctrl.pinch.set(false); ctrl.grip.set(true); step(ctrl, 1); // the other button squeezed too
+      const turning = ctrl.grabbed === t3 && ctrl.grabMode === 'secondary';
+      ctrl.grip.set(false); ctrl.pinch.set(true); step(ctrl, 1); // and let go of again
+      const back = ctrl.grabbed === t3 && ctrl.grabMode === 'primary';
+      untap(ctrl, 'pinch');
+      out.controllerModes = { carried, turning, back, released: !ctrl.grabbed };
+
+      // tracked hands pull objects from out of reach: arm stretched out, ray on it, pinch
+      const head = app.headPosition;
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(app.headQuaternion).setY(0).normalize();
+      const shoulder = head.clone().addScaledVector(new THREE.Vector3(-fwd.z, 0, fwd.x), 0.17).addScaledVector(fwd, -0.04);
+      shoulder.y -= 0.22;
+      let farToy = null, farP = null, farD = 0;
+      for (const t of pg.toys) {
+        if (!t.enabled || !t.obj.inSlice) continue;
+        const p = new THREE.Vector3();
+        t.pullPoint(p);
+        if (p.distanceTo(shoulder) > farD) { farD = p.distanceTo(shoulder); farToy = t; farP = p; }
+      }
+      const hf = fakeHand();
+      const wrist = shoulder.clone().addScaledVector(farP.clone().sub(shoulder).normalize(), 0.47);
+      hf.joints[0].pos.copy(wrist);
+      hf.rayOrigin.copy(wrist);
+      hf.rayDir.copy(farP).sub(wrist).normalize();
+      hf.grabPos.copy(wrist);
+      step(hf, 20);
+      const pullHover = hf.pullTarget === farToy && hf.rayVisible;
+      press(hf.pinch, true); step(hf, 1);
+      const pulled = hf.grabbed === farToy && hf.grabKind === 'pull';
+      step(hf, 50);
+      const fp = new THREE.Vector3();
+      farToy.pullPoint(fp);
+      out.pull = { farD: +farD.toFixed(2), hover: pullHover, pulled, endDist: +fp.distanceTo(hf.grabPos).toFixed(3) };
+      untap(hf, 'pinch');
+      // an arm held close in doesn't pull, so pinching near the body still moves the slice
+      const hc = fakeHand();
+      const near = shoulder.clone().addScaledVector(farP.clone().sub(shoulder).normalize(), 0.3);
+      hc.joints[0].pos.copy(near);
+      hc.rayOrigin.copy(near);
+      hc.rayDir.copy(farP).sub(near).normalize();
+      hc.grabPos.set(0.9, 1.3, 0.4);
+      step(hc, 20);
+      out.pullNeedsReach = hc.pullTarget === null;
+      for (let i = 0; i < 60; i++) pg.update(1 / 72, app.time += 1 / 72);
+
+      // the bar under a VR panel moves it
+      const mh = app.menu.handle, mp = app.menu.panel;
+      app.ui.root.add(mp.group);
+      mp.group.position.set(0.5, 1.5, -0.5);
+      mp.group.updateMatrixWorld(true);
+      mh.update();
+      const bar = mh.mesh.getWorldPosition(new THREE.Vector3());
+      const hb = fakeHand();
+      hb.grabPos.copy(bar);
+      const barNear = mh.nearDistance(bar) < mh.nearRadius;
+      mh.onGrabStart(hb, 'primary', 'near');
+      hb.grabPos.x += 0.1;
+      mh.onGrabUpdate(hb);
+      mh.onGrabEnd(hb);
+      out.handle = { near: barNear, moved: +(mp.group.position.x - 0.5).toFixed(3) };
+
+      // closed hand detection from finger curl (1 straight, about 0.5 curled into the palm)
+      const fist = app.input.constructor.classifyFist;
+      out.fist = { pointing: fist(1.0, 0.55, 0.52, false), closed: fist(0.5, 0.52, 0.55, false), openingHeld: fist(0.66, 0.7, 0.72, true), openHeld: fist(0.8, 0.82, 0.8, true) };
+
+      // the tutorial's steps fit its card, and the demonstration hand has somewhere to go
+      const steps = pg.tutorial();
+      const cardW = 0.27 - 2 * 0.014;
+      out.tutorialLines = steps.map((s) => ['hands', 'controllers'].map((m) => app.guide.panel._wrapString(s.text[m], cardW, 500).length));
+      out.demoTargets = ['grab', 'air'].map((k) => pg.demoTarget(k, new THREE.Vector3()));
+    }
+
     // UI poke on the (desktop-placed) menu, pressing the "Tower" preset button
     const menu = app.menu.panel;
     menu.group.visible = true; menu.opacity = 1; menu.group.updateMatrixWorld(true);

@@ -38,19 +38,25 @@ Visit the [GitHub Pages site](https://ajarvis.co/4dvr/) to access the latest dep
 
 ## Controls
 
+The first time Hyperplay opens in VR, a short tutorial goes through grabbing, moving the slice, rotating through 4D, and opening the menu. A see-through hand shows each gesture, and each step moves on once you've done it. `How to play` in the menu's settings runs it again.
+
 ### Hand Tracking
 
-Pinch with your thumb and index finger to grab, move, and throw objects. Pinch with your middle finger and move your hand to rotate an object through 4D.
+Pinch with your thumb and index finger, or close your hand around an object, to grab, move, and throw it. Pinch with your middle finger and move your hand to rotate an object through 4D. To grab something out of reach, point at it with your arm out and pinch. It flies to your hand.
 
-Pinch empty space and move up or down to move the slice along W. Middle-finger pinch empty space and move sideways to rotate the slice.
+Pinch empty space and move up or down to move the slice along W. Middle-finger pinch empty space and move sideways to rotate the slice. A pinch that just missed an object doesn't move the slice.
 
-Turn a palm towards your face to open the menu next to that hand, and press buttons with the other index finger. Press `Pin` to leave it floating in place. Point and pinch to use UI that's out of reach.
+Turn a palm towards your face and a `Menu` button shows up next to it. Tap it with your other index finger. The menu opens in front of you and stays there until you close it. Pinch the bar under it to move it. Point and pinch to use UI that's out of reach.
+
+Don't pinch with your palm facing you. The Quest uses that gesture for its own menu (on the left hand it can end the VR session), so the app ignores those pinches.
+
+###### Note: if only one hand is tracked, holding your palm up for 1.5 seconds opens the menu too
 
 In Hyperbolic Space, Spherical Space, and the Klein Room, walk or pinch empty space and pull to move around.
 
 ### Controllers
 
-Use the trigger to grab, move, and throw objects, and the grip to rotate them through 4D. Push either stick up or down to move the slice along W, or left and right to rotate it. Press `A` or `X` to open the menu.
+Use the trigger or grip to grab, move, and throw objects. Hold both to rotate an object through 4D. Push either stick up or down to move the slice along W, or left and right to rotate it. Press `A` or `X` to open or close the menu.
 
 In the curved spaces and the Klein Room, the left stick moves and the right stick turns in 30° steps. With snap turning off, both sticks move.
 
@@ -62,7 +68,7 @@ In the curved spaces and the Klein Room, use `WASD` to move and drag to look.
 
 Touch screens can drag objects and orbit the camera. Rotating through 4D and moving around the curved spaces need a mouse and keyboard or a headset.
 
-###### Note: the comfort vignette and snap turning can be turned off in the menu's settings. `How to play` shows the controls for the current scene again.
+###### Note: the comfort vignette, snap turning, and larger menus are in the menu's settings. `Recenter` there moves the scene in front of you and fits it to your height, for example after sitting down.
 
 ## Local Installation
 
