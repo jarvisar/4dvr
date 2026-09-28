@@ -17,7 +17,7 @@
 
 This is a WebXR app for viewing and interacting with 4D objects and non-Euclidean space. It's built with [Three.js](https://threejs.org/) for the Meta Quest with hand tracking. Controllers work too, and every scene runs in a desktop browser with a mouse and keyboard.
 
-Visit the [GitHub Pages site](https://ajarvis.co/4dvr/) to access the latest deployment.
+Visit the [GitHub Pages site](https://4dvr.ajarvis.co/) to access the latest deployment.
 
 ## Scenes
 
