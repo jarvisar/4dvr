@@ -226,6 +226,11 @@ try {
   await new Promise((r) => setTimeout(r, 2500));
   const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
   const ev = (js) => vr.evaluate(js);
+  // Frame dt is capped, so app time runs slower than wall time on the CI
+  // renderer. Wait for things that take app time instead of sleeping.
+  const waitFor = async (js, ms = 15000) => {
+    for (const t0 = Date.now(); Date.now() - t0 < ms; await sleep(100)) if (await ev(js)) return;
+  };
   await ev(`(async () => {
     __xrDevice.position.set(0, 1.6, 0);
     __xrDevice.quaternion.set(-0.1736, 0, 0, 0.9848); // looking 20° down
@@ -253,7 +258,7 @@ try {
   await ev(`__xrDevice.controllers.right.updateButtonValue('trigger', 1)`); await sleep(400);
   const grabbedByRay = await ev(`!!__app.input.xr.find((i) => i.handedness === 'right')?.grabbed`);
   await ev(`__xrDevice.controllers.right.updateButtonValue('trigger', 0)`);
-  await sleep(1800);
+  await waitFor(`__app.guide.tut?.i === 1`);
   const afterGrab = await ev(`({ step: __app.guide.tut?.i, guide: __app.guide.mode })`);
   // Skip the rest with the card's Skip button
   await aim('controllers.right', `(() => { const p = __app.guide.panel, btn = p.widgets.find((w) => w.type === 'button'); return p.fromPanel(btn.x + btn.w / 2, btn.y + btn.h / 2, 0); })()`);
@@ -317,7 +322,7 @@ try {
   await sleep(600);
   const tipsOnReturn = await ev(`__app.guide.panel.group.visible`);
   await ev(`(() => { const L = __xrDevice.hands.left; L.position.set(-0.04, 1.2, -0.28); L.quaternion.set(1, 0, 0, 0); })()`);
-  await sleep(1200);
+  await waitFor(`__app.menu.palm.shown && __app.menu.button.opacity > 0.9`);
   const palm = await ev(`({ button: __app.menu.palm.shown && __app.menu.button.group.visible, menu: __app.menu.shown, mode: __app.inputMode })`);
   await vr.screenshot({ path: path.join(OUT, 'vr-palm-button.png') });
 
@@ -355,6 +360,7 @@ try {
   const pos0 = await ev(menuPos);
   await ev(`(() => { const L = __xrDevice.hands.left; L.position.set(-0.3, 0.9, -0.1); L.quaternion.set(0, 0, 0, 1); })()`);
   await sleep(700);
+  await waitFor(`!__app.menu.palm.shown`);
   const afterDrop = await ev(`({ pos: ${menuPos}, shown: __app.menu.shown, button: __app.menu.palm.shown })`);
 
   // Poke the "Scenes" page button with the right index fingertip. The page should
