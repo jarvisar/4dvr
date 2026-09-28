@@ -1,8 +1,8 @@
 // Input from tracked hands, controllers and the mouse. Each one is wrapped in
 // an Interactor with the same fields:
 //
-//   pinch            primary action   (thumb+index pinch  | trigger | left mouse)
-//   grip             secondary action (thumb+middle pinch | squeeze | right mouse)
+//   pinch            primary action (thumb+index pinch, trigger or left mouse)
+//   grip             secondary action (thumb+middle pinch, squeeze or right mouse)
 //   grabPos/grabQuat where grabbed objects are held
 //   rayOrigin/rayDir pointer ray for distant objects and UI
 //   pokePos          index fingertip (or controller tip) for pressing UI
@@ -36,18 +36,16 @@ const HIST = 10;
 // motion). Keep the pinch state through short gaps so held objects aren't dropped.
 const TRACKING_GRACE = 0.2;
 
-// Pinch thresholds: distance between the thumb tip and a fingertip joint (metres).
+// Pinch thresholds, as the distance between the thumb tip and a fingertip joint (meters).
 // A pinch starts at 2 cm and ends past 3 cm, so tracking noise can't flicker it.
 const PINCH_ON = 0.02;
 const PINCH_OFF = 0.03;
 
-/**
- * Which pinch the thumb is making, from its distance to the index (dI) and
- * middle (dM) fingertips. Only one pinch can be held at a time, so a middle
- * pinch that brushes the index finger doesn't drop what it's holding. A middle
- * pinch has to be clearly closer than the index, which often rests near the
- * thumb during one.
- */
+// Which pinch the thumb is making, from its distance to the index (dI) and
+// middle (dM) fingertips. Only one pinch can be held at a time, so a middle
+// pinch that brushes the index finger doesn't drop what it's holding. A middle
+// pinch has to be clearly closer than the index, since the index often rests
+// near the thumb during one.
 export function classifyPinch(dI, dM, pinchHeld, gripHeld) {
   if (pinchHeld) return { pinch: dI < PINCH_OFF, grip: false };
   if (gripHeld) return { pinch: false, grip: dM < PINCH_OFF + 0.004 };
@@ -63,7 +61,7 @@ const _q = new THREE.Quaternion();
 export class Interactor {
   constructor(index) {
     this.index = index;
-    this.kind = 'none'; // 'hand' | 'controller' | 'mouse' | 'none'
+    this.kind = 'none'; // 'hand', 'controller', 'mouse' or 'none'
     this.handedness = 'none';
     this.source = null;
     this.active = false;
@@ -73,7 +71,7 @@ export class Interactor {
     this.btnA = new Button();
     this.btnB = new Button();
     this.stick = new THREE.Vector2();
-    this.pinchStrength = 0; // 0 (fingers apart) to 1 (touching): thumb and index
+    this.pinchStrength = 0; // thumb and index, 0 (fingers apart) to 1 (touching)
     this.gripStrength = 0;  // the same for the thumb and middle finger
 
     this.grabPos = new THREE.Vector3();
@@ -115,7 +113,7 @@ export class Interactor {
   get isMouse() { return this.kind === 'mouse'; }
   get busy() { return !!(this.grabbed || this.emptyGrab || this.uiCapture); }
 
-  /** Pose used to carry a grabbed object ('near' → hand, 'ray' → pointer). */
+  // Pose used to carry a grabbed object. 'near' uses the hand and 'ray' uses the pointer.
   pose(kind, outPos, outQuat) {
     if (kind === 'ray' && !this.isMouse) {
       outPos.copy(this.rayOrigin);
@@ -156,7 +154,7 @@ export class Interactor {
   }
 }
 
-/** Speed-adaptive exponential smoothing (a light One-Euro filter). */
+// Speed-adaptive exponential smoothing (a light One-Euro filter)
 class Smoother {
   constructor() { this.init = false; this.p = new THREE.Vector3(); this.q = new THREE.Quaternion(); }
   apply(pos, quat, dt) {
@@ -192,7 +190,7 @@ export class InputSystem {
     // controller reaching for the menu isn't hidden behind it.
     const factory = new XRControllerModelFactory(null, (scene) => scene.traverse((o) => {
       if (!o.isMesh) return;
-      o.material.transparent = true; // opacity stays 1: this only moves it into the later pass
+      o.material.transparent = true; // opacity stays at 1. This only moves it into the later pass.
       o.renderOrder = 30;
     }));
 
@@ -247,7 +245,7 @@ export class InputSystem {
 
   _updateXR(ix, sp, smoother, dt, time, head) {
     if (!ix.active || !ix.source) return;
-    // pointing ray (targetRaySpace) — available for both hands and controllers
+    // pointing ray (targetRaySpace), available for both hands and controllers
     sp.ctrl.matrixWorld.decompose(ix.rayOrigin, ix.rayQuat, _v);
     ix.rayDir.set(0, 0, -1).applyQuaternion(ix.rayQuat);
 
@@ -285,7 +283,7 @@ export class InputSystem {
       ix.pinch.set(p.pinch, ix.pinchStrength);
       ix.grip.set(p.grip, ix.gripStrength);
 
-      // grab point: between thumb and the pinching finger
+      // grab point is between the thumb and the pinching finger
       const other = ix.grip.pressed ? middle : index;
       ix.grabPos.addVectors(thumb, other).multiplyScalar(0.5);
       ix.grabQuat.copy(ix.joints[J.wrist].quat);
@@ -294,7 +292,7 @@ export class InputSystem {
       ix.pokePos.copy(index);
       ix.hasPoke = true;
 
-      // palm normal = −Y of the wrist joint (WebXR hand joint convention)
+      // palm normal is -Y of the wrist joint (WebXR hand joint convention)
       ix.palmNormal.set(0, -1, 0).applyQuaternion(ix.joints[J.wrist].quat);
       _v2.subVectors(head, ix.joints[J.wrist].pos).normalize();
       ix.palmFacingHead = ix.palmNormal.dot(_v2);
@@ -367,7 +365,7 @@ export class InputSystem {
     m._record(time);
   }
 
-  /** True while the desktop user is dragging something (so orbiting pauses). */
+  // True while the desktop user is dragging something, so orbiting pauses
   get mouseBusy() {
     return this.mouse.busy;
   }

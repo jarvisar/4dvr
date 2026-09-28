@@ -20,8 +20,8 @@ const CHECK = { size: 0.0115, x: 0.009, textX: 0.0275 };
 // widgets draw at most this far above or below their box (hover rings), in m
 const BAND_PAD = 0.004;
 
-// Same colours and fonts as style.css: slate panels with rounded corners, grey
-// buttons, blue for whatever is selected. Pink (ana, +w) and cyan (kata, −w)
+// Same colors and fonts as style.css. Slate panels with rounded corners, gray
+// buttons, and blue for whatever is selected. Pink (ana, +w) and cyan (kata, -w)
 // are only used where they mean a direction along w.
 export const COLORS = {
   bg: 'rgba(27, 31, 38, 0.95)',
@@ -52,7 +52,7 @@ function setFont(ctx, weight, size, family) {
   ctx.font = `${weight} ${size}px ${family}`;
 }
 
-/** A unit plane whose v runs down the canvas, for textures uploaded without a flip. */
+// Unit plane whose v runs down the canvas, for textures uploaded without a flip
 function panelGeometry() {
   const g = new THREE.PlaneGeometry(1, 1);
   const uv = g.attributes.uv;
@@ -65,10 +65,8 @@ const _band = new THREE.Box2();
 const _bandAt = new THREE.Vector2();
 
 export class UIPanel {
-  /**
-   * `anchor: 'top'` puts the group's origin at the middle of the top edge
-   * instead of the centre, so rows below can change without moving the top.
-   */
+  // `anchor: 'top'` puts the group's origin at the middle of the top edge
+  // instead of the center, so rows below can change without moving the top.
   constructor(ui, { width = 0.3, rows = [], name = 'panel', anchor = 'center' } = {}) {
     this.ui = ui;
     this.name = name;
@@ -78,7 +76,7 @@ export class UIPanel {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d');
     this.texture = this._makeTexture();
-    // the same canvas as the source of partial uploads (see _uploadRows); never uploaded itself
+    // same canvas, used as the source for partial uploads (see _uploadRows). Never uploaded itself.
     this._source = new THREE.Texture(this.canvas);
     this.material = new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, toneMapped: false, depthWrite: false, opacity: 1 });
     this.mesh = new THREE.Mesh(panelGeometry(), this.material);
@@ -87,13 +85,13 @@ export class UIPanel {
     this.group.add(this.mesh);
     this.group.name = name;
     this.widgets = [];
-    this.hover = new Map();   // interactor -> widget
-    this.pressed = new Map(); // interactor -> widget
+    this.hover = new Map();   // widget per interactor
+    this.pressed = new Map(); // widget per interactor
     this.pokeZ = new Map();
     this.opacity = 1;
     this.interactive = true;
     this._drawn = [];         // what each widget showed when last drawn (see _changedBand)
-    this._fit = new Map();    // row -> { key, size }: label font size (see _fitRow)
+    this._fit = new Map();    // label font size per row, as { key, size } (see _fitRow)
     this._hovered = new Set();
     this._pressed = new Set();
     this._lastDraw = 0;
@@ -181,7 +179,7 @@ export class UIPanel {
     this.draw();
   }
 
-  /** What a widget shows, as a string that changes when it has to be redrawn. */
+  // What a widget shows, as a string that changes whenever it needs a redraw
   _state(w, hovered, pressed) {
     const r = w.row;
     let s = '';
@@ -197,10 +195,8 @@ export class UIPanel {
     return s;
   }
 
-  /**
-   * The widgets that show something different since the last draw, as a band
-   * of the canvas { y0, y1 } in metres, or null when nothing changed.
-   */
+  // Band of the canvas { y0, y1 } (meters) covering the widgets that changed
+  // since the last draw, or null when nothing changed.
   _changedBand() {
     const hovered = this._hovered, pressed = this._pressed;
     hovered.clear();
@@ -232,7 +228,7 @@ export class UIPanel {
     this.material.opacity = this.opacity;
   }
 
-  /** Lines of a text row wrapped to `w` metres. */
+  // Lines of a text row wrapped to w meters
   _wrap(row, w) {
     const text = typeof row.text === 'function' ? row.text() : row.text;
     return this._wrapString(text, w, row.bold ? 600 : 500);
@@ -243,11 +239,9 @@ export class UIPanel {
     return wrapText(this.ctx, text, w * PX_PER_M);
   }
 
-  /**
-   * Font size (px) for a button row's labels: the largest that fits every
-   * label in the row, so a row never mixes sizes. Measured again only when a
-   * label changes.
-   */
+  // Font size (px) for a button row's labels. It's the largest size that fits
+  // every label in the row, so a row never mixes sizes. Only measured again
+  // when a label changes.
   _fitRow(row) {
     const ws = this._rowWidgets.get(row);
     let key = '';
@@ -272,13 +266,11 @@ export class UIPanel {
     return fit;
   }
 
-  /**
-   * Draw the panel. With a band ({ y0, y1 } in metres) only that strip of the
-   * canvas is redrawn, clipped, and uploaded: the plate and every widget that
-   * reaches into it are drawn again, so it ends up exactly as a full redraw
-   * would. A live value (a slider, a distance) then costs a small upload
-   * instead of the whole panel texture.
-   */
+  // Draw the panel. With a band ({ y0, y1 } in meters) only that strip of the
+  // canvas is redrawn, clipped and uploaded. The plate and every widget that
+  // reaches into it get drawn again, so it ends up the same as a full redraw.
+  // A live value (a slider, a distance) then costs a small upload instead of
+  // the whole panel texture.
   draw(band = null) {
     const ctx = this.ctx;
     const S = PX_PER_M;
@@ -398,13 +390,13 @@ export class UIPanel {
         roundRect(ctx, x, ty - th / 2, ww, th, th / 2);
         ctx.fillStyle = COLORS.btnHover;
         ctx.fill();
-        // centre detent mark
+        // center detent mark
         const from = r.center !== undefined ? (r.center - r.min) / span : 0;
         if (r.center !== undefined) {
           ctx.fillStyle = COLORS.muted;
           ctx.fillRect(x + ww * from - 1.5, ty - 0.0075 * S, 3, 0.015 * S);
         }
-        // fill from the centre detent (or the minimum) to the value
+        // fill from the center detent (or the minimum) to the value
         const x0 = x + ww * Math.min(from, t), x1 = x + ww * Math.max(from, t);
         let fill = COLORS.accent;
         if (r.gradient) {
@@ -460,7 +452,7 @@ export class UIPanel {
     else this.texture.needsUpdate = true;
   }
 
-  /** Copy canvas rows y0..y1 (pixels) into the texture, instead of uploading all of it. */
+  // Copy canvas rows y0 to y1 (pixels) into the texture instead of uploading all of it
   _uploadRows(y0, y1) {
     _band.min.set(0, y0);
     _band.max.set(this.canvas.width, y1);
@@ -468,7 +460,7 @@ export class UIPanel {
     this.ui.app.renderer.copyTextureToTexture(this._source, this.texture, _band, _bandAt);
   }
 
-  /** Panel-local point (metres, origin at top-left, y down) for a world point. */
+  // Panel-local point (meters, origin at top-left, y down) for a world point
   toPanel(world, out = new THREE.Vector3()) {
     out.copy(world);
     this.group.worldToLocal(out);
@@ -477,7 +469,7 @@ export class UIPanel {
     return out; // z = distance in front of the panel
   }
 
-  /** World point for a panel-local point (the inverse of toPanel). */
+  // Inverse of toPanel
   fromPanel(x, y, z = 0, out = new THREE.Vector3()) {
     out.set(x - this.width / 2, (this.anchorTop ? 0 : this.height / 2) - y, z);
     return this.group.localToWorld(out);
@@ -564,7 +556,7 @@ export class UISystem {
     for (const p of this.panels) p.update(time);
   }
 
-  /** Fingertip poke. Returns true when the finger is engaged with a panel. */
+  // Fingertip poke. Returns true when the finger is engaged with a panel.
   updatePoke(ix) {
     ix.pokeHit.panel = null;
     if (!ix.hasPoke) return false;
@@ -612,7 +604,7 @@ export class UISystem {
     return engaged;
   }
 
-  /** Ray vs visible panels. */
+  // Ray vs visible panels
   raycast(ix) {
     let best = null;
     for (const p of this.panels) {

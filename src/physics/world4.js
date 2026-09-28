@@ -33,7 +33,7 @@ export class Body4 {
     const m = this.collider.moments;
     this.inertia = R4.PLANES.map(([i, j]) => mass * (m[i] + m[j]));
     this.invInertia = this.inertia.map((I) => (I > 0 ? 1 / I : 0));
-    // full 6×6 map for bodies whose axes aren't principal axes (the tetracube)
+    // full 6×6 matrix for bodies whose axes aren't principal axes (the tetracube)
     this.inertiaMat = null;
     this.invInertiaMat = null;
     if (this.collider.products && mass > 0) {
@@ -57,13 +57,13 @@ export class Body4 {
 
   wake() { this.sleeping = false; this.sleepTimer = 0; }
 
-  /** ω = I⁻¹ L, evaluated in the body frame. */
+  // ω = I⁻¹ L, evaluated in the body frame
   updateOmega() {
     if (this.kinematic) return;
     this.omegaAt(this.w, this.R);
   }
 
-  /** Angular velocity the body would have with its angular momentum at orientation R. */
+  // Angular velocity the body would have at orientation R with its current L
   omegaAt(out, R) {
     if (this.isotropic) {
       for (let k = 0; k < 6; k++) out[k] = this.L[k] * this.invInertia[0];
@@ -74,7 +74,7 @@ export class Body4 {
     return R4.bivRotate(out, R, b);
   }
 
-  /** Apply I (or I⁻¹) to a body-frame bivector, in place. */
+  // Applies I (or I⁻¹ when inverse is set) to a body-frame bivector in place
   _inertiaBody(b, inverse) {
     const K = inverse ? this.invInertiaMat : this.inertiaMat;
     if (K) {
@@ -91,7 +91,7 @@ export class Body4 {
     return b;
   }
 
-  /** Apply I⁻¹ (world) to a bivector. */
+  // Applies the world-frame I⁻¹ to a bivector
   invInertiaWorld(out, B) {
     if (this.kinematic || this.sleeping || this.invMass === 0) { out.fill(0); return out; }
     if (this.isotropic) {
@@ -117,7 +117,7 @@ export class Body4 {
     for (let k = 0; k < 6; k++) this.w[k] += _b4[k];
   }
 
-  /** Velocity change at r per unit impulse J applied at r. */
+  // Velocity change at r from an impulse J applied at r
   responseAt(out, r, J) {
     if (this.kinematic || this.sleeping || this.invMass === 0) return V.set(out, 0, 0, 0, 0);
     R4.angularImpulse(_b3, r, J);
@@ -141,11 +141,9 @@ export class Body4 {
 
 const _b1 = R4.biv(), _b2 = R4.biv(), _b3 = R4.biv(), _b4 = R4.biv(), _b5 = R4.biv();
 
-/**
- * Inertia as a 6×6 matrix on body-frame bivectors, for second moments
- * S = E[x xᵀ] with off-diagonal terms: L = m (S Ω + Ω S) (see rot4.js for Ω).
- * With a diagonal S this reduces to I_ij = m (S_ii + S_jj).
- */
+// Inertia as a 6×6 matrix on body-frame bivectors. Used when the second
+// moments S = E[x xᵀ] have off-diagonal terms. L = m (S Ω + Ω S), see rot4.js
+// for Ω. With a diagonal S this reduces to I_ij = m (S_ii + S_jj).
 function inertiaMatrix(mass, diag, products) {
   const S = [0, 1, 2, 3].map((i) => [0, 1, 2, 3].map((j) => (i === j ? diag[i] : 0)));
   R4.PLANES.forEach(([i, j], k) => { S[i][j] = S[j][i] = products[k]; });
@@ -162,7 +160,7 @@ function inertiaMatrix(mass, diag, products) {
   return K;
 }
 
-/** Inverse of a 6×6 matrix (Gauss–Jordan with partial pivoting). */
+// Gauss-Jordan with partial pivoting
 function invert6(K) {
   const a = Float64Array.from(K), inv = new Float64Array(36);
   for (let i = 0; i < 6; i++) inv[i * 7] = 1;
@@ -211,7 +209,7 @@ export class World4 {
     this.onImpact = null; // (point, speed, bodyA, bodyB)
     this.linearDamping = 0.02;
     this.angularDamping = 0.06;
-    this.accel = null; // optional (body, dt) => void, adds a force field to free bodies' velocities each substep
+    this.accel = null; // optional (body, dt) callback that adds a force field to free bodies' velocities each substep
   }
 
   add(body) { this.bodies.push(body); return body; }
@@ -224,7 +222,7 @@ export class World4 {
     this.accum = Math.min(this.accum + frameDt, this.dt * 5);
     const steps = Math.floor(this.accum / this.dt);
     for (let i = 0; i < steps; i++) {
-      // kinematic (held) bodies are eased towards their target over the substeps
+      // kinematic bodies move 1/(substeps left) of the way to their target, so they reach it on the last one
       this._substep(this.dt, 1 / (steps - i));
       this.accum -= this.dt;
     }
@@ -312,11 +310,8 @@ export class World4 {
     R4.orthonormalize(b.R);
   }
 
-  /**
-   * Held bodies are moved by setting their velocity towards the target
-   * instead of their position, so they still collide with walls and push
-   * other bodies.
-   */
+  // Held bodies get a velocity towards the target instead of being moved there
+  // directly, so they still collide with walls and push other bodies.
   _driveHeld(b, dt) {
     const t = b.target;
     b.sleeping = false;
@@ -352,7 +347,7 @@ export class World4 {
   // ---------------------------------------------------------------------------
   // Collision detection
 
-  /** Contact margin based on speed, so fast bodies don't pass through thin objects. */
+  // Contact margin based on speed, so fast bodies don't pass through thin objects
   _spec(b) {
     if (!b || b.invMass === 0) return 0;
     return Math.min(0.05, (V.length(b.v) + R4.bivNorm(b.w) * b.bound) * this._dt);
@@ -418,7 +413,7 @@ export class World4 {
     if (this.contacts.length > before) this._reduce(before);
   }
 
-  /** Point p (with radius) against the floor, the round wall and the ±w walls. */
+  // Point p (with radius) against the floor, the round wall and the ±w walls
   _testStatic(b, p, radius, tol, floor, nearFloor, nearWall, nearW) {
     if (nearFloor) {
       const d = p[1] - radius - floor;
@@ -463,7 +458,7 @@ export class World4 {
     this._samplesVs(B, A);
   }
 
-  /** Sphere S against a general body G. */
+  // Sphere S against any other body G
   _sphereVs(S, G, sphereIsA) {
     const cg = G.collider;
     V.sub(_tmp, S.x, G.x);
@@ -477,7 +472,7 @@ export class World4 {
     else this._addContact(G, S, _pw, _n, -d);
   }
 
-  /** Samples of P tested against the SDF of Q: contacts pushing P away from Q. */
+  // Tests P's samples against Q's SDF. The contacts push P away from Q.
   _samplesVs(P, Q) {
     const cq = Q.collider;
     const reach = cq.bound + 0.002 + this._tol;
@@ -495,7 +490,7 @@ export class World4 {
     }
   }
 
-  /** Keep at most 8 well-spread contacts per pair (deepest first). */
+  // Keeps at most 8 well-spread contacts per pair, starting from the deepest
   _reduce(start) {
     const list = this.contacts;
     const count = list.length - start;
@@ -545,7 +540,7 @@ export class World4 {
     const e = Math.max(a.restitution, b.restitution);
     const closes = vn * dt < c.depth; // a speculative contact whose gap closes within this step
     if (c.depth < 0) {
-      c.bias = c.depth / dt; // speculative: may approach by the remaining gap, no further
+      c.bias = c.depth / dt; // speculative, only allowed to close the remaining gap
       // If the gap closes within this step, bounce now. Otherwise the step
       // before impact slows the body to gap/dt and restitution only acts on
       // that, so bounces would depend on where the step boundary falls.

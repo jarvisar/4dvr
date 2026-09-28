@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { FONTS } from '../core/ui.js';
 
-/** Common scene contract used by the App, menu and interaction manager. */
+// Base class for scenes. The App, menu and interaction manager expect these fields and methods.
 export class SceneBase {
   constructor(app) {
     this.app = app;
@@ -22,7 +22,7 @@ export class SceneBase {
   desktopHelp() { return ''; }
 }
 
-/** Text label on a plane (canvas texture). Free it with disposeLabel(). */
+// Text on a plane using a canvas texture. Free it with disposeLabel().
 export function makeLabel(text, { size = 0.02, color = '#ffffff', weight = 600, bg = null, pad = 0.35 } = {}) {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
@@ -45,7 +45,7 @@ export function makeLabel(text, { size = 0.02, color = '#ffffff', weight = 600, 
 function drawLabel(ctx, text, { w, h, px, font, color, bg }) {
   ctx.clearRect(0, 0, w, h);
   if (bg) {
-    // plate with rounded corners, matching the UI panels
+    // rounded plate to match the UI panels
     ctx.fillStyle = bg;
     ctx.beginPath();
     ctx.roundRect(0, 0, w, h, h * 0.22);
@@ -58,7 +58,6 @@ function drawLabel(ctx, text, { w, h, px, font, color, bg }) {
   ctx.fillText(text, w / 2, h / 2 + px * 0.04);
 }
 
-/** Remove a label from the scene and free its GPU resources. */
 export function disposeLabel(mesh) {
   if (!mesh) return;
   mesh.removeFromParent();
@@ -67,10 +66,8 @@ export function disposeLabel(mesh) {
   mesh.material.dispose();
 }
 
-/**
- * Label for frequently changing text (readouts). The canvas has a fixed size,
- * sized for `template`, and is redrawn in place, so updates allocate nothing.
- */
+// For text that changes often, like readouts. The canvas is a fixed size, fit to
+// `template`, and gets redrawn in place so updates don't allocate anything.
 export class TextLabel {
   constructor({ size = 0.02, template = 'w = -00.0 cm', weight = 500, bg = null, pad = 0.35 } = {}) {
     this.canvas = document.createElement('canvas');
@@ -101,7 +98,7 @@ export class TextLabel {
   }
 }
 
-/** Additive particle burst, used when a puzzle is solved. */
+// Particle burst for when a puzzle is solved
 export class Burst {
   constructor(parent, count = 90) {
     this.count = count;

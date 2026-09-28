@@ -10,13 +10,13 @@ export function mdot(a, b) {
 
 export const ORIGIN = [0, 0, 0, 1];
 
-/** Hyperbolic distance between two hyperboloid points. */
+// Hyperbolic distance between two points on the hyperboloid
 export function hdist(a, b) {
   return Math.acosh(Math.max(1, -mdot(a, b)));
 }
 
 const _n = [0, 0, 0];
-/** Boost (translation) moving the origin by distance |v| in direction v. */
+// Boost (translation) that moves the origin a distance |v| in direction v
 export function boost(out, v) {
   const d = Math.hypot(v[0], v[1], v[2]);
   R4.identity(out);
@@ -33,20 +33,20 @@ export function boost(out, v) {
   return out;
 }
 
-/** Reflection in the plane {x : ⟨x,n⟩ = 0} for a unit spacelike normal n. */
+// Reflection in the plane {x : ⟨x,n⟩ = 0} for a unit spacelike normal n
 export function reflection(out, n) {
   const Jn = [n[0], n[1], n[2], -n[3]];
   for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) out[i * 4 + j] = (i === j ? 1 : 0) - 2 * n[i] * Jn[j];
   return out;
 }
 
-/** Map a point to the hyperboloid from Klein (projective) coordinates. */
+// Maps a point in Klein (projective) coordinates onto the hyperboloid
 export function fromKlein(k) {
   const s = 1 / Math.sqrt(1 - (k[0] * k[0] + k[1] * k[1] + k[2] * k[2]));
   return [k[0] * s, k[1] * s, k[2] * s, s];
 }
 
-/** Lorentz inverse: J Mᵀ J. */
+// Lorentz inverse, J Mᵀ J
 const _J = [1, 1, 1, -1];
 const _inv = new Float64Array(16);
 export function lorentzInverse(out, M) {
@@ -56,10 +56,8 @@ export function lorentzInverse(out, M) {
   return out;
 }
 
-/**
- * Re-orthonormalise a Lorentz matrix (columns are the images of the basis
- * vectors). Gram–Schmidt with the Minkowski product, timelike column first.
- */
+// Re-orthonormalizes a Lorentz matrix (columns are the images of the basis
+// vectors). Gram-Schmidt with the Minkowski product, timelike column first.
 export function lorentzOrthonormalize(M) {
   const col = (j) => [M[j], M[4 + j], M[8 + j], M[12 + j]];
   const setCol = (j, v) => { M[j] = v[0]; M[4 + j] = v[1]; M[8 + j] = v[2]; M[12 + j] = v[3]; };
@@ -83,7 +81,7 @@ export function lorentzOrthonormalize(M) {
   return M;
 }
 
-/** Minkowski-orthogonal complement helper: x with ⟨x,a⟩ = ⟨x,b⟩ = ⟨x,c⟩ = 0. */
+// Finds x with ⟨x,a⟩ = ⟨x,b⟩ = ⟨x,c⟩ = 0 (Minkowski orthogonal to all three)
 export function mcross(out, a, b, c) {
   const Ja = [a[0], a[1], a[2], -a[3]], Jb = [b[0], b[1], b[2], -b[3]], Jc = [c[0], c[1], c[2], -c[3]];
   // Euclidean cofactor cross of the J-flipped vectors

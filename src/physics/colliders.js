@@ -68,7 +68,7 @@ export class Collider {
         break;
       }
       case 'boxes': {
-        // union of axis-aligned boxes in body space: [{ c: centre, h: half-sizes }]
+        // union of axis-aligned boxes in body space: [{ c: center, h: half-sizes }]
         this.boxes = desc.boxes.map((bx) => ({ c: bx.c.map((x) => x * s), h: bx.h.map((x) => x * s) }));
         const seen = new Set();
         const addSample = (v) => {
@@ -76,7 +76,7 @@ export class Collider {
           if (!seen.has(k)) { seen.add(k); samples.push(v); }
         };
         let bound = 0;
-        // second moments about the body origin, which must be the centre of
+        // second moments about the body origin, which must be the center of
         // mass (boxes weighted by volume, assumed not to overlap)
         const S = [0, 1, 2, 3].map(() => [0, 0, 0, 0]);
         const vol = this.boxes.reduce((acc, { h }) => acc + h[0] * h[1] * h[2] * h[3], 0);
@@ -92,8 +92,8 @@ export class Collider {
         }
         this.bound = bound;
         moments = [S[0][0], S[1][1], S[2][2], S[3][3]];
-        // A union of boxes (like the chiral tetracube) generally has
-        // E[x_i x_j] ≠ 0: its body axes aren't principal axes.
+        // A union of boxes (like the chiral tetracube) usually has
+        // E[x_i x_j] ≠ 0, so its body axes aren't principal axes.
         const products = PLANES.map(([i, j]) => S[i][j]);
         const scaleM = moments.reduce((a, b) => a + b, 0);
         if (products.some((p) => Math.abs(p) > scaleM * 1e-9)) this.products = products;
@@ -183,11 +183,9 @@ export class Collider {
     this.moments = moments;
   }
 
-  /**
-   * Signed distance in body space. With `limit`, the result is only exact up to
-   * `limit`: a convex shape stops at the first face plane farther than that,
-   * which lets callers that discard far-away points skip most of the planes.
-   */
+  // Signed distance in body space. With limit set, the result is only exact up
+  // to limit. A convex shape returns at the first face plane past it, so callers
+  // that throw away far points can skip most of the planes.
   sdf(p, limit = Infinity) {
     const x = p[0], y = p[1], z = p[2], w = p[3];
     switch (this.type) {
@@ -227,7 +225,7 @@ export class Collider {
     return Infinity;
   }
 
-  /** Outward unit normal (SDF gradient) in body space. */
+  // Outward unit normal (SDF gradient) in body space
   normal(p, out) {
     if (this.type === 'sphere') {
       const l = len4(p[0], p[1], p[2], p[3]) || 1;

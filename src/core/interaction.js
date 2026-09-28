@@ -3,8 +3,8 @@
 // for things like moving the slice along W).
 //
 // Scenes expose `interactables`, objects with:
-//   nearDistance(worldPoint) → metres from the surface (≤0 inside) or Infinity
-//   rayDistance(origin, dir) → hit distance or Infinity
+//   nearDistance(worldPoint) returns meters from the surface (≤0 inside) or Infinity
+//   rayDistance(origin, dir) returns the hit distance or Infinity
 //   onHover(ix, bool), onGrabStart(ix, mode, kind), onGrabUpdate(ix, dt), onGrabEnd(ix)
 
 import * as THREE from 'three';
@@ -25,7 +25,7 @@ export class InteractionManager {
     }
   }
 
-  /** Release everything (scene switches). */
+  // Release everything (used on scene switches)
   releaseAll() {
     for (const ix of [...this.app.input.xr, this.app.input.mouse]) {
       if (ix.grabbed) { ix.grabbed.onGrabEnd?.(ix); ix.grabbed = null; }
@@ -35,7 +35,7 @@ export class InteractionManager {
     }
   }
 
-  /** Drop references to an interactable that is being removed from the scene. */
+  // Drop references to an interactable that's being removed from the scene
   forget(target) {
     for (const ix of [...this.app.input.xr, this.app.input.mouse]) {
       if (ix.grabbed === target) ix.grabbed = null;
@@ -137,7 +137,7 @@ export class InteractionManager {
     } else if (rayTarget) {
       if (ix.isMouse) ix.grabDepth = rayT;
       this._grab(ix, rayTarget, pressed, 'ray');
-    } else if (!(ix.isMouse && pressed === 'primary') // desktop: left-drag on empty space orbits the camera
+    } else if (!(ix.isMouse && pressed === 'primary') // on desktop, left-drag on empty space orbits the camera
       && scene.onEmptyGrabStart && scene.onEmptyGrabStart(ix, pressed) !== false) {
       ix.emptyGrab = { mode: pressed };
     }
@@ -161,7 +161,7 @@ export class InteractionManager {
   }
 }
 
-/** Ray vs sphere helper for interactables. */
+// Ray vs sphere helper for interactables (0 if the ray starts inside)
 export function raySphere(origin, dir, center, radius) {
   const ox = origin.x - center.x, oy = origin.y - center.y, oz = origin.z - center.z;
   const b = ox * dir.x + oy * dir.y + oz * dir.z;

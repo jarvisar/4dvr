@@ -1,18 +1,17 @@
-// Tetrahedral meshes of the 3D boundaries of 4D solids.
+// Builds tetrahedral meshes of the 3D boundaries of 4D solids.
 //
-// A 3D solid is drawn using triangles on its surface. A 4D solid is drawn
-// using tetrahedra on its boundary. Cutting each tetrahedron with the
-// viewer's hyperplane gives a triangle or quad, and together these form the
-// surface of the 3D cross-section. The cutting is done in sliceMaterial.js;
-// this module builds the tetrahedra.
+// A 3D solid is drawn with triangles on its surface. A 4D solid is drawn with
+// tetrahedra on its boundary. Cutting each tetrahedron with the viewer's
+// hyperplane gives a triangle or quad, and together these form the surface of
+// the 3D cross-section. The cutting happens in sliceMaterial.js.
 //
 // Each tetrahedron is stored as 10 RGBA float texels:
 //   0-3  vertex positions (object space, xyzw)
 //   4-7  vertex normals (4D hypersurface normals)
-//   8    rgb color + h: vertex 0 of a polytope tetrahedron is the cell center,
+//   8    rgb color + h. Vertex 0 of a polytope tetrahedron is the cell center,
 //        so its barycentric weight * h is the distance to the nearest face.
 //        The fragment shader uses this to draw edges.
-//   9    x: reach, the largest distance from vertex 0 to the other vertices.
+//   9    x = reach, the largest distance from vertex 0 to the other vertices.
 //        The vertex shader uses it to skip tetrahedra far from the slice
 //        after reading only vertex 0 (most of them, for any given slice).
 
@@ -62,11 +61,9 @@ export class TetMesh {
     return this._texture;
   }
 
-  /**
-   * Geometry with 4 output vertices per tet (the up-to-4 polygon corners),
-   * indexed as two triangles. The vertex shader derives everything from
-   * gl_VertexID; the dummy attribute only sizes the draw.
-   */
+  // 4 output vertices per tet (the up to 4 polygon corners), indexed as two
+  // triangles. The vertex shader works everything out from gl_VertexID. The
+  // position attribute is a dummy that only sets the draw size.
   get geometry() {
     if (!this._geometry) {
       const g = new THREE.BufferGeometry();
@@ -87,14 +84,14 @@ export class TetMesh {
 }
 
 // ---------------------------------------------------------------------------
-// Colour helpers
+// Color helpers
 
 export function hexToRgb(hex) {
   const c = new THREE.Color(hex);
   return [c.r, c.g, c.b];
 }
 
-/** The eight "cell colours": one per ±axis, shared with the hypersphere pattern. */
+// One cell color per ±axis. Also used by the hypersphere pattern.
 export const AXIS_COLORS = [
   '#ff6b6b', '#ff9f68', // +x, -x
   '#ffd93d', '#b8e05a', // +y, -y
@@ -102,14 +99,14 @@ export const AXIS_COLORS = [
   '#8b7bff', '#d77bff', // +w, -w
 ].map(hexToRgb);
 
-/** Colour a cell by the axis its normal is closest to (tesseract-style). */
+// Colors a cell by the axis its normal is closest to (tesseract style)
 export function axisColor(normal) {
   let best = 0;
   for (let i = 1; i < 4; i++) if (Math.abs(normal[i]) > Math.abs(normal[best])) best = i;
   return AXIS_COLORS[best * 2 + (normal[best] >= 0 ? 0 : 1)];
 }
 
-/** Pastel color from a 4D direction. */
+// Pastel color from a 4D direction
 export function directionColor(n) {
   const c = new THREE.Color();
   const hue = (Math.atan2(n[1] + 0.35 * n[3], n[0] - 0.35 * n[2]) / (Math.PI * 2) + 1) % 1;
@@ -121,10 +118,8 @@ export function directionColor(n) {
 // ---------------------------------------------------------------------------
 // Polytopes
 
-/**
- * Tetrahedralise the boundary of a polytope: every cell is fanned from its
- * centre over its faces (and each non-triangular face from its own centre).
- */
+// Every cell is fanned from its center over its faces. Faces that aren't
+// triangles are also fanned from their own center.
 export function polytopeTets(poly, { scale = 1, color = (cell) => directionColor(cell.normal) } = {}) {
   const mesh = new TetMesh(poly.name);
   const P = (v) => V.scale([0, 0, 0, 0], v, scale);
@@ -150,13 +145,11 @@ export function polytopeTets(poly, { scale = 1, color = (cell) => directionColor
   return mesh;
 }
 
-/**
- * A 3D polycube thickened along w: each cube [i, j, k] becomes a hypercube of
- * edge `edge` with w in [−edge/2, edge/2], centred on the polycube's centroid.
- * Only the boundary cells are kept (a ±x/±y/±z cell is dropped where the
- * neighbouring cube shares it); each cell is fanned from its centre like a
- * polytope cell, so the edge lines show the individual cubes.
- */
+// A 3D polycube thickened along w. Each cube [i, j, k] becomes a hypercube
+// with side `edge` and w in [-edge/2, edge/2], centered on the polycube's
+// centroid. Only boundary cells are kept, so a ±x/±y/±z cell is dropped where
+// a neighboring cube shares it. Each cell is fanned from its center like a
+// polytope cell, so the edge lines still show the individual cubes.
 export function polycubeTets(cubes, colors, edge = 1) {
   const mesh = new TetMesh('polycube');
   const has = new Set(cubes.map((c) => c.join(',')));
@@ -196,10 +189,11 @@ export function polycubeTets(cubes, colors, edge = 1) {
 // ---------------------------------------------------------------------------
 // Generic builders for smooth shapes
 
-// Dompierre et al., "How to subdivide pyramids, prisms and hexahedra into
-// tetrahedra": relabel so the smallest global id sits at local vertex 0, then
-// pick diagonals that always pass through each quad's smallest vertex. This
-// keeps neighbouring prisms conforming, so slices have no cracks.
+// From Dompierre et al., "How to subdivide pyramids, prisms and hexahedra into
+// tetrahedra". Relabel so the smallest global id is at local vertex 0, then
+// pick diagonals that always pass through each quad's smallest vertex. That
+// way neighboring prisms split their shared faces the same way, so slices
+// have no cracks.
 const PRISM_PERM = [
   [0, 1, 2, 3, 4, 5], [1, 2, 0, 4, 5, 3], [2, 0, 1, 5, 3, 4],
   [3, 5, 4, 0, 2, 1], [4, 3, 5, 1, 0, 2], [5, 4, 3, 2, 1, 0],
@@ -216,11 +210,9 @@ function splitPrism(ids) {
   return [[L[0], L[1], L[2], L[4]], [L[0], L[4], L[2], L[5]], [L[0], L[4], L[5], L[3]]];
 }
 
-/**
- * Extrude a triangulated 2-manifold (tris over nBase vertices) through
- * `layers` steps of a 1D parameter, producing prisms split into tets.
- * vertexFn(baseIndex, layer) → { p: vec4, n: vec4 }.
- */
+// Extrudes a triangulated surface (tris over nBase vertices) through `layers`
+// steps of a 1D parameter, and splits each prism into tets.
+// vertexFn(baseIndex, layer) returns { p: vec4, n: vec4 }.
 export function prismTets(mesh, tris, nBase, layers, periodic, vertexFn, color) {
   const nLayers = periodic ? layers : layers + 1;
   const cache = new Map();
@@ -241,7 +233,7 @@ export function prismTets(mesh, tris, nBase, layers, periodic, vertexFn, color) 
   }
 }
 
-/** Kuhn (Freudenthal) triangulation of a 3D parameter grid, each cube → 6 tets. */
+// Kuhn (Freudenthal) triangulation of a 3D parameter grid, 6 tets per cube
 export function gridTets(mesh, nu, nv, nw, periodic, fn, color) {
   const [pu, pv, pw] = periodic;
   const cache = new Map();
@@ -263,7 +255,7 @@ export function gridTets(mesh, nu, nv, nw, periodic, fn, color) {
   }
 }
 
-/** Unit icosphere: { verts: [[x,y,z]], tris: [[a,b,c]] }. */
+// Unit icosphere as { verts: [[x,y,z]], tris: [[a,b,c]] }
 export function icosphere(detail = 2) {
   const t = PHI_3;
   let verts = [
@@ -297,25 +289,23 @@ export function icosphere(detail = 2) {
 const PHI_3 = (1 + Math.sqrt(5)) / 2;
 
 // ---------------------------------------------------------------------------
-// Smooth shape catalogue
+// Smooth shapes
 
-/**
- * Duocylinder: the product of two discs, D²(r1) in xy × D²(r2) in zw.
- * Its boundary is two solid tori joined along a flat torus.
- */
+// Duocylinder, the product of two disks, D²(r1) in xy × D²(r2) in zw. Its
+// boundary is two solid tori joined along a flat torus.
 export function duocylinderTets(r1, r2, seg = 32, colA = AXIS_COLORS[0], colB = AXIS_COLORS[6]) {
   const mesh = new TetMesh('duocylinder');
-  // Disc as a fan: vertex 0 = centre, 1..seg on the rim (the disc is flat, so no inner rings are needed).
+  // Disk as a fan with vertex 0 at the center and 1..seg on the rim. It's flat, so no inner rings are needed.
   const tris = [];
   for (let i = 0; i < seg; i++) tris.push([0, 1 + i, 1 + ((i + 1) % seg)]);
   const disc = (idx, r) => (idx === 0 ? [0, 0] : [r * Math.cos(((idx - 1) / seg) * Math.PI * 2), r * Math.sin(((idx - 1) / seg) * Math.PI * 2)]);
-  // Part A: circle in xy × disc in zw
+  // Part A: circle in xy × disk in zw
   prismTets(mesh, tris, seg + 1, seg, true, (b, l) => {
     const a = (l / seg) * Math.PI * 2;
     const [u, v] = disc(b, r2);
     return { p: [r1 * Math.cos(a), r1 * Math.sin(a), u, v], n: [Math.cos(a), Math.sin(a), 0, 0] };
   }, colA);
-  // Part B: disc in xy × circle in zw
+  // Part B: disk in xy × circle in zw
   prismTets(mesh, tris, seg + 1, seg, true, (b, l) => {
     const a = (l / seg) * Math.PI * 2;
     const [u, v] = disc(b, r1);
@@ -324,7 +314,7 @@ export function duocylinderTets(r1, r2, seg = 32, colA = AXIS_COLORS[0], colB = 
   return mesh;
 }
 
-/** Spherinder: a ball B³(r) in xyz extruded along w ∈ [−h, h]. */
+// Spherinder, a ball B³(r) in xyz extruded along w in [-h, h]
 export function spherinderTets(r, h, detail = 2, colSide = AXIS_COLORS[4], colCap = AXIS_COLORS[2]) {
   const mesh = new TetMesh('spherinder');
   const s = icosphere(detail);
@@ -344,17 +334,17 @@ export function spherinderTets(r, h, detail = 2, colSide = AXIS_COLORS[4], colCa
   return mesh;
 }
 
-/** Cubinder: a disc D²(r) in xy × a square [−h,h]² in zw. */
+// Cubinder, a disk D²(r) in xy × a square [-h, h]² in zw
 export function cubinderTets(r, h, seg = 32, colRound = AXIS_COLORS[5], colFlat = AXIS_COLORS[3]) {
   const mesh = new TetMesh('cubinder');
-  // Round part: circle(xy) × square(zw), the square split into 2 triangles over 4 corners (+ center for symmetry).
+  // Round part: circle(xy) × square(zw). The square is fanned from its center into 4 triangles so it stays symmetric.
   const sq = [[0, 0], [-h, -h], [h, -h], [h, h], [-h, h]];
   const sqTris = [[0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 1]];
   prismTets(mesh, sqTris, 5, seg, true, (b, l) => {
     const a = (l / seg) * Math.PI * 2;
     return { p: [r * Math.cos(a), r * Math.sin(a), sq[b][0], sq[b][1]], n: [Math.cos(a), Math.sin(a), 0, 0] };
   }, colRound);
-  // Flat parts: disc(xy) × each edge of the square (4 cylinders).
+  // Flat parts: disk(xy) × each edge of the square (4 cylinders)
   const tris = [];
   for (let i = 0; i < seg; i++) tris.push([0, 1 + i, 1 + ((i + 1) % seg)]);
   const edges = [[[h, -h], [h, h], [0, 0, 1, 0]], [[-h, h], [-h, -h], [0, 0, -1, 0]], [[h, h], [-h, h], [0, 0, 0, 1]], [[-h, -h], [h, -h], [0, 0, 0, -1]]];
@@ -369,10 +359,8 @@ export function cubinderTets(r, h, seg = 32, colRound = AXIS_COLORS[5], colFlat 
   return mesh;
 }
 
-/**
- * Tiger: points at distance r from the torus {|xy| = R1, |zw| = R2}.
- * Its boundary is a 3-torus.
- */
+// Tiger, the points within r of the torus {|xy| = R1, |zw| = R2}. Its
+// boundary is a 3-torus.
 export function tigerTets(R1, R2, r, nu = 20, nv = 20, nw = 8) {
   const mesh = new TetMesh('tiger');
   const cA = new THREE.Color('#ff8a5c'), cB = new THREE.Color('#5ce1ff');
@@ -388,7 +376,7 @@ export function tigerTets(R1, R2, r, nu = 20, nv = 20, nw = 8) {
   return mesh;
 }
 
-/** Spheritorus: points at distance r from a circle of radius R in the xy-plane (boundary S² × S¹). */
+// Spheritorus, the points within r of a circle of radius R in the xy plane (boundary S² × S¹)
 export function spheritorusTets(R, r, seg = 32, detail = 1) {
   const mesh = new TetMesh('spheritorus');
   const s = icosphere(detail);
@@ -409,7 +397,7 @@ export function spheritorusTets(R, r, seg = 32, detail = 1) {
   return mesh;
 }
 
-/** Torisphere: points at distance r from a 2-sphere of radius R in xyz (boundary S² × S¹). */
+// Torisphere, the points within r of a 2-sphere of radius R in xyz (boundary S² × S¹)
 export function torisphereTets(R, r, seg = 16, detail = 2) {
   const mesh = new TetMesh('torisphere');
   const s = icosphere(detail);

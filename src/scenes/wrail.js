@@ -1,6 +1,6 @@
-// W-rail: a vertical slider next to the table showing the slice position on
-// the w axis, with a colored marker for each object's w position (similar to
-// the W indicator in 4D Toys). Grabbing the ring or the rail moves the slice.
+// Vertical slider next to the table that shows the slice position on the w
+// axis, with a colored tag for each object's w (like the W indicator in 4D
+// Toys). Grab the ring or the rail to move the slice.
 
 import * as THREE from 'three';
 import { ANA_COLOR, KATA_COLOR } from '../four/sliceView.js';
@@ -49,7 +49,7 @@ const RING_ACTIVE = new THREE.Color('#bff3ff');
 const RING_IDLE = new THREE.Color('#ffffff');
 const RING_R = 0.02, RING_TUBE = 0.0035, RING_ACTIVE_SCALE = 1.25;
 const TAG_R = 0.0065, TAG_IN_SLICE = 1.2;
-// tag columns start just outside the (enlarged) ring, so tags at the slice don't poke through it
+// tag columns start just outside the enlarged ring so tags at the slice don't poke through it
 const TAG_X0 = (RING_R + RING_TUBE) * RING_ACTIVE_SCALE + TAG_R * TAG_IN_SLICE + 0.001;
 const KATA_OUT = 0.02; // the kata label's distance in front of the post
 
@@ -73,7 +73,7 @@ export class WRail {
     rod.position.y = base + height / 2;
     this.group.add(rod);
 
-    // post down to the table surface + a small foot (it fits the table's ledge, outside the rim)
+    // post down to the table with a small foot, which sits on the table's ledge outside the rim
     const postMat = new THREE.MeshStandardMaterial({ color: '#c9c4bd', roughness: 0.6, metalness: 0.1 });
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, base, 8), postMat);
     post.position.y = base / 2;
@@ -92,7 +92,6 @@ export class WRail {
       this.group.add(t);
     }
 
-    // the slice ring
     this.ringMat = new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false, transparent: true, opacity: 0.95 });
     this.ring = new THREE.Mesh(new THREE.TorusGeometry(RING_R, RING_TUBE, 12, 40).rotateX(Math.PI / 2), this.ringMat);
     this.disc = new THREE.Mesh(
@@ -102,14 +101,13 @@ export class WRail {
     this.ring.add(this.disc);
     this.group.add(this.ring);
 
-    // object tags
     this.maxTags = 64;
     this.tags = new THREE.InstancedMesh(new THREE.SphereGeometry(TAG_R, 12, 8), new THREE.MeshBasicMaterial({ toneMapped: false }), this.maxTags);
     this.tags.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.tags.frustumCulled = false;
     this.group.add(this.tags);
 
-    // ana above the rod; kata beside the post, moved round to the viewer's side in update()
+    // ana goes above the rod. kata goes beside the post and update() moves it to the viewer's side.
     const ana = makeLabel('ana  +w', { size: 0.016, color: '#ff8fbf' });
     ana.position.set(0, base + height + 0.022, 0);
     const kata = makeLabel('kata  −w', { size: 0.016, color: '#7fd8ff' });
@@ -133,7 +131,7 @@ export class WRail {
     return v.wMin + ((y - this.base) / this.height) * (v.wMax - v.wMin);
   }
 
-  /** World-space endpoints of the rail segment. */
+  // Sets _a and _b to the rail's world-space endpoints
   _segment() {
     _a.set(0, this.base, 0); this.group.localToWorld(_a);
     _b.set(0, this.base + this.height, 0); this.group.localToWorld(_b);
@@ -235,7 +233,7 @@ export class WRail {
     this.tags.instanceMatrix.needsUpdate = true;
     if (this.tags.instanceColor) this.tags.instanceColor.needsUpdate = true;
 
-    // labels face the viewer; kata stays on the viewer's side of the post
+    // labels face the viewer, and kata stays on the viewer's side of the post
     const head = this.pg.app.headPosition;
     const toHead = this.group.worldToLocal(_p2.copy(head)).setY(0);
     if (toHead.lengthSq() > 1e-6) {

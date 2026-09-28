@@ -44,7 +44,7 @@ const HONEYCOMBS = {
     blurb: 'Right-angled dodecahedra, eight around each vertex. This does not fit in Euclidean space.',
     normals: dodecahedronNormals,
     verts: dodecahedronVerts,
-    // adjacent face normals meet at arccos(1/√5); a 90° dihedral needs tanh²(a) = 1/√5
+    // adjacent face normals meet at arccos(1/√5), so a 90° dihedral needs tanh²(a) = 1/√5
     inradius: () => Math.atanh(Math.pow(5, -0.25)),
     twoColor: true,
     maxCells: 440,
@@ -56,7 +56,7 @@ const HONEYCOMBS = {
     blurb: 'Cubes with 72° dihedral angles, five around each edge. In Euclidean space only four fit.',
     normals: () => [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]],
     verts: () => { const v = []; for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) v.push([x, y, z]); return v; },
-    // orthogonal face normals with a 72° dihedral: sinh²(a) = cos 72°
+    // orthogonal face normals with a 72° dihedral need sinh²(a) = cos 72°
     inradius: () => Math.asinh(Math.sqrt(Math.cos((2 * Math.PI) / 5))),
     twoColor: false,
     maxCells: 700,
@@ -71,8 +71,8 @@ const NODE_R = 0.04;
 const LANTERN_R = 0.055;
 
 const VERT = /* glsl */ `
-// Lorentz transform world -> this eye: boost(-eye) · headInv · model. It is the
-// same for every vertex, so it is computed once per eye on the CPU (in double
+// Lorentz transform from world to this eye, boost(-eye) · headInv · model. It's
+// the same for every vertex, so it's computed once per eye on the CPU (in double
 // precision) in onBeforeRender, which three.js calls separately for each eye.
 uniform mat4 uEyeInv;
 uniform mat3 uHeadRot;
@@ -97,7 +97,7 @@ varying float vKind;
 void main() {
   vec4 Q = uEyeInv * aH;
   vec4 D = uEyeInv * aD;
-  vec3 k = Q.xyz / Q.w;              // Beltrami–Klein coordinates seen from this eye
+  vec3 k = Q.xyz / Q.w;              // Beltrami-Klein coordinates seen from this eye
   vec3 local = k * uL;
   vec3 world = cameraPosition + uHeadRot * local;
   gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
@@ -148,7 +148,7 @@ function applyM(M, v) {
   return R4.apply([0, 0, 0, 0], M, v);
 }
 
-/** Build the honeycomb patch: cells (BFS over reflections), edges, nodes. */
+// Builds a patch of the honeycomb: cells (BFS over reflections), edges and nodes
 function buildHoneycomb(def) {
   const a = def.inradius();
   const normals3 = def.normals();
@@ -171,8 +171,8 @@ function buildHoneycomb(def) {
   // face planes and reflections
   const faceN = normals3.map((u) => [u[0] * Math.cosh(a), u[1] * Math.cosh(a), u[2] * Math.cosh(a), Math.sinh(a)]);
   const refl = faceN.map((n) => H.reflection(R4.mat4(), n));
-  // re-centring symmetry per face: mirror through the cell centre containing the
-  // face axis and one of the face's vertices, composed with the face reflection
+  // re-centering symmetry for each face. Mirror in the plane through the cell center
+  // containing the face axis and one of the face's vertices, composed with the face reflection.
   const recenter = normals3.map((u, f) => {
     let best = null, bd = -Infinity;
     for (const v of kverts) { const d = v[0] * u[0] + v[1] * u[1] + v[2] * u[2]; if (d > bd + 1e-9) { bd = d; best = v; } }
@@ -215,7 +215,7 @@ function buildHoneycomb(def) {
   return { def, a, cells, edges: [...edges.values()], nodes: [...nodes.values()], faceN, recenter, kverts };
 }
 
-/** Geometry buffers (hyperboloid coordinates) for tubes, nodes and lanterns. */
+// Geometry buffers in hyperboloid coordinates for tubes, nodes and lanterns
 function buildGeometry(hc) {
   const aH = [], aD = [], aKind = [], aParity = [], index = [];
   const push = (Q, D, kind, parity) => { aH.push(...Q); aD.push(...D); aKind.push(kind); aParity.push(parity); return aKind.length - 1; };
@@ -236,10 +236,10 @@ function buildGeometry(hc) {
       const tn = Math.sqrt(Math.abs(H.mdot(T, T)));
       for (let i = 0; i < 4; i++) T[i] /= tn;
       // Minkowski-orthonormal frame around the tube. N1 is orthogonal to the
-      // edge's plane span(A, B), so it's the same all along the edge and is
-      // chosen once: chosen per ring, candidates that tie (on many of the cube
-      // honeycomb's edges) could go different ways at different rings and
-      // twist the beam.
+      // edge's plane span(A, B), so it's the same all along the edge and only
+      // gets picked once. If it were picked per ring, candidates that tie (on
+      // many of the cube honeycomb's edges) could go different ways at
+      // different rings and twist the beam.
       if (!N1) {
         const cands = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]];
         let best = null, bestN = -1;
@@ -311,7 +311,7 @@ const _B = R4.mat4();
 const _v3 = [0, 0, 0];
 const _p4 = [0, 0, 0, 0];
 
-/** The head's position (the last column of its pose). */
+// head position is the last column of its pose
 function headPoint(out, Hm) {
   out[0] = Hm[3]; out[1] = Hm[7]; out[2] = Hm[11]; out[3] = Hm[15];
   return out;
@@ -344,7 +344,7 @@ export class HyperbolicScene extends SceneBase {
     };
     this.material = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: VERT, fragmentShader: FRAG });
 
-    // start marker: a larger sphere at the original origin, moved along with re-centering
+    // start marker is a larger sphere at the original origin, moved along with re-centering
     this.beaconUniforms = { ...this.uniforms, uEyeInv: { value: new THREE.Matrix4() }, uLanternA: { value: new THREE.Color('#ffffff') }, uLanternB: { value: new THREE.Color('#ffffff') }, uGlow: { value: 1.5 } };
     this.beaconMat = new THREE.ShaderMaterial({ uniforms: this.beaconUniforms, vertexShader: VERT, fragmentShader: FRAG });
     this.beacon = new THREE.Mesh(this._beaconGeometry(), this.beaconMat);
@@ -353,7 +353,7 @@ export class HyperbolicScene extends SceneBase {
     this.beacon.onBeforeRender = (r, s, camera) => this._setEye(camera, this.beaconMat, this.beaconModel);
     this.root.add(this.beacon);
 
-    this.Hm = R4.mat4();     // head pose: world <- head (Lorentz)
+    this.Hm = R4.mat4();     // head pose, head to world (Lorentz)
     this.headInv = R4.mat4();
     this.headPos = new THREE.Vector3();
     this.headQuatInv = new THREE.Quaternion();
@@ -403,8 +403,8 @@ export class HyperbolicScene extends SceneBase {
 
   setHoneycomb(key) {
     this.hcKey = key;
-    // Each honeycomb is built once and kept: building one takes long enough to
-    // stall the headset, so switching back to it shouldn't build it again.
+    // Each honeycomb is built once and cached. Building one takes long enough to
+    // stall the headset, so switching back to it shouldn't rebuild it.
     this._built ??= new Map();
     let built = this._built.get(key);
     if (!built) {
@@ -425,10 +425,10 @@ export class HyperbolicScene extends SceneBase {
     if (this.app.activeScene === this) this.app.menu.rebuild();
   }
 
-  /** Per-eye Lorentz transform (called by three.js before drawing for each eye). */
+  // Per-eye Lorentz transform. three.js calls this before drawing each eye.
   _setEye(camera, material, model) {
     const L = this.uniforms.uL.value;
-    // this eye's offset from the head centre, in head-local hyperbolic units
+    // this eye's offset from the head center, in head-local hyperbolic units
     _v.setFromMatrixPosition(camera.matrixWorld).sub(this.headPos).applyQuaternion(this.headQuatInv).divideScalar(L);
     _eye[0] = -_v.x; _eye[1] = -_v.y; _eye[2] = -_v.z;
     R4.multiply(_T, H.boost(_E, _eye), this.headInv);
@@ -469,7 +469,7 @@ export class HyperbolicScene extends SceneBase {
   onSessionStart() { this.hasPrev = false; }
   onSessionEnd() { this.hasPrev = false; }
 
-  /** Move the viewer by a head-local displacement (hyperbolic units). */
+  // Moves the viewer by a head-local offset (hyperbolic units)
   _translateLocal(v) {
     const B = H.boost(_B, v);
     R4.multiply(this.Hm, this.Hm, B);
@@ -539,7 +539,7 @@ export class HyperbolicScene extends SceneBase {
       }
     }
 
-    // path-integrate head motion into the hyperbolic pose
+    // accumulate head motion into the hyperbolic pose
     const pos = app.headPosition, quat = app.headQuaternion;
     if (this.hasPrev) {
       const dp = _v.copy(pos).sub(this.prevPos);
@@ -551,14 +551,14 @@ export class HyperbolicScene extends SceneBase {
       const dq = _q.copy(this.prevQuat).invert().multiply(quat);
       this._rotateLocal(dq);
     } else {
-      // first frame: align the hyperbolic head orientation with the real one
+      // on the first frame, align the hyperbolic head orientation with the real one
       R4.multiply(this.Hm, this.Hm, R4.fromQuaternion(R4.mat4(), quat));
     }
     this.prevPos.copy(pos);
     this.prevQuat.copy(quat);
     this.hasPrev = true;
 
-    // controllers: thumbstick moves in the controller's pointing direction
+    // thumbstick moves in the direction the controller points
     for (const ix of app.input.xr) {
       if (ix.kind !== 'controller' || (!ix.stick.x && !ix.stick.y)) continue;
       const v = _mv.set(ix.stick.x, 0, ix.stick.y).multiplyScalar(dt * 0.9);
@@ -581,14 +581,14 @@ export class HyperbolicScene extends SceneBase {
     this.uniforms.uFog.value = this.fogOn ? 0.5 : 0.05;
     this.mesh.visible = true;
 
-    // start marker: translate the base sphere to the original origin
+    // move the start marker's base sphere to the original origin
     const hd = Math.acosh(Math.max(1, this.home[3]));
     const k = hd > 1e-9 ? hd / Math.sinh(hd) : 0;
     _v3[0] = this.home[0] * k; _v3[1] = this.home[1] * k; _v3[2] = this.home[2] * k;
     H.boost(this.beaconModel, _v3);
     this.homeDistance = H.hdist(headPoint(_p4, this.Hm), this.home);
-    // hidden until you're well clear of it: you start inside it, and each eye
-    // would leave it at a different moment (as in spherical.js)
+    // hidden until you're well clear of it. You start inside it, and each eye
+    // would leave it at a different moment (same as spherical.js).
     this.beacon.visible = this.showBeacon && hd < 7 && this.homeDistance > 0.5;
   }
 
@@ -600,7 +600,7 @@ export class HyperbolicScene extends SceneBase {
         get: () => this.hcKey,
         set: (k) => this.setHoneycomb(k),
       },
-      { type: 'slider', label: 'Curvature scale (metres per unit)', min: 0.5, max: 3.5, get: () => this.uniforms.uL.value, set: (v) => { this.uniforms.uL.value = v; }, format: (v) => `${v.toFixed(1)} m` },
+      { type: 'slider', label: 'Curvature scale (meters per unit)', min: 0.5, max: 3.5, get: () => this.uniforms.uL.value, set: (v) => { this.uniforms.uL.value = v; }, format: (v) => `${v.toFixed(1)} m` },
       {
         type: 'toggles', columns: 2,
         items: [

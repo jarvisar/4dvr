@@ -34,7 +34,7 @@ const SMOOTH = {
 const LABELS = { duocylinder: 'Duocylinder', tiger: 'Tiger', spheritorus: 'Spheritorus', torisphere: 'Torisphere', cubinder: 'Cubinder', spherinder: 'Spherinder' };
 
 const EW = [0, 0, 0, 1];
-const AIR_DEADZONE = 0.012; // metres a pinch in empty space moves before it does anything
+const AIR_DEADZONE = 0.012; // meters a pinch in empty space moves before it does anything
 const NAMEPLATE_OUT = 0.205; // nameplate's distance from the column's axis (radius there about 0.163)
 const _E = R4.mat4();
 const _M = R4.mat4();
@@ -53,7 +53,7 @@ export class GalleryScene extends SceneBase {
     this.mood = 'dusk';
 
     this.center = new THREE.Vector3(0, 1.3, -0.62);
-    this.S = 0.19; // metres per unit in the projection
+    this.S = 0.19; // meters per unit in the projection
     this.eye = 2.4;
     this.R = R4.mat4();
     R4.multiply(this.R, R4.planeRotation(R4.mat4(), 0, 3, 0.35), R4.planeRotation(R4.mat4(), 1, 2, 0.5));
@@ -89,7 +89,7 @@ export class GalleryScene extends SceneBase {
     const mat = new THREE.MeshStandardMaterial({ color: '#1a1d26', roughness: 0.55, metalness: 0.3 });
     const topR = 0.16, tube = 0.006;
     this.column = new THREE.Mesh(new THREE.CylinderGeometry(topR, 0.2, 1, 48), mat); // tapers towards the top
-    // a bead round the top edge, flush with it, and the glow inside it
+    // a bead around the top edge, flush with it, and the glow inside it
     this.ring = new THREE.Mesh(
       new THREE.TorusGeometry(topR - tube, tube, 12, 96).rotateX(Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: '#eceef4', toneMapped: false }),
@@ -172,10 +172,10 @@ export class GalleryScene extends SceneBase {
       let o = this.sliceObjs.get(key);
       if (!o) {
         o = new Object4D(key, { scale: this.S, ghosts: false, opacity: 0.82 });
-        o.mesh.renderOrder = 9; // after the additive faces, so the slice keeps its colours
+        o.mesh.renderOrder = 9; // after the additive faces, so the slice keeps its colors
         // A curved shape's slice can be two tori or a torus in a shell, and its
-        // triangles aren't drawn back to front: without depth, a far surface
-        // drawn later would cover a nearer one.
+        // triangles aren't drawn back to front. Without depth writes, a far
+        // surface drawn later would cover a nearer one.
         o.mats.solid.depthWrite = true;
         this.pivot.add(o.group);
         this.sliceObjs.set(key, o);
@@ -205,7 +205,7 @@ export class GalleryScene extends SceneBase {
     const scene = this;
     return {
       nearDistance(p) {
-        // the inner 80% grabs the shape; pinching outside that is an empty-space gesture
+        // only the inner 80% grabs the shape. Pinching outside that is an empty-space gesture.
         const r = scene._radius() * 0.8;
         const d = p.distanceTo(scene.center) - r;
         return d < 0 ? -0.001 : d;
@@ -329,7 +329,7 @@ export class GalleryScene extends SceneBase {
       R4.expBivector(_M, this.spin, dt);
       R4.multiply(this.R, _M, this.R);
       if (this.auto) {
-        const a = [0, 0, 0.22, 0.12, 0, 0]; // xw and yz: a double rotation
+        const a = [0, 0, 0.22, 0.12, 0, 0]; // xw and yz, a double rotation
         R4.expBivector(_M, a, dt);
         R4.multiply(this.R, _M, this.R);
       }
@@ -387,8 +387,9 @@ export class GalleryScene extends SceneBase {
     }
 
     if (this.nameplate) {
-      // in front of the column on the viewer's side, facing them: turned in
-      // place, its inner edge would swing into the column seen from the side
+      // Keep it in front of the column on the viewer's side, facing them. If it
+      // only turned in place, its inner edge would swing into the column when
+      // seen from the side.
       const head = this.app.headPosition, c = this.center, np = this.nameplate.position;
       const dx = head.x - c.x, dz = head.z - c.z, d = Math.hypot(dx, dz);
       if (d > 1e-3) np.set(c.x + (dx / d) * NAMEPLATE_OUT, np.y, c.z + (dz / d) * NAMEPLATE_OUT);

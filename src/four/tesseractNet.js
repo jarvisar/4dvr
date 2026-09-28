@@ -14,10 +14,7 @@ const CUBE_FACES = [
   [0, 1, 3, 2], [4, 5, 7, 6], [0, 1, 5, 4], [2, 3, 7, 6], [0, 2, 6, 4], [1, 3, 7, 5],
 ];
 
-/**
- * @param {number} t fold amount 0 (flat net) … 1 (closed tesseract)
- * @returns {{vertices:number[][], edges:number[][], faces:{verts:number[]}[], edgeColors:number[][], faceColors:number[][]}}
- */
+// t is the fold amount, from 0 (flat net) to 1 (closed tesseract)
 export function tesseractNet(t) {
   const th = t * Math.PI / 2;
   const c = Math.cos(th), s = Math.sin(th);
@@ -26,7 +23,7 @@ export function tesseractNet(t) {
   // base cube: cell w = -1
   cubes.push({ color: AXIS_COLORS[7], map: (x, y, z) => [x, y, z, -1] });
 
-  // six neighbours: cell x_a = σ
+  // six neighbors, the cells x_a = σ
   for (let a = 0; a < 3; a++) {
     for (const sg of [1, -1]) {
       const color = AXIS_COLORS[a * 2 + (sg > 0 ? 0 : 1)];
@@ -35,9 +32,9 @@ export function tesseractNet(t) {
         map: (x, y, z) => {
           // unfolded, this cube sits at x_a = σ(1 + u), u ∈ [0, 2]
           const p = [x, y, z];
-          const u = p[a] * sg + 1; // local coordinate −1..1 → u 0..2
+          const u = p[a] * sg + 1; // local coordinate -1..1 maps to u 0..2
           const out = [p[0], p[1], p[2], -1];
-          // hinge at x_a = σ, w = −1; the strip direction σe_a turns towards +w
+          // Hinge at x_a = σ, w = -1. The strip direction σe_a turns toward +w.
           out[a] = sg * (1 + u * c);
           out[3] = -1 + u * s;
           return out;
@@ -46,14 +43,14 @@ export function tesseractNet(t) {
     }
   }
 
-  // opposite cell w = +1, attached beyond the −y neighbour
+  // opposite cell w = +1, attached beyond the -y neighbor
   cubes.push({
     color: AXIS_COLORS[6],
     map: (x, y, z) => {
-      const v = -y + 1; // 0..2 along −y beyond the hinge
+      const v = -y + 1; // 0..2 along -y beyond the hinge
       const sLen = 2 + v * c; // along the (rotated) strip
-      const h = v * s;        // off the strip, towards its rotated normal
-      // strip dir d = c(−e_y) + s e_w ; normal n = −s(−e_y) + c e_w
+      const h = v * s;        // off the strip, toward its rotated normal
+      // strip dir d = c(-e_y) + s e_w, normal n = -s(-e_y) + c e_w
       const yy = -1 + sLen * (-c) + h * s;
       const ww = -1 + sLen * s + h * c;
       return [x, yy, z, ww];
@@ -61,7 +58,7 @@ export function tesseractNet(t) {
   });
 
   // Scaled so the net stays well inside the perspective eye distance (2.4)
-  // however it is turned: unfolded, it reaches 5.3 units from the centre.
+  // however it's turned. Unfolded, it reaches 5.3 units from the center.
   const scale = 0.35;
   const vertices = [], edges = [], faces = [], edgeColors = [], faceColors = [];
   cubes.forEach((cube) => {
@@ -69,9 +66,9 @@ export function tesseractNet(t) {
     for (const v of CUBE_VERTS) vertices.push(cube.map(v[0], v[1], v[2]).map((x) => x * scale));
     for (const [a, b] of CUBE_EDGES) {
       // Hinge edges, and every edge once folded, are shared by several cubes.
-      // Point each edge along its largest component, so the copies of an edge
-      // build the same tube: reversed, a tube's sides are rotated half a step,
-      // and two copies would cut through each other in stripes.
+      // Point each edge along its largest component so every copy of an edge
+      // builds the same tube. A reversed tube has its sides rotated half a
+      // step, and two copies would cut through each other in stripes.
       const pa = vertices[base + a], pb = vertices[base + b];
       let k = 0;
       for (let i = 1; i < 4; i++) if (Math.abs(pb[i] - pa[i]) > Math.abs(pb[k] - pa[k])) k = i;

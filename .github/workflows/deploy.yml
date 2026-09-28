@@ -1,5 +1,5 @@
 # Builds the site and publishes it to GitHub Pages on every push to main.
-# One-time setup: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+# One-time setup: in the repo's Pages settings, set the build and deployment source to "GitHub Actions".
 # GitHub Pages uses HTTPS, which WebXR requires.
 name: Deploy to GitHub Pages
 
@@ -13,7 +13,7 @@ permissions:
   pages: write
   id-token: write
 
-# Only one deployment at a time. A running deployment is not cancelled.
+# Only one deployment at a time. A running deployment is not canceled.
 concurrency:
   group: pages
   cancel-in-progress: false

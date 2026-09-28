@@ -32,7 +32,7 @@ function parity(p) {
 const EVEN_PERMS = permutations([0, 1, 2, 3]).filter((p) => parity(p) === 0);
 const ALL_PERMS = permutations([0, 1, 2, 3]);
 
-/** All sign flips of the non-zero entries of v. */
+// Every sign flip of the non-zero entries of v
 function signCombos(v) {
   const nz = v.map((x, i) => (Math.abs(x) > 1e-12 ? i : -1)).filter((i) => i >= 0);
   const out = [];
@@ -65,7 +65,7 @@ function permsOf(base, perms) {
 }
 
 // ---------------------------------------------------------------------------
-// Vertex sets (all normalised to circumradius 1)
+// Vertex sets (all normalized to circumradius 1)
 
 export function simplexVertices() {
   const s5 = Math.sqrt(5);
@@ -86,7 +86,7 @@ export function icositetrachoronVertices() {
   return normalizeAll(permsOf([1, 1, 0, 0], ALL_PERMS));
 }
 
-/** 24-cell dual vertices: (±1,0,0,0) perms and (±½,±½,±½,±½). */
+// 24-cell dual vertices: permutations of (±1,0,0,0) plus (±½,±½,±½,±½)
 function icositetrachoronDual() {
   return [...permsOf([1, 0, 0, 0], ALL_PERMS), ...permsOf([0.5, 0.5, 0.5, 0.5], [[0, 1, 2, 3]])];
 }
@@ -99,7 +99,7 @@ export function hexacosichoronVertices() {
   ];
 }
 
-/** Find all tetrahedral 4-cliques at the given edge length (used for the 600-cell). */
+// Every tetrahedron (4-clique) of vertices at the given edge length. Used for the 600-cell.
 function tetraCliques(verts, edgeLen) {
   const n = verts.length;
   const adj = Array.from({ length: n }, () => new Set());
@@ -130,7 +130,8 @@ function dot3(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
 function cross3(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
 function norm3(a) { const l = Math.hypot(a[0], a[1], a[2]); return [a[0] / l, a[1] / l, a[2] / l]; }
 
-/** Facets of the 3D convex hull of a small point set, each as a CCW-ordered index loop. */
+// Faces of the 3D convex hull of a small point set, each as a CCW-ordered index loop.
+// Brute force over every triple of points, so keep the sets small.
 function hullFaces3D(pts, eps = 1e-6) {
   const n = pts.length;
   const c = [0, 0, 0];
@@ -165,7 +166,7 @@ function hullFaces3D(pts, eps = 1e-6) {
   });
 }
 
-/** Orthonormal basis of the hyperplane orthogonal to unit vector n. */
+// Orthonormal basis of the hyperplane perpendicular to unit vector n
 function hyperplaneBasis(n) {
   const basis = [];
   const cands = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]];
@@ -180,10 +181,8 @@ function hyperplaneBasis(n) {
   return basis;
 }
 
-/**
- * Build the full face lattice (vertices, edges, 2-faces, cells) of a convex
- * polytope from its vertices and cell normal directions.
- */
+// Builds the vertices, edges, 2-faces and cells of a convex polytope from its
+// vertices and cell normal directions. The normals don't need to be unit length.
 export function buildPolytope(name, vertices, cellNormals) {
   const faces = [];
   const faceIndex = new Map();
@@ -230,7 +229,7 @@ export function buildPolytope(name, vertices, cellNormals) {
 }
 
 // ---------------------------------------------------------------------------
-// Catalogue
+// Catalog
 
 const cache = new Map();
 function cached(key, fn) {
@@ -275,7 +274,7 @@ export function hecatonicosachoron() {
   });
 }
 
-/** p-q duoprism: product of a regular p-gon (xy) and q-gon (zw). */
+// p-q duoprism, the product of a regular p-gon in xy and a q-gon in zw
 export function duoprism(p, q) {
   return cached(`duoprism-${p}-${q}`, () => {
     const verts = [];

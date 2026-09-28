@@ -8,7 +8,7 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 // once). Plain http from another device is redirected to https.
 // NO_SSL=1 serves plain http only.
 export default defineConfig({
-  base: './', // relative asset URLs: works at any GitHub Pages sub-path
+  base: './', // relative asset URLs so it works at any GitHub Pages sub-path
   plugins: process.env.NO_SSL ? [] : [basicSsl(), httpAndHttps()],
   server: { host: true, port: 5173 },
   preview: { host: true, port: 4173 },
@@ -24,8 +24,8 @@ export default defineConfig({
   },
 });
 
-// Accept plain http on the https port: look at the first byte of each connection
-// (22 starts a TLS handshake) and pass plain http to a second server.
+// Accepts plain http on the https port. Looks at the first byte of each connection
+// (22 starts a TLS handshake) and passes plain http to a second server.
 function httpAndHttps() {
   const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
   const setup = (server) => {

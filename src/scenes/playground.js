@@ -14,23 +14,23 @@ import { LIGHT } from '../core/lighting.js';
 import * as P from '../four/polytopes.js';
 import { screwCenters, SCREW_EDGE } from '../four/shapes.js';
 
-const TABLE_R = 0.6;        // the rim; objects stay inside it
+const TABLE_R = 0.6;        // rim radius, objects stay inside it
 const RIM_TUBE = 0.006;
 const TABLE_TOP_R = 0.675;  // the top, with a ledge outside the rim for the w rail
 const W_RANGE = 0.55;
-const W_GRADIENT = ['#33c3ff', '#ff4f9a']; // kata (−w) → ana (+w)
-// A pinch in empty space has to move this far (metres) before it moves the
+const W_GRADIENT = ['#33c3ff', '#ff4f9a']; // kata (-w) to ana (+w)
+// A pinch in empty space has to move this far (meters) before it moves the
 // slice, so a pinch that just missed an object doesn't nudge it.
 const AIR_DEADZONE = 0.012;
 
 const fmtW = (v) => (Math.abs(v) < 0.005 ? '0' : `${v > 0 ? 'ana' : 'kata'} ${Math.abs(v * 100).toFixed(0)} cm`);
 const wColor = (v) => (v > 0.005 ? '#ff8fbf' : v < -0.005 ? '#7fd8ff' : '#ffffff');
 const deg = (a) => `${Math.round(THREE.MathUtils.radToDeg(a))}°`;
-const MAX_TOYS = 32; // collision is O(n²); spawning past this recycles the oldest toy
+const MAX_TOYS = 32; // collision is O(n²), so spawning past this recycles the oldest toy
 
-// 4D dice: the regular polytopes. Opposite cells add up to N + 1, like the
+// The dice are the regular polytopes. Opposite cells add up to N + 1 like the
 // faces of a d6, and the result is the cell facing up. The 5-cell has a vertex
-// on top, so it is read from the cell it rests on, like a d4.
+// on top, so it's read from the cell it rests on, like a d4.
 const DICE = [
   { key: 'simplex', poly: P.simplex, name: 'd5' },
   { key: 'tesseract', poly: P.tesseract, name: 'd8' },
@@ -40,9 +40,9 @@ const DICE = [
   { key: 'hexacosichoron', poly: P.hexacosichoron, name: 'd600' },
 ];
 
-// Orbits: in 4D, gravity falls off as 1/r³ (the field of a point mass spreads
-// over a 3-sphere of area ∝ r³). A circular orbit then has exactly zero
-// energy, so any nudge sends the moon spiralling in or out: there are no
+// Orbits preset. In 4D gravity falls off as 1/r³, since a point mass's field
+// spreads over a 3-sphere with area ∝ r³. A circular orbit then has exactly
+// zero energy, so any nudge sends the moon spiraling in or out. There are no
 // stable orbits. Both constants give the same circular speed at r = 0.2 m.
 const ORBIT_Y = 0.24;
 const GM4 = (0.42 * 0.2) ** 2; // a = GM4 / r³
@@ -73,7 +73,7 @@ let seed = 7;
 const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
 const randRot = () => R4.randomRotation(R4.mat4(), rand);
 
-/** A 4D object in the playground: render object, rigid body and grab handling. */
+// A 4D object in the playground. Holds the render object, rigid body and grab handling.
 class Toy {
   constructor(pg, key, { scale = 0.1, scale4 = null, pos = [0, 0.2, 0, 0], rot = null, mass = null, fixed = false, opacity = 1, tint = null, tintAmount = 0.6, restitution = 0.3, friction = 0.55, tagColor = null } = {}) {
     this.pg = pg;
@@ -177,7 +177,7 @@ class Toy {
     const pos = [sp[0], sp[1], sp[2], sp[3]];
 
     if (this.mode === 'secondary') {
-      // 4D trackball: pushing the hand along d rolls the object in the (d, w) plane
+      // 4D trackball. Pushing the hand along d rolls the object in the (d, w) plane
       this.pg.app.hands.readout(ix, 'turning through w');
       const d = hand.clone().sub(this.startHand);
       const len = d.length();
@@ -188,7 +188,7 @@ class Toy {
         R4.multiply(_M, _M2, _M);
       }
     } else {
-      // carry: rigidly follow the hand in xyz, keep the same offset in w
+      // carrying follows the hand rigidly in xyz and keeps the same offset in w
       _v3.set(sp[0], sp[1], sp[2]).sub(this.startHand).applyQuaternion(dq).add(hand);
       pos[0] = _v3.x; pos[1] = _v3.y; pos[2] = _v3.z;
     }
@@ -211,7 +211,7 @@ class Toy {
       const v = ix.velocity;
       const throwGain = ix.isMouse ? 0.6 : 1.15;
       view.toWorld(_q4, [v.x * throwGain, v.y * throwGain, v.z * throwGain, 0]);
-      _q4[3] -= view.w; // toWorld adds the slice offset; velocities are directions
+      _q4[3] -= view.w; // toWorld adds the slice offset, which a velocity shouldn't get
       V.copy(this.body.v, _q4);
       const w = ix.angularVelocity;
       const B = [-w.z, w.y, 0, -w.x, 0, 0]; // xyz angular velocity as a bivector (slice space)
@@ -235,7 +235,7 @@ function pickTagColor(key) {
   return map[key] || '#ffffff';
 }
 
-/** Opposite cells get numbers adding up to N + 1 (when the polytope has opposite cells). */
+// Opposite cells get numbers that add up to N + 1, if the polytope has opposite cells
 function diceNumbers(poly) {
   const N = poly.cells.length;
   const nums = new Array(N).fill(0);
@@ -250,7 +250,7 @@ function diceNumbers(poly) {
   return nums;
 }
 
-/** Height of a body's centre when its lowest point rests on the table. */
+// Height of a body's center when its lowest point rests on the table
 function restHeight(R, centers, h) {
   let yMin = Infinity;
   for (const c of centers) for (let m = 0; m < 16; m++) {
@@ -271,7 +271,7 @@ varying float vAlpha;
 void main() { gl_FragColor = vec4(uColor, vAlpha); }
 `;
 
-/** A moon's recent path, stored in 4D and drawn in the slice (fading where it leaves it). */
+// A moon's recent path. Stored in 4D and drawn in the slice, fading where it leaves it.
 class Trail {
   constructor(parent, color) {
     this.pts = new Float64Array(TRAIL * 4);
@@ -342,7 +342,7 @@ export class PlaygroundScene extends SceneBase {
     this.orbitStats = { fell: 0, escaped: 0 };
     this.playing = false;   // worldline: move the slice through time
 
-    this.stage = new THREE.Group(); // the 4D slice lives here (origin = table centre)
+    this.stage = new THREE.Group(); // the 4D slice lives here (origin is the table center)
     this.root.add(this.stage);
     this.shadow4 = new Shadow4({ extent: TABLE_TOP_R });
     this._buildTable();
@@ -387,14 +387,14 @@ export class PlaygroundScene extends SceneBase {
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
-    // The 4D shadows are part of the top face's shading (not a separate layer on it).
-    // Lambert, as the top fills much of the view: a matte Standard material looks
+    // The 4D shadows are part of the top face's shading, not a separate layer on it.
+    // Lambert since the top fills a lot of the view. A matte Standard material looks
     // the same here and costs about twice as much per pixel.
     const topParams = { color: '#ffffff', map: tex };
     const topMat = this.shadow4.receive(new THREE.MeshLambertMaterial(topParams));
-    // Scale the grid so its outer circle (500 texels from the centre, of 512)
+    // Scale the grid so its outer circle (500 of 512 texels from the center)
     // lies under the rim, which puts a ring every 10 cm. The ledge outside it
-    // reads the plain edge of the canvas.
+    // shows the plain edge of the canvas.
     tex.repeat.setScalar(TABLE_TOP_R / (TABLE_R * (512 / 500)));
     tex.offset.setScalar((1 - tex.repeat.x) / 2);
     const top = new THREE.Mesh(new THREE.CylinderGeometry(TABLE_TOP_R, TABLE_TOP_R, 0.032, 128), [
@@ -424,11 +424,11 @@ export class PlaygroundScene extends SceneBase {
     this.foot.position.y = -this.tableY + 0.015;
   }
 
-  /** The palm menu stays above the table top (see HandMenu._follow). */
+  // Keeps the palm menu above the table top (see HandMenu._follow)
   get menuFloorY() { return this.tableY + 0.03; }
 
   onUserReady() {
-    // fit the table to the person: roughly waist height
+    // fit the table to the person, roughly waist height
     const headY = this.app.headPosition.y;
     this.tableY = THREE.MathUtils.clamp(headY - 0.62, 0.7, 1.05);
     this._placeStage();
@@ -526,9 +526,9 @@ export class PlaygroundScene extends SceneBase {
       this.add('hypersphere', { scale: 0.065, pos: P4(-0.1, 0.1, 0.1, 0.38) });
     } else if (name === 'box') {
       // Closed box. The walls only extend ±6 cm in w, so the ball can be
-      // moved around them in w. The panels meet without overlapping: the
-      // side walls run the full depth, the front and back fit between them,
-      // and the lid covers all four.
+      // moved around them in w. The panels don't overlap. The side walls run
+      // the full depth, the front and back fit between them, and the lid
+      // covers all four.
       const ww = 0.06, s = 0.13, th = 0.012, hgt = 0.16, out = 2 * s + th;
       const glass = { fixed: true, opacity: 0.28, tint: '#bfe6ff', tintAmount: 0.85, restitution: 0.2 };
       this.add('tesseract', { ...glass, scale4: [out, th, out, 2 * ww], pos: P4(0, hgt + th / 2, 0, 0) }); // lid
@@ -611,8 +611,8 @@ export class PlaygroundScene extends SceneBase {
 
   _loadMirror() {
     // A chiral piece and an outline of its mirror image. The outline is the
-    // piece turned half a turn in the xw plane (x → −x, w → −w), which
-    // reflects its 3D cross-section.
+    // piece turned half a turn in the xw plane (x becomes -x and w becomes -w),
+    // which reflects its 3D cross-section.
     const s = 0.12, h = (SCREW_EDGE / 2) * s;
     const centers = screwCenters().map((c) => c.map((x) => x * s));
     const Rt = R4.multiply(R4.mat4(), R4.planeRotation(R4.mat4(), 0, 2, Math.PI / 2), R4.planeRotation(R4.mat4(), 0, 3, Math.PI));
@@ -627,7 +627,7 @@ export class PlaygroundScene extends SceneBase {
     this._say('Fit the piece into the outline', 5);
   }
 
-  /** Are the piece's four cubes (4D centres) on the outline's? */
+  // True when the piece's four cubes (4D centers) sit on the outline's
   _mirrorSolved() {
     const m = this.mirror;
     const b = m.piece.body;
@@ -659,7 +659,7 @@ export class PlaygroundScene extends SceneBase {
       const a = (i / this.dice.length) * Math.PI * 2 + rand();
       V.set(b.x, Math.cos(a) * 0.28, 0.22 + i * 0.03, Math.sin(a) * 0.28, 0);
       R4.randomRotation(b.R, rand);
-      // thrown around the ring (so they rarely hit each other) with a tumble in
+      // Thrown around the ring so they rarely hit each other, with a tumble in
       // the xyz planes. Rolling on a tilted 4D cell can still move a die in w.
       V.set(b.v, -Math.sin(a) * 0.55 - Math.cos(a) * 0.15, 0.3, Math.cos(a) * 0.55 - Math.sin(a) * 0.15, 0);
       b.wake();
@@ -705,7 +705,7 @@ export class PlaygroundScene extends SceneBase {
     this.moons = [];
     this.orbitStats = { fell: 0, escaped: 0 };
     const radii = [0.12, 0.18, 0.24, 0.3];
-    // small nudges from the circular speed: in 4D they decide between falling in and escaping
+    // small nudges off the circular speed. In 4D these decide whether a moon falls in or escapes
     const nudge = [0.985, 1.015, 0.992, 1.008];
     const colors = ['#9fd8ff', '#ff9f68', '#b8e05a', '#d77bff'];
     radii.forEach((r, i) => {
@@ -719,7 +719,7 @@ export class PlaygroundScene extends SceneBase {
     });
   }
 
-  /** Force field applied by the physics each substep (orbits preset). */
+  // The sun's gravity in the orbits preset, called by the physics each substep
   _orbitAccel(b, dt) {
     if (this.preset !== 'orbits' || !this.sun || b === this.sun.body) return;
     const s = this.sun.body;
@@ -768,7 +768,7 @@ export class PlaygroundScene extends SceneBase {
     this.worldlineDemo = true;
   }
 
-  /** Record the tracked hands (or controllers, or the mouse) for a few seconds. */
+  // Records the tracked hands (or controllers, or the mouse) for a few seconds
   startRecording() {
     if (this.preset !== 'worldline') this.loadPreset('worldline');
     this.playing = false;
@@ -825,7 +825,7 @@ export class PlaygroundScene extends SceneBase {
     this.worldlineDuration = REC_TIME;
     this.worldlineDemo = false;
     this.worldline.group.visible = true;
-    this.playing = !this.worldline.empty; // nothing to replay: its w range is empty
+    this.playing = !this.worldline.empty; // nothing to replay if its w range is empty
     this.setW(-REC_HALF_W);
     this.app.audio.spawn(this.stage.localToWorld(new THREE.Vector3(0, 0.2, 0)));
     this._say(this.worldline.empty ? 'Nothing was tracked' : 'Replaying: the slice moves through time', 3);
@@ -842,7 +842,7 @@ export class PlaygroundScene extends SceneBase {
 
   _impact(p, speed, a, b) {
     const pos = this.stage.localToWorld(new THREE.Vector3());
-    // physics coordinates are 4D world coordinates; place the sound in the slice
+    // physics uses 4D world coordinates, so place the sound in the slice
     const s = this.view.toSlice([0, 0, 0, 0], p);
     if (Math.abs(s[3]) > 0.15) return; // collisions far off-slice are "silent"
     pos.add(new THREE.Vector3(s[0], s[1], s[2]));
@@ -868,7 +868,7 @@ export class PlaygroundScene extends SceneBase {
     const d = _hp.copy(ix.grabPos).sub(a.start);
     if (!a.live) {
       if (d.length() < AIR_DEADZONE) return;
-      a.live = true; // from here on, starting where the hand is now so nothing jumps
+      a.live = true; // start from where the hand is now so nothing jumps
       a.start.copy(ix.grabPos);
       if (mode === 'primary') this.playing = false;
       return;
@@ -886,7 +886,6 @@ export class PlaygroundScene extends SceneBase {
     }
   }
 
-  /** Back to the straight slice at w = 0. */
   resetSlice() {
     this.playing = false;
     this.setW(0);
@@ -936,7 +935,7 @@ export class PlaygroundScene extends SceneBase {
       t.obj.ghostsEnabled = this.ghosts && !t.fixed;
       t.sync(dt);
       if (t.obj.poseChanged) { this.shadow4.dirty = true; t.obj.poseChanged = false; }
-      // fell off the table: move it back into the slice
+      // fell off the table, move it back into the slice
       if (t.body.x[1] < -1.5) {
         const s = [0, 0.3, 0, 0];
         V.copy(t.body.x, this.view.toWorld([0, 0, 0, 0], s));
@@ -980,7 +979,7 @@ export class PlaygroundScene extends SceneBase {
       this._celebrate(this.mirror.piece.body.x, 'Solved: a half-turn through w mirrored it');
     }
 
-    // 4D shadows: the sun's direction in slice space, tilted towards ana by sunW
+    // 4D shadows use the sun's direction in slice space, tilted towards ana by sunW
     const sd = LIGHT.uSunDir.value, c = Math.cos(this.sunW), sn = Math.sin(this.sunW);
     this.shadow4.setSun(sd.x * c, sd.y * c, sd.z * c, sn);
     const shadowsOn = this.app.env.shadows; // the graphics preset's shadow setting
@@ -1091,7 +1090,7 @@ export class PlaygroundScene extends SceneBase {
       return `The outline is the piece's mirror image, and no turn in 3D can match it. Turn the piece half a turn through w: ${turn4}.`;
     }
     if (this.preset === 'dice') {
-      return 'Regular 4-polytopes as dice. A 4D die lands on a 3D cell; the number is on the cell facing up (opposite cells add up to N + 1). The 5-cell is read from the cell it rests on.';
+      return 'Regular 4-polytopes as dice. A 4D die lands on a 3D cell, and the number is on the cell facing up. Opposite cells add up to N + 1. The 5-cell is read from the cell it rests on.';
     }
     if (this.preset === 'orbits') {
       return 'In 4D, gravity falls off as 1/r³. Every circular orbit then has zero energy, so a small nudge sends a moon into the sun or away for good. Switch to 1/r² to compare.';
@@ -1100,7 +1099,7 @@ export class PlaygroundScene extends SceneBase {
       return 'The 4D sun leans towards ana. Shadows fall on the floor, which is 3D in 4D, and you see the part inside your slice. Objects outside it (the ghosts) cast shadows into it.';
     }
     if (this.preset === 'worldline') {
-      return `A motion recorded with time as w, so moving the slice along w replays it. Rotating the slice in xw mixes time with space: each x shows a different moment, like a slit-scan photo. Record your own ${mode === 'desktop' ? 'mouse movements' : 'hands'} from the menu.`;
+      return `A motion recorded with time as w, so moving the slice along w replays it. Rotating the slice in xw mixes time with space, so each x shows a different moment like a slit-scan photo. Record your own ${mode === 'desktop' ? 'mouse movements' : 'hands'} from the menu.`;
     }
     if (mode === 'controllers') return 'Trigger to grab and throw. Grip an object and move the controller to turn it through 4D. Stick up/down moves the slice along w and left/right tilts it. Faint ghosts are objects just outside the slice. The menu has puzzles.';
     if (mode === 'desktop') return 'Each object is shown as its 3D cross-section. Move the slice along w to see the cross-sections change.';
@@ -1113,7 +1112,7 @@ export class PlaygroundScene extends SceneBase {
   }
 }
 
-/** 0 wrist, 1 thumb, 2 index, 3 middle, 4 ring, 5 little finger (WebXR joint order, see input.js). */
+// 0 wrist, 1 thumb, 2 index, 3 middle, 4 ring, 5 little finger (WebXR joint order, see input.js)
 function fingerOf(j) {
   if (j === 0) return 0;
   if (j <= 4) return 1;

@@ -46,7 +46,7 @@
     const x0 = toy.body.x.slice();
     for (let i = 0; i < 30; i++) { hand.grabPos.y += 0.004; hand.grabPos.x += 0.002; step(hand, 1); }
     out.carriedUp = +(toy.body.x[1] - x0[1]).toFixed(3);
-    // carry through W while holding: move the slice
+    // carry through W while holding by moving the slice
     const w0 = toy.body.x[3];
     pg.setW(pg.view.w + 0.2);
     step(hand, 20);
@@ -87,7 +87,7 @@
     press(hand.pinch, false);
     step(hand, 1);
 
-    // UI poke on the (desktop-placed) menu: press the "Tower" preset button
+    // UI poke on the (desktop-placed) menu, pressing the "Tower" preset button
     const menu = app.menu.panel;
     menu.group.visible = true; menu.opacity = 1; menu.group.updateMatrixWorld(true);
     const btn = menu.widgets.find((w) => w.item && w.item.label === 'Tower');
@@ -136,7 +136,7 @@
     app.setScene('playground', true);
     pg.loadPreset('tower');
 
-    // pinch classification (thumb–index and thumb–middle distances, metres)
+    // pinch classification (thumb to index and thumb to middle distances, in meters)
     const classify = app.input.constructor.classifyPinch;
     out.pinchKinds = {
       index: classify(0.015, 0.045, false, false),
@@ -146,7 +146,7 @@
       released: classify(0.031, 0.05, true, false),
     };
 
-    // sealed box puzzle: ball can't be dragged through glass
+    // sealed box puzzle, the ball can't be dragged through the glass
     pg.loadPreset('box');
     for (let i = 0; i < 30; i++) pg.update(1 / 72, app.time += 1 / 72);
     const ball = pg.ball;
@@ -304,14 +304,14 @@
     tick(900);
     out.dice = { pairsOk, results: pgx.dice.map((d) => d.result), sizes: pgx.dice.map((d) => d.nums.length) };
 
-    // mirror puzzle: solved only by the mirror-image pose
+    // mirror puzzle, only the mirror-image pose should solve it
     pgx.loadPreset('mirror');
     const piece = pgx.mirror.piece.body, tgt = pgx.mirrorTarget;
     const before = pgx._mirrorSolved();
     piece.x.splice(0, 4, ...tgt.pos);
     piece.R.set(tgt.R);
     const atTarget = pgx._mirrorSolved();
-    // the same pose without the half-turn through w: a proper 3D rotation
+    // the same pose without the half-turn through w, so a proper 3D rotation
     const flipXW = new Float64Array([-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1]);
     const R3 = new Float64Array(16);
     for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) { let v = 0; for (let k = 0; k < 4; k++) v += tgt.R[r * 4 + k] * flipXW[k * 4 + c]; R3[r * 4 + c] = v; }
@@ -319,7 +319,7 @@
     const unmirrored = pgx._mirrorSolved();
     out.mirror = { before, atTarget, unmirrored };
 
-    // orbits: 4D gravity has no stable orbits, 3D gravity does
+    // orbits. 4D gravity has no stable orbits, 3D gravity does.
     pgx.gravity4 = true;
     pgx.loadPreset('orbits');
     tick(72 * 16);
@@ -331,7 +331,7 @@
     pgx.gravity4 = true;
     out.orbits = { g4, g3 };
 
-    // worldline: one ball per path in a slice of constant w, stacks of disks in a tilted one
+    // worldline. One ball per path in a slice of constant w, stacks of disks in a tilted one.
     pgx.loadPreset('worldline');
     pgx.playing = false;
     pgx.setW(0.1);
@@ -356,7 +356,7 @@
     const kl = app.activeScene;
     kl.reset();
     kl.update(1 / 72, app.time);
-    // the head starts 0.6 m from the room's centre; moving the room 2.5 m back walks through the pink wall ahead
+    // The head starts 0.6 m from the room's center. Moving the room 2.5 m back walks through the pink wall ahead.
     kl._moveRoom(0, 2.5); kl.update(1 / 72, app.time);
     const afterPink = kl.mirrored;
     kl._moveRoom(0, -2.5); kl.update(1 / 72, app.time);

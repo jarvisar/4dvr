@@ -27,7 +27,7 @@ export class Object4D {
     this.highlightTarget = 0;
     this.body = null;
     this.grabbed = false;
-    this.slicePos = [0, 0, 0, 0]; // centre in slice space (updated in sync)
+    this.slicePos = [0, 0, 0, 0]; // center in slice space (updated in sync)
     this.sliceRadius = 0;         // bounding radius of the current cross-section
     this.inSlice = false;
     // Set by sync() whenever what the solid mesh draws changes (its pose
@@ -72,7 +72,7 @@ export class Object4D {
     this.highlightTarget = v;
   }
 
-  /** Push pose → uniforms for the current slice view. */
+  // Copies the pose into the uniforms for the current slice view
   sync(view, dt = 0) {
     view.rotToSlice(_M, this.R);
     view.toSlice(_P, this.pos);
@@ -120,7 +120,7 @@ export class Object4D {
     this.ghost.visible = ga > 0.01;
   }
 
-  /** Compare the solid mesh's pose uniforms and visibility with the last sync. */
+  // Checks the solid mesh's pose uniforms and visibility against the last sync
   _updatePoseKey() {
     const k = this._poseKey, v = _key, sh = this.mats.shared, p = sh.uPos.value;
     if (this.shape.isSphere) { v.fill(0); v[0] = sh.uSliceRadius.value; } else v.set(sh.uRot.value.elements);
@@ -135,8 +135,8 @@ export class Object4D {
   dispose() {
     // The materials aren't disposed. That would release their shader programs
     // as soon as no other object uses them, and the next object (e.g. after a
-    // preset change) would compile them again: a visible stall in VR. They
-    // hold no other GPU resources, and the geometry and texture are per shape.
+    // preset change) would compile them again, which is a visible stall in VR.
+    // They hold no other GPU resources, and the geometry and texture are per shape.
     this.group.removeFromParent();
   }
 }

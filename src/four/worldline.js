@@ -1,20 +1,20 @@
-// Worldlines: things recorded moving over time, turned into a 4D object with
-// time as the w axis. A ball of radius r that moves along p(t) sweeps out the
-// worldtube { (x, w(t)) : |x − p(t)| ≤ r }: at each moment, a 3D ball in the
+// Worldlines, recorded motion turned into a 4D object with time as the w axis.
+// A ball of radius r moving along p(t) sweeps out the worldtube
+// { (x, w(t)) : |x - p(t)| ≤ r }, which at each moment is a 3D ball in the
 // hyperplane w = w(t).
 //
-// Cut by a slice of constant w, the worldtube is the ball at that moment, so
+// A slice of constant w cuts the worldtube in the ball at that moment, so
 // moving the slice along w replays the motion. Rotating the slice in the xw
-// plane mixes time and space: each x position then shows a different moment,
-// like a slit-scan photograph. The slice then meets each moment's ball in a
-// flat disk (a 3D ball cut by a plane), and the cross-section is the stack of
-// those disks.
+// plane mixes time and space. Each x position then shows a different moment,
+// like a slit-scan photo. The slice meets each moment's ball in a flat disk
+// (a 3D ball cut by a plane), and the cross-section is the stack of those
+// disks.
 //
-// Each path is a polyline of samples, linear in between. Each frame the ball
-// centres are moved into slice space. For a slice of constant w, one sphere is
-// placed per path where it crosses the slice. Otherwise every disk lies in a
-// plane perpendicular to the same direction, and thin disks are stacked along
-// it about 1.5 mm apart.
+// Each path is a polyline of samples, linear in between. When the slice moves
+// the ball centers are moved into slice space. For a slice of constant w, one
+// sphere is placed per path where it crosses the slice. Otherwise every disk
+// lies in a plane perpendicular to the same direction, and thin disks are
+// stacked along it about 1.5 mm apart.
 
 import * as THREE from 'three';
 import { LIGHTING_GLSL, LIGHT } from '../core/lighting.js';
@@ -40,8 +40,8 @@ void main() {
 #ifdef DISK
   vec3 e3 = iAxis;
   vec3 e1 = normalize(cross(e3, abs(e3.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
-  // e1 × e3 = e2, so (x, y, z) → (e1, e3, e2) is a rotation, not a mirror
-  // image, and the triangles keep their outward winding (front faces out)
+  // e1 × e3 = e2, so mapping (x, y, z) to (e1, e3, e2) is a rotation and not a
+  // mirror image. The triangles keep their outward winding (front faces out).
   vec3 e2 = cross(e1, e3);
   // CylinderGeometry: axis along y, radius 1, height 1
   vec3 local = e1 * position.x * iRadius + e2 * position.z * iRadius + e3 * position.y * iThickness;
@@ -88,12 +88,12 @@ function instanced(base, count, attrs, defines) {
   return { mesh, geo: g, attrs: out };
 }
 
-/** Mark the first `count` instances of each attribute for upload (the buffers are sized for the most). */
+// Only uploads the first `count` instances. The buffers are sized for the max.
 function uploadFirst(attrs, count) {
   if (count <= 0) return;
   for (const name in attrs) {
     const a = attrs[name];
-    a.clearUpdateRanges(); // replaces a pending range: nothing past `count` is drawn
+    a.clearUpdateRanges(); // replaces any pending range, since nothing past `count` is drawn
     a.addUpdateRange(0, count * a.itemSize);
     a.needsUpdate = true;
   }
@@ -115,7 +115,7 @@ export class Worldline {
       [['iCenter', 3], ['iRadius', 1], ['iColor', 3], ['iAxis', 3], ['iThickness', 1]], { DISK: '' });
     this.group.add(this.balls.mesh, this.disks.mesh);
 
-    // faint paths: every ball centre seen along the slice's w axis, coloured by time
+    // faint paths of every ball center, seen along the slice's w axis and colored by time
     this.pathGeo = new THREE.BufferGeometry();
     this.paths = new THREE.LineSegments(this.pathGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.4, depthWrite: false }));
     this.paths.frustumCulled = false;
@@ -123,10 +123,8 @@ export class Worldline {
     this._viewKey = '';
   }
 
-  /**
-   * chains: [{ points: [[x, y, z, w], …], radius, color }] in world 4D
-   * coordinates, with w increasing along each chain (w is time in metres).
-   */
+  // chains: [{ points: [[x, y, z, w], ...], radius, color }] in world 4D
+  // coordinates, with w increasing along each chain (w is time in meters).
   setChains(chains) {
     this.chains = chains.filter((c) => c.points.length > 1).map((c) => ({
       pts: Float64Array.from(c.points.flat()),
@@ -158,17 +156,17 @@ export class Worldline {
 
   get empty() { return this.chains.length === 0; }
 
-  /** Rebuild the cross-section for the current slice (only when the slice moved). */
+  // Rebuilds the cross-section, only when the slice moved
   update(view) {
     const key = `${view.w},${view.angleXW},${view.angleZW},${this.chains.length}`;
     if (key === this._viewKey) return;
     this._viewKey = key;
     const rot = view.rot;
-    // the slice's w axis in world coordinates is row 3 of rot; its xyz part n
+    // row 3 of rot is the slice's w axis in world coordinates, and n is its xyz part
     const n0 = rot[12], n1 = rot[13], n2 = rot[14];
     const nn = n0 * n0 + n1 * n1 + n2 * n2;
     const flat = nn < 1e-10; // slice of constant w
-    // disk normal in slice space: rot · (n, 0), normalised
+    // disk normal in slice space, rot · (n, 0) normalized
     for (let r = 0; r < 3; r++) _m[r] = rot[r * 4] * n0 + rot[r * 4 + 1] * n1 + rot[r * 4 + 2] * n2;
     const ml = Math.hypot(_m[0], _m[1], _m[2]) || 1;
     _m[0] /= ml; _m[1] /= ml; _m[2] /= ml;
@@ -184,7 +182,7 @@ export class Worldline {
         slice[i * 4] = _s[0]; slice[i * 4 + 1] = _s[1]; slice[i * 4 + 2] = _s[2]; slice[i * 4 + 3] = _s[3];
       }
       if (flat) {
-        // σ = the centre's w in slice space; the whole ball is in the slice where σ = 0
+        // σ is the center's w in slice space. The whole ball is in the slice where σ = 0.
         for (let i = 0; i + 1 < n && nb < MAX_BALLS; i++) {
           const a = slice[i * 4 + 3], b = slice[i * 4 + 7];
           if ((a > 0 && b > 0) || (a < 0 && b < 0) || a === b) continue;
@@ -197,8 +195,8 @@ export class Worldline {
         }
         continue;
       }
-      // tilted slice: at each moment the ball meets the slice in the disk
-      // { u : |u| ≤ r, n·u = −σ }, centred at u* = −σ n / |n|² with radius sqrt(r² − σ²/|n|²)
+      // Tilted slice. At each moment the ball meets the slice in the disk
+      // { u : |u| ≤ r, n·u = -σ }, centered at u* = -σ n / |n|² with radius sqrt(r² - σ²/|n|²)
       const R = r * Math.sqrt(nn);
       for (let i = 0; i + 1 < n && nd < MAX_DISKS; i++) {
         const sa = slice[i * 4 + 3], sb = slice[i * 4 + 7];
@@ -213,8 +211,8 @@ export class Worldline {
         }
         diskCenter(_cd0, slice, i, t0, nn, _m, ml);
         diskCenter(_cd1, slice, i, t1, nn, _m, ml);
-        // DISK_STEP apart along the axis, and at most twice that sideways:
-        // where the section is sheared, wider sideways steps show as terraces
+        // DISK_STEP apart along the axis, and at most twice that sideways.
+        // Where the section is sheared, wider sideways steps show up as terraces.
         const dx = _cd1[0] - _cd0[0], dy = _cd1[1] - _cd0[1], dz = _cd1[2] - _cd0[2];
         const span = Math.abs(dx * _m[0] + dy * _m[1] + dz * _m[2]);
         const side = Math.sqrt(Math.max(0, dx * dx + dy * dy + dz * dz - span * span));
@@ -270,12 +268,11 @@ export class Worldline {
   }
 }
 
-/**
- * Centre (slice space) of the disk where the ball at parameter t of segment i
- * meets the slice. With c(t) the ball centre in slice space and σ its w
- * coordinate, the offset u* = −σ n / |n|² moves it by rot·(u*, 0), whose xyz
- * part is −σ m |Rn|/|n|² with m the unit disk normal; its w part cancels σ.
- */
+// Center (slice space) of the disk where the ball at parameter t of segment i
+// meets the slice. With c(t) the ball center in slice space and σ its w
+// coordinate, the offset u* = -σ n / |n|² moves it by rot·(u*, 0). The xyz
+// part of that is -σ m |Rn| / |n|², with m the unit disk normal, and the w
+// part cancels σ.
 function diskCenter(out, slice, i, t, nn, m, ml) {
   const a = i * 4, b = a + 4;
   const sigma = slice[a + 3] + (slice[b + 3] - slice[a + 3]) * t;
@@ -284,11 +281,9 @@ function diskCenter(out, slice, i, t, nn, m, ml) {
   return out;
 }
 
-/**
- * A three-ball cascade (juggling) as worldlines. The balls' paths braid
- * around each other in (x, y, t). Times are scaled so the recording spans w in
- * [−halfW, halfW]; positions are relative to the table centre.
- */
+// A three-ball juggling cascade as worldlines. The balls' paths braid around
+// each other in (x, y, t). Times are scaled so the recording spans w in
+// [-halfW, halfW]. Positions are relative to the table center.
 export function jugglingChains({ halfW = 0.42, height = 0.2 } = {}) {
   const beat = 0.3;              // time between throws, alternating hands
   const dwell = 0.5 * beat;      // time a ball spends in a hand

@@ -13,7 +13,7 @@ export const pref = {
   set(key, value) {
     try { localStorage.setItem(PREFIX + key, value ? '1' : '0'); } catch { /* ignore */ }
   },
-  /** A saved list of strings (e.g. the scenes whose tips have been shown). */
+  // Saved list of strings, e.g. the scenes whose tips have been shown
   list(key) {
     try { return new Set((localStorage.getItem(PREFIX + key) || '').split(',').filter(Boolean)); } catch { return new Set(); }
   },
@@ -22,5 +22,5 @@ export const pref = {
   },
 };
 
-/** Visitors who ask for less motion get auto-rotation off by default (desktop browsers report this). */
+// Auto-rotation starts off for visitors who ask for reduced motion (desktop browsers report this)
 export const REDUCED_MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;

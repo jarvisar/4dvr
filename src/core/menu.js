@@ -1,6 +1,6 @@
-// Hand menu (shown when a palm faces the head; A/X on controllers; a HUD
-// fixed to the camera on desktop) and the guide panel shown when entering VR
-// and the first time each scene is opened.
+// Hand menu and the guide panel. The menu opens when a palm faces the head, or
+// with A/X on controllers. On desktop it's a HUD fixed to the camera. The guide
+// shows when entering VR and the first time each scene is opened.
 
 import * as THREE from 'three';
 import { UIPanel, COLORS } from './ui.js';
@@ -33,7 +33,7 @@ export class HandMenu {
     this.app = app;
     // anchored at the top edge, so switching pages doesn't move the buttons at the top
     this.panel = app.ui.add(new UIPanel(app.ui, { width: 0.3, name: 'hand-menu', anchor: 'top' }));
-    // Drawn over the world: on desktop it's a HUD, and in VR it's always held
+    // Drawn over the world. On desktop it's a HUD, and in VR it's always held
     // close in front, where a long page shouldn't disappear into the Hyperplay
     // table. Hands still draw over it.
     this.panel.material.depthTest = false;
@@ -50,11 +50,10 @@ export class HandMenu {
     this.inUse = false;
   }
 
-  /**
-   * The VR menu has three short pages instead of one long one, since it's held
-   * up next to a hand: this scene's options, the list of scenes, and settings.
-   * The desktop menu is one page; the HTML HUD has the scene tabs and help.
-   */
+  // The VR menu has three short pages instead of one long one, since it's held
+  // up next to a hand. The pages are this scene's options, the list of scenes,
+  // and settings. The desktop menu is one page, and the HTML HUD has the scene
+  // tabs and help.
   rebuild() {
     const app = this.app;
     const scene = app.activeScene;
@@ -125,7 +124,7 @@ export class HandMenu {
     if (!this.pinned && this.owner === null) this.shown = false;
   }
 
-  /** Pin the menu floating in front of the head, its top edge just above eye level. */
+  // Pin the menu in front of the head, with its top edge just above eye level
   summonInFront() {
     const cam = this.app.camera;
     const head = this.app.headPosition;
@@ -140,10 +139,8 @@ export class HandMenu {
     this.shown = true;
   }
 
-  /**
-   * After a scene switch the menu shows the new scene's page, and a menu
-   * opened with A/X closes (the new scene's tips appear where it was).
-   */
+  // After a scene switch the menu shows the new scene's page, and a menu opened
+  // with A/X closes (the new scene's tips appear where it was).
   sceneChanged() {
     this.page = 'scene';
     if (!this.summoned) return;
@@ -152,7 +149,7 @@ export class HandMenu {
     this.shown = false;
   }
 
-  /** A menu that has been closed for a while opens on the scene's page again. */
+  // A menu that's been closed for a while opens on the scene's page again
   _opening() {
     if (this.hiddenT > 2) this.setPage('scene');
     this.hiddenT = 0;
@@ -160,13 +157,13 @@ export class HandMenu {
 
   _face(pos, head, alpha) {
     // Matrix4.lookAt(eye, target) builds a basis whose +Z points from target to
-    // eye, so passing (head, pos) turns the panel's front (+Z) towards the head.
+    // eye, so passing (head, pos) turns the panel's front (+Z) toward the head.
     _m.lookAt(head, pos, UP);
     _q.setFromRotationMatrix(_m);
     this.panel.group.quaternion.slerp(_q, alpha);
   }
 
-  /** Is a point (a fingertip) in the space just in front of the panel? */
+  // Is a point (a fingertip) just in front of the panel?
   _nearPanel(p) {
     const pn = this.panel;
     pn.toPanel(p, _loc);
@@ -174,10 +171,8 @@ export class HandMenu {
     return _loc.x > -m && _loc.x < pn.width + m && _loc.y > -m && _loc.y < pn.height + m && _loc.z > -0.05 && _loc.z < 0.15;
   }
 
-  /**
-   * Desktop: park the panel in camera space so it appears at a fixed spot on
-   * screen (right edge, below the tab bar), scaled to fit the viewport.
-   */
+  // Desktop only. Parks the panel in camera space so it sits at a fixed spot on
+  // screen (right edge, below the tab bar), scaled to fit the viewport.
   _placeHud() {
     const cam = this.app.camera;
     const W = window.innerWidth, H = window.innerHeight;
@@ -189,7 +184,7 @@ export class HandMenu {
     let hpx = (wpx * ph) / pw;
     const availH = H - top - bottom;
     if (hpx > availH) { hpx = Math.max(120, availH); wpx = (hpx * pw) / ph; }
-    const d = (ph * H) / (hpx * 2 * tan); // distance at which ph metres spans hpx pixels
+    const d = (ph * H) / (hpx * 2 * tan); // distance at which ph meters spans hpx pixels
     const cx = narrow ? W / 2 : W - right - wpx / 2;
     const cy = top; // the panel hangs from its top edge (anchor: 'top')
     const g = this.panel.group;
@@ -224,7 +219,7 @@ export class HandMenu {
       this.shown = true;
     } else {
       // Hands: show the menu next to a hand whose palm faces the head, while
-      // the person is looking towards it (a palm turned up at waist height, or
+      // the person is looking toward it (a palm turned up at waist height, or
       // while looking at something else, doesn't open it)
       const head = app.headPosition;
       _fwd.set(0, 0, -1).applyQuaternion(app.headQuaternion);
@@ -268,12 +263,10 @@ export class HandMenu {
     g.scale.setScalar(s);
   }
 
-  /**
-   * Place the panel beside the palm on the side towards the body's midline
-   * (the little-finger side), where the other hand can reach all of it without
-   * crossing over, rather than towering above the hand. Its top edge is a
-   * little above the hand, but not above eye level.
-   */
+  // Place the panel beside the palm on the side toward the body's midline (the
+  // little-finger side), where the other hand can reach all of it without
+  // crossing over, instead of towering above the hand. Its top edge is a little
+  // above the hand, but not above eye level.
   _follow(o, dt) {
     const app = this.app;
     const head = app.headPosition;
@@ -286,7 +279,7 @@ export class HandMenu {
     const pn = this.panel;
     let top = Math.min(_pos.y + 0.2, head.y + 0.05);
     // The menu draws over the world, but a finger pressing a button that hangs
-    // below a table top would disappear into the table: keep the bottom above it.
+    // below a table top would disappear into the table. Keep the bottom above it.
     const floor = app.activeScene?.menuFloorY;
     if (floor !== undefined) top = Math.max(top, floor + pn.height);
     _pos.addScaledVector(_side, pn.width / 2 + 0.06).addScaledVector(_to, 0.02);
@@ -317,12 +310,12 @@ const LEGEND = {
   ],
 };
 
-/** How to play: shown on entering VR, from the menu, and the first time each scene opens. */
+// How to play panel. Shown on entering VR, from the menu, and the first time each scene opens.
 export class WelcomePanel {
   constructor(app) {
     this.app = app;
     this.panel = app.ui.add(new UIPanel(app.ui, { width: 0.46, name: 'welcome' }));
-    // Drawn over the world like the hand menu: it opens 55 cm in front of the
+    // Drawn over the world like the hand menu. It opens 55 cm in front of the
     // head, where a scene's exhibit (a polytope, a knot) would cut through it.
     this.panel.material.depthTest = false;
     this.panel.group.visible = false;
@@ -361,14 +354,14 @@ export class WelcomePanel {
     }
   }
 
-  /** The full guide: general controls and the current scene's tips. */
+  // Full guide, with the general controls and the current scene's tips
   show() {
     this.rebuild(true);
     this._markSeen();
     this._place();
   }
 
-  /** The current scene's tips, the first time it's opened in this browser. Otherwise hide the guide. */
+  // Show the current scene's tips the first time it's opened in this browser, otherwise hide the guide
   showSceneTips() {
     const key = this.app.sceneKey;
     if (!key || this.seen.has(key)) { this.hide(); return; }

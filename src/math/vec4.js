@@ -1,5 +1,6 @@
-// Small allocation-free 4D vector helpers. Vectors are plain arrays [x, y, z, w].
-// Every function writes into `out` and returns it so calls can be chained.
+// Small 4D vector helpers. Vectors are plain arrays [x, y, z, w].
+// Functions that take `out` write into it and return it, so there's no
+// allocation and calls can be chained.
 
 export function v4(x = 0, y = 0, z = 0, w = 0) {
   return [x, y, z, w];
@@ -30,7 +31,7 @@ export function scale(out, a, s) {
   return out;
 }
 
-/** out = a + b * s */
+// out = a + b * s
 export function addScaled(out, a, b, s) {
   out[0] = a[0] + b[0] * s; out[1] = a[1] + b[1] * s; out[2] = a[2] + b[2] * s; out[3] = a[3] + b[3] * s;
   return out;
@@ -70,10 +71,8 @@ function det3(a0, a1, a2, b0, b1, b2, c0, c1, c2) {
   return a0 * (b1 * c2 - b2 * c1) - a1 * (b0 * c2 - b2 * c0) + a2 * (b0 * c1 - b1 * c0);
 }
 
-/**
- * Generalised cross product: returns a vector orthogonal to a, b and c
- * (the cofactor expansion of det[e; a; b; c]).
- */
+// Generalized cross product. Returns a vector perpendicular to a, b and c
+// (cofactor expansion of the determinant with rows e, a, b, c).
 export function cross4(out, a, b, c) {
   const x = det3(a[1], a[2], a[3], b[1], b[2], b[3], c[1], c[2], c[3]);
   const y = -det3(a[0], a[2], a[3], b[0], b[2], b[3], c[0], c[2], c[3]);

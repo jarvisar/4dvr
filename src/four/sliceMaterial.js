@@ -11,11 +11,11 @@
 // An object's pose is two uniforms (a mat4 and a vec4), so moving it costs no
 // geometry updates.
 //
-// The same shader, compiled with SHADOW4, draws 4D shadows: each corner is
-// first projected along the 4D sun direction onto the floor hyperplane y = 0
-// (a 3-space), and the projected tetrahedron is then cut by w = 0, giving the
-// part of the shadow that lies in the viewer's slice as flat polygons on the
-// floor. They are drawn top-down into a mask texture (see shadow4.js).
+// The same shader compiled with SHADOW4 draws 4D shadows. Each corner is first
+// projected along the 4D sun direction onto the floor hyperplane y = 0 (a
+// 3-space), then the projected tetrahedron is cut by w = 0. That gives the
+// part of the shadow in the viewer's slice as flat polygons on the floor,
+// which are drawn top-down into a mask texture (see shadow4.js).
 
 import * as THREE from 'three';
 import { TEX_WIDTH, TEXELS_PER_TET } from './tetmesh.js';
@@ -34,7 +34,7 @@ function buildCaseTable() {
       const single = pos.length === 1 ? pos[0] : neg[0];
       const others = pos.length === 1 ? neg : pos;
       poly = others.map((o) => edgeIndex(single, o));
-      poly.push(poly[2]); // pad: the 2nd triangle degenerates
+      poly.push(poly[2]); // pad so the 2nd triangle is degenerate
     } else if (pos.length === 2) {
       const [a, b] = pos, [c, d] = neg;
       poly = [edgeIndex(a, c), edgeIndex(a, d), edgeIndex(b, d), edgeIndex(b, c)];
@@ -54,12 +54,12 @@ precision highp int;
 precision highp sampler2D;
 
 uniform sampler2D uTets;
-uniform mat4 uRot;        // object -> slice space, linear part (includes scale)
-uniform vec4 uPos;        // object origin in slice space; w = offset from the slice
-uniform float uLineScale; // object-units -> metres, for edge line width
+uniform mat4 uRot;        // object to slice space, linear part (includes scale)
+uniform vec4 uPos;        // object origin in slice space, w is the offset from the slice
+uniform float uLineScale; // object units to meters, for edge line width
 #ifdef SHADOW4
 uniform vec4 uSun;        // unit direction towards the sun, slice space (y > 0)
-uniform float uExtent;    // half-size of the square mask, metres
+uniform float uExtent;    // half-size of the square mask, meters
 #endif
 
 varying vec3 vNormalW;
@@ -95,7 +95,7 @@ void main() {
   int cornerId = gl_VertexID - tet * 4;
   int base = tet * ${TEXELS_PER_TET};
 
-  // Quick reject: every corner is within 'reach' of corner 0, so its w differs
+  // Quick reject. Every corner is within 'reach' of corner 0, so its w differs
   // from q0.w by at most |w row of uRot| * reach. If that can't reach w = 0 the
   // whole tetrahedron is on one side (the mask test below would cull it too).
   vec4 p0 = fetchTexel(base);
@@ -130,7 +130,7 @@ void main() {
   }
 
 #ifdef SHADOW4
-  // flat on the floor: any winding will do (drawn double-sided)
+  // flat on the floor and drawn double-sided, so any winding works
   int eS = CASES[mask * 4 + cornerId];
   vec4 qa0 = EA[eS] == 0 ? q0 : (EA[eS] == 1 ? q1 : q2);
   vec4 qb0 = EB[eS] == 1 ? q1 : (EB[eS] == 2 ? q2 : q3);
@@ -151,7 +151,7 @@ void main() {
   vec3 gn = cross(c1 - c0, c2 - c0);
   vec3 avgN = (uRot * (n0 + n1 + n2 + n3)).xyz;
   bool flip = dot(gn, avgN) < 0.0;
-  // Index buffer draws (0,1,2)+(0,2,3); swapping corners 1<->3 reverses both triangles.
+  // Index buffer draws (0,1,2) and (0,2,3). Swapping corners 1 and 3 reverses both triangles.
   int pc = flip ? ((4 - cornerId) & 3) : cornerId;
 
   int e = CASES[mask * 4 + pc];
@@ -278,7 +278,7 @@ void main() {
 }
 `;
 
-/** Shared ghost style: scenes set uGhostAdd to 0 (light) or ~0.7 (dark). */
+// Shared by all ghosts. Scenes set uGhostAdd to 0 (light) or about 0.7 (dark).
 export const GHOST_STYLE = { uGhostAdd: { value: 0 } };
 export const PREMULTIPLIED_BLEND = {
   blending: THREE.CustomBlending,
@@ -287,21 +287,17 @@ export const PREMULTIPLIED_BLEND = {
   blendDst: THREE.OneMinusSrcAlphaFactor,
 };
 
-/**
- * For see-through surfaces (ghosts, glass): pushed slightly back in depth, so
- * where one lies in the same plane as an opaque surface the opaque one wins
- * on every pixel instead of flickering. An object resting on a cell has the
- * bottom of every cross-section in the table's plane, and a ghost can share
- * faces with its own slice (an axis-aligned tesseract's sections are all the
- * same cube). The offset is about a pixel's worth of depth, so it only
- * decides between surfaces that are really in the same place.
- */
+// For see-through surfaces (ghosts, glass). Pushes them slightly back in
+// depth, so where one is in the same plane as an opaque surface the opaque one
+// wins on every pixel instead of flickering. An object resting on a cell has
+// the bottom of every cross-section in the table's plane, and a ghost can
+// share faces with its own slice (an axis-aligned tesseract's sections are all
+// the same cube). The offset is about a pixel's worth of depth, so it only
+// matters for surfaces that are really in the same place.
 export const BEHIND_COPLANAR = { polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 4 };
 
-/**
- * Per-object uniform bundle. The solid and ghost materials (and the 4D
- * shadow in shadow4.js) share the uniforms that describe the object's pose.
- */
+// One set per object. The solid and ghost materials (and the 4D shadow in
+// shadow4.js) share the uniforms that describe the object's pose.
 export function createSliceMaterials(tetMesh, { pattern = 0, gloss = 0.5 } = {}) {
   const shared = {
     uTets: { value: tetMesh.texture },
@@ -333,7 +329,7 @@ export function createSliceMaterials(tetMesh, { pattern = 0, gloss = 0.5 } = {})
 
   const ghostUniforms = {
     ...shared,
-    uPos: { value: new THREE.Vector4() }, // ghost slices through the object's own centre
+    uPos: { value: new THREE.Vector4() }, // ghost slices through the object's own center
     uGhostColor: { value: new THREE.Color('#ff4f9a') },
     uGhostAlpha: { value: 0 },
     uGhostAdd: GHOST_STYLE.uGhostAdd,

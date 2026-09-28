@@ -33,7 +33,7 @@ const _tmpA = new Float64Array(16);
 const _tmpB = new Float64Array(16);
 const _tmpC = new Float64Array(16);
 
-/** out = a * b (out may alias a or b). */
+// out = a * b (out may alias a or b)
 export function multiply(out, a, b) {
   const t = _tmpA;
   for (let r = 0; r < 4; r++) {
@@ -54,7 +54,7 @@ export function transpose(out, a) {
   return out;
 }
 
-/** out = m * v */
+// out = m * v
 export function apply(out, m, v) {
   const x = v[0], y = v[1], z = v[2], w = v[3];
   out[0] = m[0] * x + m[1] * y + m[2] * z + m[3] * w;
@@ -64,7 +64,7 @@ export function apply(out, m, v) {
   return out;
 }
 
-/** out = transpose(m) * v  (the inverse rotation for orthonormal m) */
+// out = transpose(m) * v, the inverse rotation for orthonormal m
 export function applyT(out, m, v) {
   const x = v[0], y = v[1], z = v[2], w = v[3];
   out[0] = m[0] * x + m[4] * y + m[8] * z + m[12] * w;
@@ -74,7 +74,7 @@ export function applyT(out, m, v) {
   return out;
 }
 
-/** Rotation by `angle` in the coordinate plane (i, j), turning e_i towards e_j. */
+// Rotation by `angle` in the coordinate plane (i, j), turning e_i toward e_j
 export function planeRotation(out, i, j, angle) {
   identity(out);
   const c = Math.cos(angle), s = Math.sin(angle);
@@ -83,10 +83,8 @@ export function planeRotation(out, i, j, angle) {
   return out;
 }
 
-/**
- * Rotation by `angle` in the plane spanned by orthonormal vectors a and b,
- * turning a towards b:  R = I + sinθ (b aᵀ − a bᵀ) + (cosθ − 1)(a aᵀ + b bᵀ)
- */
+// Rotation by `angle` in the plane spanned by orthonormal vectors a and b,
+// turning a toward b. R = I + sinθ (b aᵀ − a bᵀ) + (cosθ − 1)(a aᵀ + b bᵀ)
 export function rotationInPlane(out, a, b, angle) {
   const s = Math.sin(angle), c1 = Math.cos(angle) - 1;
   for (let r = 0; r < 4; r++) {
@@ -97,7 +95,7 @@ export function rotationInPlane(out, a, b, angle) {
   return out;
 }
 
-/** Embed a THREE.Quaternion (3D rotation) in the xyz block. */
+// Embeds a THREE.Quaternion (3D rotation) in the xyz block
 export function fromQuaternion(out, q) {
   const x = q.x, y = q.y, z = q.z, w = q.w;
   const x2 = x + x, y2 = y + y, z2 = z + z;
@@ -111,7 +109,7 @@ export function fromQuaternion(out, q) {
   return out;
 }
 
-/** Gram–Schmidt on the rows to fight numerical drift. */
+// Gram-Schmidt on the rows to fix numerical drift
 export function orthonormalize(m) {
   for (let r = 0; r < 4; r++) {
     for (let p = 0; p < r; p++) {
@@ -127,7 +125,7 @@ export function orthonormalize(m) {
   return m;
 }
 
-/** Skew matrix Ω = s·B. */
+// Skew matrix Ω = s·B
 export function skew(out, B, s = 1) {
   out.fill(0);
   for (let k = 0; k < 6; k++) {
@@ -138,11 +136,9 @@ export function skew(out, B, s = 1) {
   return out;
 }
 
-/**
- * out = exp(s·B) · (as a rotation matrix). Scaling-and-squaring with a 4th
- * order Taylor series (accurate for the angles used here), and the
- * result is re-orthonormalised.
- */
+// out = exp(s·B) as a rotation matrix. Uses scaling and squaring with a 4th
+// order Taylor series (accurate enough for the angles used here), then
+// re-orthonormalizes the result.
 export function expBivector(out, B, s = 1) {
   let n = 0;
   for (let k = 0; k < 6; k++) n = Math.max(n, Math.abs(B[k] * s));
@@ -150,7 +146,7 @@ export function expBivector(out, B, s = 1) {
   while (n > 0.25 && squarings < 12) { n *= 0.5; squarings++; }
   const f = s / (1 << squarings);
   const A = skew(_tmpB, B, f);
-  // T = I + A + A²/2 + A³/6 + A⁴/24, evaluated with Horner: I + A(I + A/2(I + A/3(I + A/4)))
+  // T = I + A + A²/2 + A³/6 + A⁴/24, evaluated Horner style as I + A(I + A/2(I + A/3(I + A/4)))
   const T = identity(out);
   const tmp = _tmpC;
   for (let k = 4; k >= 1; k--) {
@@ -168,7 +164,7 @@ export function biv() {
   return [0, 0, 0, 0, 0, 0];
 }
 
-/** Angular impulse of linear impulse J applied at offset r: B_ij = J_i r_j − r_i J_j. */
+// Angular impulse of linear impulse J applied at offset r. B_ij = J_i r_j − r_i J_j
 export function angularImpulse(out, r, J) {
   const r0 = r[0], r1 = r[1], r2 = r[2], r3 = r[3];
   const J0 = J[0], J1 = J[1], J2 = J[2], J3 = J[3];
@@ -181,7 +177,7 @@ export function angularImpulse(out, r, J) {
   return out;
 }
 
-/** v = Ω r  (linear velocity of offset r under angular velocity B) */
+// v = Ω r, the linear velocity of offset r under angular velocity B
 export function bivApply(out, B, r) {
   const r0 = r[0], r1 = r[1], r2 = r[2], r3 = r[3];
   out[0] = B[0] * r1 + B[1] * r2 + B[2] * r3;
@@ -194,7 +190,7 @@ export function bivApply(out, B, r) {
 const _S = new Float64Array(16);
 const _T = new Float64Array(16);
 
-/** out = R Ω Rᵀ (rotate a bivector from body to world). */
+// out = R Ω Rᵀ, rotates a bivector from body to world
 export function bivRotate(out, R, B) {
   skew(_S, B);
   multiply(_T, R, _S);
@@ -208,7 +204,7 @@ export function bivRotate(out, R, B) {
   return out;
 }
 
-/** out = Rᵀ Ω R (rotate a bivector from world to body). */
+// out = Rᵀ Ω R, rotates a bivector from world to body
 export function bivRotateInv(out, R, B) {
   skew(_S, B);
   // _T = Rᵀ Ω
@@ -232,10 +228,8 @@ export function bivNorm(B) {
   return Math.sqrt(s);
 }
 
-/**
- * Write a 4D rotation (plus uniform scale) into a THREE.Matrix4 so a GLSL
- * `mat4 * vec4` reproduces R·v. THREE.Matrix4.set takes row-major input.
- */
+// Writes a 4D rotation (plus scale) into a THREE.Matrix4 so a GLSL
+// `mat4 * vec4` gives R·v. THREE.Matrix4.set takes row-major input.
 export function toThreeMatrix(m4, R, s = 1) {
   // s: uniform scale, or a per-axis [sx, sy, sz, sw] applied before rotating (R · diag(s))
   const a = typeof s === 'number' ? s : s[0], b = typeof s === 'number' ? s : s[1];
@@ -249,7 +243,7 @@ export function toThreeMatrix(m4, R, s = 1) {
   return m4;
 }
 
-/** Random rotation (product of random rotations in each plane). */
+// Random rotation, built from a random rotation in each plane
 export function randomRotation(out, rng = Math.random) {
   identity(out);
   const t = new Float64Array(16);

@@ -16,7 +16,7 @@ export function hypersphereGeometry() {
 }
 
 const VERT = /* glsl */ `
-uniform vec4 uPos;          // centre in slice space
+uniform vec4 uPos;          // center in slice space
 uniform float uSliceRadius; // radius of the 3D cross-section
 varying vec3 vLocal;
 varying vec3 vPosW;
@@ -33,7 +33,7 @@ void main() {
 const FRAG = /* glsl */ `
 precision highp float;
 ${LIGHTING_GLSL}
-uniform mat4 uRotInv;       // slice space -> object space (unit sphere)
+uniform mat4 uRotInv;       // slice space to object space (unit sphere)
 uniform vec4 uPos;
 uniform float uSliceRadius;
 uniform float uRadius;

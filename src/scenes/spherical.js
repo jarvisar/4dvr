@@ -1,25 +1,25 @@
 // Spherical Space: regular 4-polytopes as tilings of the 3-sphere, seen from inside.
 //
 // Pushing the vertices of a regular 4-polytope out onto its circumscribed
-// 3-sphere tiles S³ with curved copies of its cells: 120 dodecahedra, 24
-// octahedra, 8 cubes or 5 tetrahedra, three around each edge with 120°
-// dihedral angles. In flat space three of these cells leave a gap around an edge.
+// 3-sphere tiles S³ with curved copies of its cells (120 dodecahedra, 24
+// octahedra, 8 cubes or 5 tetrahedra), three around each edge with 120°
+// dihedral angles. In flat space three of these cells would leave a gap around an edge.
 //
 // Points of S³ are unit vectors in R⁴ and its isometries are rotations of R⁴,
-// so each frame's head movement is converted to a rotation and accumulated, as
-// in Hyperbolic Space. S³ is finite, so the whole tiling is drawn and no
-// re-centring is needed.
+// so each frame's head movement is turned into a rotation and accumulated, same
+// as Hyperbolic Space. S³ is finite, so the whole tiling is drawn and there's no
+// re-centering.
 //
 // Every geodesic is a great circle of length 2π, so light from each point
-// reaches the eye along two arcs: the short one (direction u, distance t) and
-// the long one (direction −u, distance 2π − t). Everything is drawn twice, once
-// per arc. Looking straight ahead along the long arc, the view ends at the back
-// of your own head, which is drawn as an avatar around the eyes.
+// reaches the eye along two arcs. The short one has direction u and distance t.
+// The long one has direction -u and distance 2π - t. Everything is drawn twice,
+// once per arc. Looking straight ahead along the long arc, the view ends at the
+// back of your own head, which is drawn as an avatar around the eyes.
 //
-// Each vertex is placed in its true direction from the eye at its true
-// distance (in metres), which gives each triangle exactly the right outline on
-// screen. Near the antipodal point a small triangle can cover a large part of
-// the view, so depth is written per fragment from the interpolated distance.
+// Each vertex is placed in its true direction from the eye at its true distance
+// (in meters), which gives each triangle the right outline on screen. Near the
+// antipodal point a small triangle can cover a big part of the view, so depth is
+// written per fragment from the interpolated distance.
 // See Hart, Hawksley, Matsumoto and Segerman, "Non-Euclidean Virtual Reality".
 
 import * as THREE from 'three';
@@ -53,8 +53,8 @@ const TILINGS = {
 const RAD = 6;          // tube radial segments (hexagonal beams)
 const SEG_ANGLE = 0.075; // tube segment length (radians)
 
-// Projection shared by every S³ shader: place the vertex along its short or
-// long arc, in metres, around the eye.
+// Projection shared by every S³ shader. Places the vertex along its short or
+// long arc, in meters, around the eye.
 const S3_PROJECT = /* glsl */ `
 uniform mat3 uHeadRot;
 uniform float uL;
@@ -86,7 +86,7 @@ varying float vT;
 varying vec3 vN;
 
 // Depth of the point at the true distance along this pixel's view ray. The
-// rasterised triangle can pass much closer to the eye than the surface it
+// rasterized triangle can pass much closer to the eye than the surface it
 // stands for (near the antipodal point), so the vertex depth isn't used.
 void s3Depth() {
   vec3 P = cameraPosition + normalize(vPosW - cameraPosition) * (vT * uL);
@@ -97,7 +97,7 @@ void s3Depth() {
 
 const TILING_VERT = /* glsl */ `
 ${S3_PROJECT}
-uniform mat4 uEyeInv;  // world → this eye (rotation of R⁴)
+uniform mat4 uEyeInv;  // world to this eye (rotation of R⁴)
 uniform float uLongWay;
 attribute vec4 aS;     // point on S³
 attribute vec4 aD;     // outward unit tangent at aS
@@ -139,13 +139,13 @@ void main() {
 }
 `;
 
-// The avatar is modelled in metres around the eyes (head-local frame) and
-// placed on S³ with the exponential map. Only its long-arc image is drawn: the
-// short one is where you are.
+// The avatar is modeled in meters around the eyes (head-local frame) and
+// placed on S³ with the exponential map. Only its long-arc image is drawn,
+// since the short one is where you are.
 const AVATAR_VERT = /* glsl */ `
 ${S3_PROJECT}
-uniform mat4 uAvatarEye; // head frame → this eye
-uniform mat3 uBodyRot;   // body (yaw only) → head frame
+uniform mat4 uAvatarEye; // head frame to this eye
+uniform mat3 uBodyRot;   // body (yaw only) to head frame
 attribute vec3 aColor;
 attribute float aPart;   // 0 head, 1 body
 #ifdef JOINTS
@@ -193,7 +193,7 @@ void main() {
   vec3 V = normalize(cameraPosition - vPosW);
   float ndv = abs(dot(N, V));
   vec3 col = vColor * (0.35 + 0.65 * ndv) + vColor * pow(1.0 - ndv, 3.0) * 0.5;
-  // lighter fog than the tiling, so you can still recognise yourself 2π away
+  // lighter fog than the tiling, so you can still recognize yourself 2π away
   col = mix(uFogColor, col, exp(-vT * uFog * 0.45));
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
@@ -205,7 +205,7 @@ void main() {
 // ---------------------------------------------------------------------------
 // Geometry
 
-/** Rotation of R⁴ taking the origin (0,0,0,1) to the point p of S³. */
+// Rotation of R⁴ taking the origin (0,0,0,1) to the point p on S³
 function toPoint(out, p) {
   const r = Math.hypot(p[0], p[1], p[2]);
   const d = Math.atan2(r, p[3]);
@@ -213,7 +213,7 @@ function toPoint(out, p) {
   return S.translation(out, (p[0] / r) * d, (p[1] / r) * d, (p[2] / r) * d);
 }
 
-/** Orthonormal vectors spanning the complement of the orthonormal pair a, b. */
+// Two orthonormal vectors spanning the complement of the orthonormal pair a, b
 function complementBasis(a, b) {
   const out = [];
   for (let k = 0; k < 4 && out.length < 2; k++) {
@@ -225,7 +225,7 @@ function complementBasis(a, b) {
   return out;
 }
 
-/** Place the polytope with a cell centre at the origin and a neighbouring cell straight ahead (−z). */
+// Places the polytope with a cell center at the origin and a neighboring cell straight ahead (-z)
 function buildTiling(def) {
   const poly = def.get();
   const centers = poly.cells.map((c) => V.normalize([0, 0, 0, 0], c.center));
@@ -260,7 +260,7 @@ function buildGeometry(tiling, { tube, node, lantern }) {
   const push = (Sp, D, kind, c) => { aS.push(...Sp); aD.push(...D); aKind.push(kind); aColor.push(c[0], c[1], c[2]); return aKind.length - 1; };
   const white = [1, 1, 1];
 
-  // edges: tubes around great-circle arcs. The normal space of a great circle
+  // edges are tubes around great-circle arcs. The normal space of a great circle
   // is the same 2-plane all along it.
   for (const [ia, ib] of tiling.edges) {
     const A = tiling.verts[ia], B = tiling.verts[ib];
@@ -268,8 +268,8 @@ function buildGeometry(tiling, { tube, node, lantern }) {
     const Bp = V.addScaled([0, 0, 0, 0], B, A, -V.dot(A, B));
     V.normalize(Bp, Bp);
     const [N1, N2] = complementBasis(A, Bp);
-    // complementBasis doesn't choose a handedness. The rings below are wound
-    // outwards when det(A, Bp, N1, N2) > 0; otherwise the tube would be inside
+    // complementBasis doesn't pick a handedness. The rings below are wound
+    // outwards when det(A, Bp, N1, N2) > 0. Otherwise the tube would be inside
     // out, showing its far inner wall instead of its near outer one.
     if (V.dot(N2, V.cross4([0, 0, 0, 0], A, Bp, N1)) > 0) V.scale(N2, N2, -1);
     const nSeg = Math.max(2, Math.ceil(th / SEG_ANGLE));
@@ -293,7 +293,7 @@ function buildGeometry(tiling, { tube, node, lantern }) {
     }
   }
 
-  // small spheres (nodes, lanterns) by the exponential map around their centre
+  // small spheres (nodes, lanterns) by the exponential map around their center
   const R = R4.mat4();
   const sphereAt = (Cp, radius, detail, kind, color) => {
     const s = icosphere(detail);
@@ -324,7 +324,6 @@ function makeGeometry(aS, aD, aKind, aColor, index) {
   return g;
 }
 
-/** Glowing marker sphere at point p. */
 function markerGeometry(p, radius) {
   const aS = [], aD = [], aK = [], aC = [];
   const s = icosphere(2);
@@ -338,10 +337,8 @@ function markerGeometry(p, radius) {
   return makeGeometry(aS, aD, aK, aC, s.tris.flat());
 }
 
-/**
- * Stylised avatar in metres around the eyes (−z forward, +y up): head, hair,
- * ears, a headset with a strap, and a body that only turns with the head's yaw.
- */
+// Avatar in meters around the eyes (-z forward, +y up). Head, hair, ears, a
+// headset with a strap, and a body that only turns with the head's yaw.
 function avatarGeometry() {
   const parts = [];
   const add = (geo, color, part, matrix) => {
@@ -352,9 +349,9 @@ function avatarGeometry() {
     new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, 0, 0)), new THREE.Vector3(sx, sy, sz));
   const skin = '#f0cdb0', hair = '#7a5238', headset = '#d6d9e0', strap = '#ff4f9a', visor = '#1d2029', shirt = '#5b6fc4';
   // head. The avatar is seen about 2πL (10 m) away, where depth only resolves
-  // about 0.3 mm, so the hair is a shell 4 mm outside the head, with the edge
-  // of the (tilted) cap as the hairline: surfaces crossing at a shallow angle
-  // there would shimmer.
+  // about 0.3 mm. So the hair is a shell 4 mm outside the head and the edge of
+  // the tilted cap is the hairline. Surfaces crossing at a shallow angle there
+  // would shimmer.
   add(new THREE.SphereGeometry(1, 40, 28), skin, 0, m(0, 0.03, 0.075, 0.077, 0.104, 0.099));
   add(new THREE.SphereGeometry(1, 40, 28, 0, Math.PI * 2, 0, Math.PI * 0.62).rotateX(0.55), hair, 0, m(0, 0.03, 0.075, 0.081, 0.108, 0.103));
   for (const sx of [-1, 1]) add(new THREE.SphereGeometry(1, 16, 12), skin, 0, m(sx * 0.078, 0.02, 0.085, 0.014, 0.03, 0.02));
@@ -445,7 +442,7 @@ export class SphericalScene extends SceneBase {
       uBack: { value: new THREE.Color('#6f7dff') },
       uGlow: { value: 0 },
     };
-    // one material per arc; they share every uniform except uLongWay
+    // one material per arc. They share every uniform except uLongWay.
     this.tilingMats = [0, 1].map((longWay) => new THREE.ShaderMaterial({
       uniforms: { ...this.uniforms, uLongWay: { value: longWay } },
       vertexShader: TILING_VERT,
@@ -485,7 +482,7 @@ export class SphericalScene extends SceneBase {
     for (let i = 0; i < MAX_JOINTS; i++) this.jointGeo.attributes.aColor.setXYZ(i, HAND_COLOR.r, HAND_COLOR.g, HAND_COLOR.b);
     for (let i = 0; i < MAX_BONES; i++) this.boneGeo.attributes.aColor.setXYZ(i, HAND_COLOR.r * 0.85, HAND_COLOR.g * 0.85, HAND_COLOR.b * 0.85);
 
-    this.Hm = R4.mat4();   // head pose: world ← head (rotation of R⁴)
+    this.Hm = R4.mat4();   // head pose, head to world (rotation of R⁴)
     this.HmT = R4.mat4();
     this.headPos = new THREE.Vector3();
     this.headQuatInv = new THREE.Quaternion();
@@ -518,8 +515,8 @@ export class SphericalScene extends SceneBase {
     const def = TILINGS[key];
     // thickness in S³ units, chosen for about 1.8 cm tubes at the tiling's default size
     const k = 1.6 / def.L;
-    // Each tiling is built once and kept: the 120-cell takes long enough to
-    // stall the headset, so switching back to it shouldn't build it again.
+    // Each tiling is built once and cached. The 120-cell takes long enough to
+    // stall the headset, so switching back to it shouldn't rebuild it.
     this._built ??= new Map();
     let built = this._built.get(key);
     if (!built) {
@@ -539,7 +536,7 @@ export class SphericalScene extends SceneBase {
       return mesh;
     });
     this.uniforms.uL.value = def.L;
-    // start between the first cell's centre and the face behind it, looking at the centre
+    // start between the first cell's center and the face behind it, looking at the center
     this.startOffset = 0.55 * this.tiling.cellDist * 0.5;
     this.home = S.expOrigin([0, 0, this.startOffset]);
     for (const mesh of this.beacons || []) { mesh.removeFromParent(); }
@@ -557,11 +554,11 @@ export class SphericalScene extends SceneBase {
     if (this.app.activeScene === this) this.app.menu.rebuild();
   }
 
-  /** Per-eye transforms (three.js calls onBeforeRender separately for each eye). */
+  // Per-eye transforms. three.js calls onBeforeRender separately for each eye.
   _setEye(camera, material, avatar) {
     const L = this.uniforms.uL.value;
     _v.setFromMatrixPosition(camera.matrixWorld).sub(this.headPos).applyQuaternion(this.headQuatInv).divideScalar(L);
-    S.translation(_E, -_v.x, -_v.y, -_v.z); // head frame → this eye
+    S.translation(_E, -_v.x, -_v.y, -_v.z); // head frame to this eye
     if (avatar) R4.toThreeMatrix(material.uniforms.uAvatarEye.value, _E, 1);
     else R4.toThreeMatrix(material.uniforms.uEyeInv.value, R4.multiply(_T, _E, this.HmT), 1);
     const pe = camera.projectionMatrix.elements;
@@ -600,7 +597,7 @@ export class SphericalScene extends SceneBase {
   onSessionStart() { this.hasPrev = false; }
   onSessionEnd() { this.hasPrev = false; }
 
-  /** Move the viewer by a head-local displacement (radians of S³). */
+  // Moves the viewer by a head-local offset (radians of S³)
   _translateLocal(x, y, z) {
     R4.multiply(this.Hm, this.Hm, S.translation(_B, x, y, z));
     this.travelled += Math.sqrt(x * x + y * y + z * z);
@@ -643,12 +640,12 @@ export class SphericalScene extends SceneBase {
         (this.keys.has('s') ? 1 : 0) - (this.keys.has('w') ? 1 : 0),
       );
       if (mv.lengthSq() > 0) {
-        mv.normalize().multiplyScalar(((this.keys.has('shift') ? 3.0 : 1.3) * dt) / L); // metres per second
+        mv.normalize().multiplyScalar(((this.keys.has('shift') ? 3.0 : 1.3) * dt) / L); // meters per second
         this._translateLocal(mv.x, mv.y, mv.z);
       }
     }
 
-    // path-integrate head motion into the pose on S³
+    // accumulate head motion into the pose on S³
     const pos = app.headPosition, quat = app.headQuaternion;
     if (this.hasPrev) {
       const dp = _v.copy(pos).sub(this.prevPos);
@@ -693,10 +690,10 @@ export class SphericalScene extends SceneBase {
     for (const b of this.beacons) b.visible = this.showBeacon && this.homeDistance > this.beaconRadius * 3;
   }
 
-  /** World position → head-local metres. */
+  // world position to head-local meters
   _toHead = (p, out) => out.copy(p).sub(this.headPos).applyQuaternion(this.headQuatInv);
 
-  /** Tracked hands (or controllers) in head-local metres, for the avatar. */
+  // Tracked hands (or controllers) in head-local meters, for the avatar
   _updateHands() {
     const ja = this.jointGeo.attributes, ba = this.boneGeo.attributes;
     let nj = 0, nb = 0;

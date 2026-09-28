@@ -13,14 +13,15 @@ import { GHOST_STYLE } from '../four/sliceMaterial.js';
 
 const TUBE_R = 0.0095;
 const COLLIDE = TUBE_R * 2.3;
-// Pass-through markers: one per place where strands overlap in xyz but not w.
-// Each such place has several close bead pairs; pairs within MARK_MERGE of a
-// marker are averaged into it, so one crossing gets one steady ring.
+// Pass-through markers, one per place where strands overlap in xyz but not w.
+// Each place has several close bead pairs. Pairs within MARK_MERGE of a marker
+// get averaged into it, so one crossing gets one steady ring.
 const MAX_MARKS = 24;
 const MARK_MERGE = 0.025;
 const MARK_R = 0.018, MARK_TUBE = 0.0022;
-// The ring faces the head from this far in front of the crossing: past the
-// front of either strand (their centres are up to COLLIDE apart), so they don't cut through it.
+// The ring sits this far in front of the crossing, towards the head. That's
+// past the front of either strand (their centers are up to COLLIDE apart), so
+// they don't cut through it.
 const MARK_LIFT = COLLIDE / 2 + TUBE_R + MARK_TUBE;
 const RADIAL = 8;
 const SUB = 2; // curve samples per bead
@@ -118,7 +119,7 @@ class Rope {
     loops.forEach((pts, li) => pts.forEach((p) => {
       this.p.set(p, k * 4); this.q.set(p, k * 4); this.loopOf[k] = li; k++;
     }));
-    // neighbours along each loop and rest lengths
+    // neighbors along each loop and rest lengths
     this.next1 = new Int32Array(off);
     this.next2 = new Int32Array(off);
     this.rest = new Float64Array(off);
@@ -193,7 +194,7 @@ class Rope {
         const dw = p[j * 4 + 3] - wi;
         const r4 = r3 + dw * dw;
         if (r4 >= d2) {
-          // overlapping in xyz but apart in w: one strand passing through another
+          // overlapping in xyz but apart in w, so one strand is passing through another
           if (markCrossings && Math.abs(dw) > COLLIDE * 0.5) this._markCrossing((xi + p[j * 4]) / 2, (yi + p[j * 4 + 1]) / 2, (zi + p[j * 4 + 2]) / 2);
           continue;
         }
@@ -234,7 +235,7 @@ class Rope {
     return m;
   }
 
-  /** Number of crossings in the projection of loop li along direction dir. Zero means the loop is unknotted. */
+  // Crossings in the projection of loop li along dir. Zero means the loop is unknotted.
   projectedCrossings(li, dir) {
     const l = this.loops[li];
     const p = this.p;
@@ -281,7 +282,7 @@ function segCross(p1, p2, p3, p4) {
 }
 
 // ---------------------------------------------------------------------------
-// Rendering: smooth tubes coloured by w
+// Rendering, smooth tubes colored by w
 
 class RopeMesh {
   constructor(rope, parent) {
@@ -333,8 +334,8 @@ class RopeMesh {
           }
         }
       }
-      // rotation-minimising frames around the loop; the frame generally comes
-      // back twisted after a full loop, so spread the twist evenly to avoid a seam
+      // Rotation-minimizing frames around the loop. The frame usually comes back
+      // twisted after a full loop, so spread the twist evenly to avoid a seam.
       for (let i = 0; i <= M; i++) {
         const a = ((i - 1 + M) % M) * 4, b = ((i + 1) % M) * 4;
         let tx = S[b] - S[a], ty = S[b + 1] - S[a + 1], tz = S[b + 2] - S[a + 2];

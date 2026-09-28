@@ -10,17 +10,15 @@ export function dot4(a, b) {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
 }
 
-/** Distance between two points of S³ (the angle between them). */
+// Distance between two points of S³, which is the angle between them
 export function sdist(a, b) {
   return Math.acos(Math.min(1, Math.max(-1, dot4(a, b))));
 }
 
-/**
- * Translation by the tangent vector v at the origin: the rotation of R⁴ in the
- * plane of (0,0,0,1) and v that moves the origin a distance |v| along v.
- * Allocation-free: R = I + sin d (b aᵀ − a bᵀ) + (cos d − 1)(a aᵀ + b bᵀ)
- * with a = e_w and b = (v/|v|, 0).
- */
+// Translation by the tangent vector v at the origin. This is the rotation of R⁴
+// in the plane of (0,0,0,1) and v that moves the origin a distance |v| along v.
+// Filled in directly from R = I + sin d (b aᵀ − a bᵀ) + (cos d − 1)(a aᵀ + b bᵀ)
+// with a = e_w and b = (v/|v|, 0), so it doesn't allocate.
 export function translation(out, vx, vy, vz) {
   const d = Math.sqrt(vx * vx + vy * vy + vz * vz);
   out.fill(0);
@@ -40,7 +38,7 @@ export function translation(out, vx, vy, vz) {
   return out;
 }
 
-/** The point at distance |v| from the origin in the direction of v (exponential map). */
+// Point at distance |v| from the origin in the direction of v (exponential map)
 export function expOrigin(v) {
   const d = Math.hypot(v[0], v[1], v[2]);
   if (d < 1e-12) return ORIGIN.slice();
@@ -48,7 +46,7 @@ export function expOrigin(v) {
   return [v[0] * s, v[1] * s, v[2] * s, Math.cos(d)];
 }
 
-/** Point a fraction t of the way along the shorter great-circle arc from a to b. */
+// Point a fraction t of the way along the shorter great-circle arc from a to b
 export function slerp4(a, b, t) {
   const th = sdist(a, b);
   if (th < 1e-9) return a.slice();

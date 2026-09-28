@@ -70,12 +70,12 @@
 
   const head = app.camera.position.clone();
   app.headPosition.copy(head);
-  // left hand: palm turned towards the face → summons the menu
+  // left hand with the palm turned towards the face, which summons the menu
   const lw = new V3(-0.17, 1.13, -0.12);
   const toHead = head.clone().sub(lw).normalize();
   const lq = new Q().setFromUnitVectors(new V3(0, -1, 0), toHead);
   setHand(app.input.xr[0], 'left', lw, lq, false);
-  // right hand: pinching, pointing forward-left with its ray
+  // right hand pinching and pointing forward-left with its ray
   const rq = new Q().setFromEuler(new (app.camera.rotation.constructor)(-0.5, 0.35, 0));
   setHand(app.input.xr[1], 'right', new V3(0.14, 1.12, -0.2), rq, true);
   const r = app.input.xr[1];

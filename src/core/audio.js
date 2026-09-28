@@ -10,7 +10,7 @@ export class AudioEngine {
     this.voices = 0;
   }
 
-  /** Must be called from a user gesture (Enter VR / first click). */
+  // Has to be called from a user gesture (Enter VR or the first click)
   unlock() {
     if (!this.ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -36,7 +36,6 @@ export class AudioEngine {
     return buf;
   }
 
-  /** Keep the WebAudio listener on the head. */
   updateListener(camera) {
     if (!this.ctx) return;
     const l = this.ctx.listener;
@@ -112,7 +111,7 @@ export class AudioEngine {
     src.start(t); src.stop(t + 0.45);
   }
 
-  /** Percussive knock, pitched by object size, loudness by impact speed. */
+  // Percussive knock. Pitch comes from object size and volume from impact speed.
   hit(pos, speed, size = 0.1) {
     if (!this.ctx || !this.enabled) return;
     const now = this.ctx.currentTime;
@@ -145,7 +144,7 @@ export class AudioEngine {
     this._scrub = { o, o2, g, f, level: 0 };
   }
 
-  /** Continuous tone while moving through W. `w01` in [0,1] sets pitch, `speed` loudness. */
+  // Continuous tone while moving through W. w01 (0 to 1) sets the pitch and speed sets the volume.
   scrub(w01, speed) {
     if (!this.ctx || !this._scrub) return;
     const s = this._scrub;

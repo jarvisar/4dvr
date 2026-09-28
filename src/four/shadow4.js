@@ -1,28 +1,28 @@
 // 4D shadows on the table.
 //
-// A 4D sun shines along a 4D direction. An object's shadow on the floor
-// hyperplane y = 0 (a 3-space) is its projection along that direction, and the
-// viewer sees the part of it that lies in their slice, w = 0: a flat region
-// on the table. If the sun has no w component, points keep their w while they
-// are projected, so this is just the shadow of the cross-section. If it does,
+// The sun shines along a 4D direction. An object's shadow on the floor
+// hyperplane y = 0 (a 3-space) is its projection along that direction. The
+// viewer sees the part of it in their slice (w = 0), which is a flat region on
+// the table. If the sun has no w component, points keep their w when they're
+// projected, so this is just the shadow of the cross-section. If it does,
 // objects outside the slice can cast shadows into it, and objects in the slice
-// cast shadows that fall outside it.
+// can cast shadows that fall outside it.
 //
-// The shadow regions are drawn top-down into a mask texture (only when
-// something moved) and the table's material multiplies its colour by the mask
-// (see receive()). Polytopes use the slice shader compiled with SHADOW4 (see
-// sliceMaterial.js); a hypersphere's shadow is found per pixel: the floor
-// points whose line towards the sun passes within r of the centre.
+// The shadows are drawn top-down into a mask texture, only when something
+// moved, and the table's material multiplies its color by the mask (see
+// receive()). Polytopes use the slice shader compiled with SHADOW4 (see
+// sliceMaterial.js). A hypersphere's shadow is done per pixel instead. It's
+// the floor points whose line towards the sun passes within r of the center.
 
 import * as THREE from 'three';
 import { SLICE_VERTEX_GLSL } from './sliceMaterial.js';
 
 const MASK_FRAG = /* glsl */ `void main() { gl_FragColor = vec4(1.0); }`;
 
-// A floor point p can only be in the shadow if it is within r / sun.y of c',
-// where the line from the centre towards the sun meets the floor: the line is
-// at least |p - c'| sun.y from p. So the quad covers that square of the mask
-// instead of all of it, and the fragment shader decides the exact shape.
+// A floor point p can only be in shadow if it's within r / sun.y of c', the
+// point where the line from the center towards the sun meets the floor. That
+// line is at least |p - c'| sun.y away from p. So the quad only covers that
+// square of the mask, and the fragment shader decides the exact shape.
 const SPHERE_VERT = /* glsl */ `
 uniform vec4 uPos;
 uniform float uRadius;
@@ -37,15 +37,15 @@ void main() {
 `;
 
 const SPHERE_FRAG = /* glsl */ `
-uniform vec4 uPos;     // centre in slice space
+uniform vec4 uPos;     // center in slice space
 uniform float uRadius;
 uniform vec4 uSun;
 varying vec2 vXZ;
 void main() {
   vec4 d = vec4(vXZ.x, 0.0, vXZ.y, 0.0) - uPos;
   float a = dot(d, uSun);
-  // Distance from the centre to the line towards the sun. The fragment shader
-  // runs once per texel, not per sample, so the edge is antialiased here: the
+  // Distance from the center to the line towards the sun. The fragment shader
+  // runs once per texel, not per sample, so the edge is antialiased here. The
   // coverage ramps over one texel instead of switching on and off.
   float dist = sqrt(max(dot(d, d) - a * a, 0.0));
   float cover = clamp((uRadius - dist) / max(fwidth(dist), 1e-6) + 0.5, 0.0, 1.0);
@@ -54,8 +54,8 @@ void main() {
 }
 `;
 
-// Shadows overlap in the mask: keep the darker one where an antialiased edge
-// lands on another shadow.
+// Shadows can overlap in the mask. Max blending keeps the darker one where an
+// antialiased edge lands on another shadow.
 const MASK_BLEND = { blending: THREE.CustomBlending, blendEquation: THREE.MaxEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor };
 
 // Spliced into the receiving material (see receive()).
@@ -72,10 +72,10 @@ uniform float uShadowTexel;
 uniform float uShadowStrength;
 varying vec2 vShadowUv;
 float shadow4Factor() {
-  // The blur below reads texels up to 2.4 away. A texel of mip level 3 covers
-  // 8x8 of them, so if level 3 is 0 here, every texel the blur reads is 0
-  // (or holds a sliver of an antialiased edge, too faint to see): most of the
-  // table has no shadow nearby and skips the other 9 reads.
+  // The blur below reads texels up to 2.4 away. A mip level 3 texel covers 8x8
+  // of them, so if level 3 is 0 here, every texel the blur reads is 0 (or has
+  // a sliver of antialiased edge too faint to see). Most of the table has no
+  // shadow nearby, so this skips the other 9 reads.
   if (uShadowStrength == 0.0 || textureLod(uShadowMask, vShadowUv, 3.0).r == 0.0) return 1.0;
   // small blur for soft edges
   float m = 0.0;
@@ -85,8 +85,8 @@ float shadow4Factor() {
   return 1.0 - uShadowStrength * m / 9.0;
 }
 `;
-// After tone mapping and sRGB encoding, so the shadow darkens the displayed
-// colour by the same factor whatever the lighting.
+// Applied after tone mapping and sRGB encoding, so the shadow darkens the
+// displayed color by the same factor whatever the lighting.
 const RECEIVER_FRAG = /* glsl */ `
 gl_FragColor.rgb *= shadow4Factor();
 `;
@@ -94,15 +94,15 @@ gl_FragColor.rgb *= shadow4Factor();
 const _clear = new THREE.Color();
 
 export class Shadow4 {
-  /** extent: half-size (m) of the square area of floor the mask covers, centred on the origin. */
+  // extent is the half-size (m) of the square of floor the mask covers, centered on the origin
   constructor({ extent = 0.64, size = 512, strength = 0.42 } = {}) {
-    // Multisampled: a texel is 2.5 mm, and with one sample per texel a shadow
-    // edge that moves by a fraction of that (a stack settling, a slow drag)
-    // flips whole texels on and off, which flickers. With 4 samples the edge
-    // texels hold partial coverage and change gradually. On the Quest's tiled
-    // GPU the resolve happens in tile memory, and the mask is only redrawn when
-    // something moved.
-    // Mipmapped for the overlay's quick "no shadow nearby" test.
+    // Multisampled because a texel is 2.5 mm, and with one sample per texel a
+    // shadow edge that moves by a fraction of that (a stack settling, a slow
+    // drag) flips whole texels on and off, which flickers. With 4 samples the
+    // edge texels get partial coverage and change gradually. It's cheap on the
+    // Quest's tiled GPU since the resolve happens in tile memory, and the mask
+    // is only redrawn when something moved.
+    // Mipmapped for the receiver's quick "no shadow nearby" test.
     this.rt = new THREE.WebGLRenderTarget(size, size, { samples: 4, depthBuffer: false, magFilter: THREE.LinearFilter, minFilter: THREE.LinearMipmapNearestFilter, generateMipmaps: true });
     this.scene = new THREE.Scene();
     this.camera = new THREE.Camera(); // the mask shaders ignore the camera
@@ -119,13 +119,12 @@ export class Shadow4 {
     this.dirty = true;
   }
 
-  /**
-   * Make a built-in material (e.g. MeshLambertMaterial) darken by the mask.
-   * The mesh's local x and z must be the shadow's: the mask's centre at the
-   * local origin. The shadow is part of the surface's own shading, not a
-   * second surface laid on top of it, so nothing can z-fight with it, and it
-   * only darkens this surface (not the bases of objects standing on it).
-   */
+  // Makes a built-in material (like MeshLambertMaterial) darken by the mask.
+  // The mesh's local x and z have to match the shadow's, with the mask's
+  // center at the local origin. The shadow is part of the surface's own
+  // shading instead of a second surface on top, so nothing can z-fight with
+  // it, and it only darkens this surface (not the bases of objects standing
+  // on it).
   receive(material) {
     material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, this.receiverUniforms);
@@ -140,12 +139,12 @@ export class Shadow4 {
     return material;
   }
 
-  /** The graphics preset's shadow setting: off skips the mask reads and redraws. */
+  // Graphics preset shadow setting. Off skips the mask reads and redraws.
   set enabled(on) {
     this.receiverUniforms.uShadowStrength.value = on ? this.strength : 0;
   }
 
-  /** Direction towards the sun, in slice space (x, y, z, w); y must be > 0. */
+  // Direction towards the sun, in slice space. y has to be > 0.
   setSun(x, y, z, w) {
     const u = this.uniforms.uSun.value;
     if (u.x === x && u.y === y && u.z === z && u.w === w) return;
@@ -153,7 +152,7 @@ export class Shadow4 {
     this.dirty = true;
   }
 
-  /** Start casting a shadow for an Object4D (its pose uniforms are shared). */
+  // Start casting a shadow for an Object4D. Its pose uniforms are shared.
   add(obj) {
     const sh = obj.mats.shared;
     let mesh;
@@ -192,24 +191,22 @@ export class Shadow4 {
     this.dirty = true;
   }
 
-  /**
-   * Can the object's shadow reach the slice? Projecting a point q towards the
-   * floor gives it w = q.w − q.y k, with k = sun.w / sun.y, and points within r
-   * of the centre c get within r √(1 + k²) of c.w − c.y k. Skipping the others
-   * saves drawing every tetrahedron of objects far along w.
-   */
+  // Whether the object's shadow can reach the slice. Projecting a point q to
+  // the floor gives it w = q.w - q.y k, with k = sun.w / sun.y. Points within r
+  // of the center c end up within r √(1 + k²) of c.w - c.y k. Skipping the
+  // rest saves drawing every tetrahedron of objects far along w.
   _reachesSlice(obj) {
     const s = this.uniforms.uSun.value, c = obj.slicePos;
     const k = s.w / s.y;
     return Math.abs(c[3] - c[1] * k) <= obj.radius * Math.sqrt(1 + k * k) * 1.001;
   }
 
-  /** Redraw the mask if anything changed. Call before the frame is rendered. */
+  // Call before the frame is rendered. Only redraws when something changed.
   render(renderer) {
     if (!this.dirty) return;
     this.dirty = false;
     for (const [obj, mesh] of this.proxies) mesh.visible = this._reachesSlice(obj);
-    // render-to-texture during an XR frame: turn XR off so three.js uses our camera and target
+    // Turn XR off while rendering to the texture during an XR frame, so three.js uses our camera and target
     const xr = renderer.xr.enabled;
     const prev = renderer.getRenderTarget();
     renderer.getClearColor(_clear);

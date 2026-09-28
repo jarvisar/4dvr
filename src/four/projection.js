@@ -17,7 +17,7 @@ export const PROJ_UNIFORMS_GLSL = /* glsl */ `
 uniform mat4 uRot;
 uniform int uMode;       // 0 perspective, 1 stereographic
 uniform float uEye;      // perspective eye distance along w
-uniform float uScale;    // metres per unit
+uniform float uScale;    // meters per unit
 uniform float uMaxR;     // fade out beyond this projected radius (units)
 
 vec4 prep(vec4 p) {
@@ -165,12 +165,10 @@ void main() {
 }
 `;
 
-/**
- * Mark the first `count` items of a dynamic attribute for upload. The buffers
- * are sized for the largest shape, so uploading all of them every time (several
- * MB) would cost far more than the data in use. A pending range from an earlier
- * call is replaced: nothing past `count` is drawn.
- */
+// Only upload the first `count` items of a dynamic attribute. The buffers are
+// sized for the largest shape, so uploading all of it every time (several MB)
+// would cost far more than the data in use. Any pending range from an earlier
+// call is replaced, since nothing past `count` gets drawn.
 function uploadFirst(attr, count) {
   if (count <= 0) return;
   attr.clearUpdateRanges();
@@ -197,10 +195,8 @@ function edgeTubeGeometry(segments, radial) {
   return g;
 }
 
-/**
- * A projected wireframe for any set of 4D edges/vertices/faces.
- * geometry: { vertices: [[x,y,z,w]], edges: [[a,b]], faces: [{verts:[...]}] }
- */
+// Projected wireframe for any set of 4D vertices, edges and faces.
+// geometry: { vertices: [[x,y,z,w]], edges: [[a,b]], faces: [{verts:[...]}] }
 export class ProjectedWire {
   constructor({ maxEdges = 1300, maxVerts = 700, maxFaceTris = 60000, segments = 12 } = {}) {
     this.group = new THREE.Group();
@@ -216,9 +212,9 @@ export class ProjectedWire {
       uShowSlice: { value: 1 },
     };
 
-    // edges. Perspective projection keeps 4D edges straight, so they only need
-    // a few rings (for the change in thickness along the edge); stereographic
-    // edges are arcs and use the finely subdivided tube. Both share the edge data.
+    // Perspective projection keeps 4D edges straight, so they only need a few
+    // rings (for the change in thickness along the edge). Stereographic edges
+    // are arcs and use the finely subdivided tube. Both share the edge data.
     this.edgeGeo = edgeTubeGeometry(segments, 7);
     this.edgeGeoStraight = edgeTubeGeometry(4, 7);
     this.aA = new THREE.InstancedBufferAttribute(new Float32Array(maxEdges * 4), 4);
@@ -239,7 +235,6 @@ export class ProjectedWire {
     this.edges.frustumCulled = false;
     this.group.add(this.edges);
 
-    // vertices
     const sph = new THREE.SphereGeometry(1, 10, 8);
     this.vertGeo = new THREE.InstancedBufferGeometry();
     this.vertGeo.index = sph.index;
@@ -256,7 +251,6 @@ export class ProjectedWire {
     this.verts.frustumCulled = false;
     this.group.add(this.verts);
 
-    // faces
     this.maxFaceTris = maxFaceTris;
     this.faceGeo = new THREE.BufferGeometry();
     this.a4 = new THREE.BufferAttribute(new Float32Array(maxFaceTris * 3 * 4), 4);
@@ -277,7 +271,7 @@ export class ProjectedWire {
       blending: THREE.CustomBlending,
       blendSrc: THREE.OneFactor,
       blendDst: THREE.OneFactor,
-      forceSinglePass: true, // additive, so back and front faces needn't be drawn in separate passes
+      forceSinglePass: true, // additive, so back and front faces don't need separate passes
     });
     this.faces = new THREE.Mesh(this.faceGeo, this.faceMat);
     this.faces.frustumCulled = false;
@@ -285,7 +279,7 @@ export class ProjectedWire {
     this.group.add(this.faces);
   }
 
-  /** Upload a polytope-like description. faceSubdiv > 0 curves faces (for stereographic). */
+  // faceSubdiv > 0 splits faces into smaller triangles so they can curve in stereographic mode
   setGeometry(geo, { faceSubdiv = 2, edgeColors = null, faceColors = null } = {}) {
     const { vertices, edges, faces } = geo;
     const nE = Math.min(edges.length, this.aA.count);

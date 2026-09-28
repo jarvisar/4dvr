@@ -39,7 +39,7 @@ const SHOTS = [
   },
   { name: 'hopf', scene: 'hopf', setup: () => {} },
   { name: 'hyperbolic', scene: 'hyperbolic', setup: () => {} },
-  { name: 'spherical', scene: 'spherical', setup: () => {} }, // straight ahead: the back of your own head, the long way round
+  { name: 'spherical', scene: 'spherical', setup: () => {} }, // straight ahead is the back of your own head, the long way round
   {
     name: 'klein', scene: 'klein',
     setup: () => {
@@ -59,7 +59,7 @@ function chromePath() {
     linux: ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'],
   }[process.platform] || [];
   const found = candidates.find((p) => fs.existsSync(p));
-  if (!found) throw new Error('Chrome not found; set CHROME_PATH');
+  if (!found) throw new Error('Chrome not found, set CHROME_PATH');
   return found;
 }
 
@@ -104,7 +104,7 @@ try {
       window.__app.setDesktopMenu(false);
     });
     await page.evaluate(shot.setup);
-    await new Promise((r) => setTimeout(r, 5000)); // a few (slow, software-rendered) frames, and for intro messages to fade
+    await new Promise((r) => setTimeout(r, 5000)); // wait a few slow software-rendered frames, and for intro messages to fade
     if (errors.length) throw new Error(`${shot.name}: ${errors.join('; ')}`);
     const file = path.join(OUT, `${shot.name}.jpg`);
     await page.screenshot({ path: file, type: 'jpeg', quality: 88 });

@@ -92,7 +92,7 @@ function renderTabs() {
     b.onclick = () => app.setScene(s.key);
     tabs.appendChild(b);
   });
-  // "<b>Key</b> does something · …" → one row per control
+  // split the help string ("<b>Key</b> does something · ...") into one row per control
   helpList.innerHTML = (app.activeScene?.desktopHelp({ touch }) || '')
     .split(' · ')
     .map((item) => `<li>${item}</li>`)
@@ -107,7 +107,7 @@ function renderTabs() {
   measureHud();
 }
 
-// the start screen's scene list: which scene VR will start in
+// marks the scene VR will start in on the start screen's scene list
 function markSelected(test) {
   for (const b of index.querySelectorAll('button')) {
     const on = test(b);
@@ -161,8 +161,8 @@ loadExtraScenes().then(() => {
   const key = pendingScene || initial;
   pendingScene = null;
   if (key !== 'playground' && SCENES.some((s) => s.key === key)) app.setScene(key, true);
-  // Build the remaining 4D shapes and upload them to the GPU in idle time, but
-  // only before VR starts: in the headset they're built on first use as before.
+  // Build the remaining 4D shapes and upload them to the GPU in idle time. This
+  // only runs before VR starts. In the headset they're built on first use instead.
   prebuildShapes(() => !app.presenting, (shape) => {
     if (shape.tetMesh) app.renderer.initTexture(shape.tetMesh.texture);
   });
@@ -266,7 +266,7 @@ function enterDesktop() {
 }
 deskBtn.onclick = enterDesktop;
 
-// Scene index: with a headset, pick the scene to enter VR in; without one, go straight in.
+// Scene index. With a headset this picks the scene to enter VR in. Without one it goes straight in.
 index.addEventListener('click', (e) => {
   const b = e.target.closest('button[data-scene]');
   if (!b) return;

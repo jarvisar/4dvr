@@ -30,7 +30,7 @@ void main() {
   float sun = max(dot(d, normalize(uSunDir)), 0.0);
   col += uGlow * (pow(sun, 8.0) * 0.35 + pow(sun, 120.0) * 0.8);
   if (uStars > 0.0) {
-    // stars: at most one per grid cell, randomly offset, drawn as small discs
+    // stars: at most one per grid cell, randomly offset, drawn as small disks
     vec3 g = d * 160.0;
     vec3 cell = floor(g);
     float s = hash(cell);
@@ -79,7 +79,7 @@ void main() {
   float minor = gridLine(p, 0.25, 0.003) * 0.45;
   float lines = max(major, minor) * (1.0 - smoothstep(uRadius * 0.25, uRadius * 0.9, r));
   vec3 col = mix(uBase, uLine, lines);
-  // soft vignette towards the horizon colour
+  // soft fade toward the horizon color
   col = mix(col, uFade, smoothstep(uRadius * 0.2, uRadius, r));
   // slightly darker near the center of the room
   col *= 0.92 + 0.08 * smoothstep(0.0, 2.5, r);
@@ -142,7 +142,7 @@ export class Environment {
       depthWrite: false,
     });
     this.sky = new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), this.skyMat);
-    // Drawn after the other opaque objects: it sits on the far plane, so the
+    // Drawn after the other opaque objects. It sits on the far plane, so the
     // depth test skips every sky pixel that something else already covers.
     this.sky.renderOrder = 100;
     this.sky.frustumCulled = false;
@@ -165,7 +165,7 @@ export class Environment {
     this.sun = new THREE.DirectionalLight(0xffffff, 2.0);
     this.group.add(this.hemi, this.sun, this.sun.target);
     this.aimSun(new THREE.Vector3(0, 1, -0.6));
-    // The graphics preset's shadow setting. The three.js shadow map isn't used:
+    // The graphics preset's shadow setting. The three.js shadow map isn't used.
     // Hyperplay draws its own 4D shadows (four/shadow4.js) and reads this.
     this.shadows = true;
   }
@@ -192,7 +192,7 @@ export class Environment {
     this.aimSun(this._focus);
   }
 
-  /** Point the directional light at center, along the lighting preset's sun direction. */
+  // Point the directional light at center, along the lighting preset's sun direction
   aimSun(center) {
     this._focus = center.clone();
     this.sun.position.copy(center).addScaledVector(LIGHT.uSunDir.value, 3);

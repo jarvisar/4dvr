@@ -14,7 +14,7 @@ const CHAINS = [
   ['wrist', 'pinky-finger-metacarpal', 'pinky-finger-phalanx-proximal', 'pinky-finger-phalanx-intermediate', 'pinky-finger-phalanx-distal', 'pinky-finger-tip'],
   ['index-finger-phalanx-proximal', 'middle-finger-phalanx-proximal', 'ring-finger-phalanx-proximal', 'pinky-finger-phalanx-proximal'],
 ];
-/** Joint index pairs of the hand's bones (also used to draw hands in other spaces). */
+// Joint index pairs for the hand's bones (also used to draw hands in other spaces)
 export const BONES = [];
 for (const chain of CHAINS) for (let i = 0; i + 1 < chain.length; i++) BONES.push([J[chain[i]], J[chain[i + 1]]]);
 
@@ -69,10 +69,8 @@ const RING_IDLE = new THREE.Color('#ffffff');
 const POKE_PRESS = new THREE.Color('#1a9fff');
 const READOUT_HOLD = 0.12; // seconds a readout stays up after its last update
 
-/**
- * A one-line label on a dark plate that hugs the text, redrawn in place
- * (fixed canvas size, so updates allocate nothing).
- */
+// One-line label on a dark plate that hugs the text. Redrawn in place on a
+// fixed size canvas, so updates allocate nothing.
 class Readout {
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -141,7 +139,7 @@ export class HandVisuals {
       return m;
     });
 
-    // pointing rays + cursors
+    // pointing rays and cursors
     // unit-length cylinder from the origin along −Z (scaled to the hit distance)
     const rayGeo = new THREE.CylinderGeometry(0.0012, 0.0025, 1, 6, 1, true).translate(0, -0.5, 0).rotateX(Math.PI / 2);
     this.rays = [0, 1, 2].map(() => {
@@ -160,14 +158,14 @@ export class HandVisuals {
       return { ray, cursor };
     });
 
-    // fingertip cursor on a panel: a ring under the finger that closes as it
-    // approaches the surface, so it's clear where a press will land
+    // fingertip cursor on a panel. The ring under the finger closes as it
+    // approaches the surface, so it's clear where a press will land.
     this.pokeCursors = [0, 1].map(() => {
       const m = new THREE.Mesh(
         new THREE.RingGeometry(0.0035, 0.0055, 32),
         new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false, toneMapped: false }),
       );
-      m.renderOrder = 34; // after the panels (20); still hidden behind the finger itself
+      m.renderOrder = 34; // after the panels (20), but still hidden behind the finger itself
       m.visible = false;
       this.group.add(m);
       return m;
@@ -181,10 +179,8 @@ export class HandVisuals {
     });
   }
 
-  /**
-   * Show a short readout next to an interactor's hand, e.g. the slice position
-   * while a pinch in empty space moves it. Call it every frame the value is live.
-   */
+  // Show a short readout next to an interactor's hand, e.g. the slice position
+  // while a pinch in empty space moves it. Call it every frame the value is live.
   readout(ix, text, color = '#ffffff') {
     const r = this.readouts[ix.index];
     if (!r) return;
@@ -225,8 +221,8 @@ export class HandVisuals {
         tintB.setXYZ(bi, 0, 0, 0);
         bi++;
       }
-      // pinch ring, between the thumb and whichever finger is closing on it,
-      // shrinking as they close, so both pinches show before they trigger
+      // pinch ring between the thumb and whichever finger is closing on it. It
+      // shrinks as they close, so both pinches show before they trigger.
       const middle = ix.grip.pressed || (!ix.pinch.pressed && ix.gripStrength > ix.pinchStrength);
       const strength = middle ? ix.gripStrength : ix.pinchStrength;
       if (strength > 0.25 && !ix.uiEngaged) {
@@ -259,7 +255,7 @@ export class HandVisuals {
     });
 
     // readouts sit just above the hand (or the mouse's drag point) and face the head,
-    // at the size they would have half a metre away
+    // at the size they would have half a meter away
     for (const r of this.readouts) {
       const on = !!r.ix && app.time - r.t < READOUT_HOLD;
       r.mesh.visible = on;

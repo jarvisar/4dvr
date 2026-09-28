@@ -1,4 +1,4 @@
-// Hopf Garden: the Hopf fibration splits the 3-sphere into great circles, one
+// Hopf Garden. The Hopf fibration splits the 3-sphere into great circles, one
 // for each point of a 2-sphere. Touching the globe (the 2-sphere) adds the
 // fiber for that point, stereographically projected from S³. Any two fibers
 // are linked, and the fibers over a circle on the globe form a torus.
@@ -23,7 +23,7 @@ uniform mat4 uRot;
 uniform float uScale;
 uniform float uRadius;
 uniform float uMaxR;
-uniform vec3 uGlobe;     // world centre and radius of the globe
+uniform vec3 uGlobe;     // world center and radius of the globe
 uniform float uGlobeR;
 attribute vec4 aQ;
 attribute vec3 aColor;
@@ -61,12 +61,12 @@ void main() {
   float phi = position.x * 6.28318530718;
   vec3 radial = cos(phi) * u + sin(phi) * v;
   vec3 p0 = c + R * radial;
-  // tube cross-section in the (radial, normal) plane; thickness follows the
-  // conformal factor (|p|² + 1) / 2 so tubes have constant width on S³
+  // tube cross-section in the (radial, normal) plane. Thickness follows the
+  // conformal factor (|p|² + 1) / 2 so tubes have constant width on S³.
   float ang = position.y;
   vec3 dir = cos(ang) * radial + sin(ang) * nh;
   float k0 = 0.5 * (dot(p0, p0) + 1.0);
-  float valid = step(1e-10, nn) * step(R * uScale, 60.0); // not a line / absurdly large circle
+  float valid = step(1e-10, nn) * step(R * uScale, 60.0); // skip lines and huge circles
   vFade = valid * (1.0 - smoothstep(uMaxR * 0.55, uMaxR, length(p0) * uScale));
   float r = uRadius * clamp(k0, 0.6, 4.0) * (0.25 + 0.75 * vFade);
   // Large circles reach the floor (y = 0), the globe and the viewer. The tube
@@ -167,18 +167,18 @@ function tubeGeometry() {
   return g;
 }
 
-/** A unit quaternion q (as [a,b,c,d] = a + bi + cj + dk) with q·i·q̄ = p. */
+// A unit quaternion q (as [a,b,c,d] = a + bi + cj + dk) with q·i·q̄ = p
 export function hopfLift(p) {
   const [x, y, z] = p;
   const d = x; // dot(i, p)
-  if (d < -0.9999) return [0, 0, 1, 0]; // q = j rotates i to −i
-  // rotation taking i to p: q = normalize(1 + i·p, i × p), with i × p = (0, −z, y)
+  if (d < -0.9999) return [0, 0, 1, 0]; // q = j rotates i to -i
+  // rotation taking i to p is q = normalize(1 + i·p, i × p), with i × p = (0, -z, y)
   const q = [1 + d, 0, -z, y];
   const l = Math.hypot(...q);
   return q.map((v) => v / l);
 }
 
-/** 4×4 matrix of left multiplication by the unit quaternion (THREE.Quaternion) u. */
+// 4×4 matrix for left multiplication by the unit quaternion u (a THREE.Quaternion)
 function leftMulMatrix(out, u) {
   const u0 = u.w, u1 = u.x, u2 = u.y, u3 = u.z;
   out.set([
@@ -287,7 +287,6 @@ export class HopfScene extends SceneBase {
     this.dots.frustumCulled = false;
     this.globeInner.add(this.dots);
     this.globe.add(this.globeInner);
-    // stand
     const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.02, 1, 12), new THREE.MeshStandardMaterial({ color: '#3a3f66', roughness: 0.4, metalness: 0.5 }));
     this.stand = stand;
     this.root.add(this.globe, stand);
@@ -311,7 +310,7 @@ export class HopfScene extends SceneBase {
     this._layout();
   }
 
-  // --- fibres -----------------------------------------------------------------
+  // --- fibers -----------------------------------------------------------------
 
   addFiber(p, { dedupe = 0.035 } = {}) {
     if (this.fibers.length >= MAX_FIBERS) return false;

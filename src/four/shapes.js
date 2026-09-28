@@ -7,13 +7,14 @@ import {
   tigerTets, spheritorusTets, torisphereTets, polycubeTets, hexToRgb,
 } from './tetmesh.js';
 
-// A chiral tetracube: steps of +x, +y, +z (a right-handed twist). No 3D
-// rotation turns it into its mirror image; a half-turn in a plane containing
-// w does. Cube edge 0.5, so the piece is about as big as the other shapes.
+// A chiral tetracube with steps of +x, +y, +z (a right-handed twist). No 3D
+// rotation turns it into its mirror image, but a half-turn in a plane
+// containing w does. Cube edge is 0.5 so the piece is about as big as the
+// other shapes.
 export const SCREW_CUBES = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [1, 1, 1]];
 export const SCREW_EDGE = 0.5;
 const SCREW_COLORS = ['#ff6b6b', '#ffd93d', '#3ddbd9', '#8b7bff'];
-/** Cube centres of the chiral tetracube in body space (w = 0). */
+// Cube centers of the chiral tetracube in body space (w = 0)
 export function screwCenters() {
   const cen = [0, 1, 2].map((i) => SCREW_CUBES.reduce((a, c) => a + c[i], 0) / SCREW_CUBES.length);
   return SCREW_CUBES.map((c) => [(c[0] - cen[0]) * SCREW_EDGE, (c[1] - cen[1]) * SCREW_EDGE, (c[2] - cen[2]) * SCREW_EDGE, 0]);
@@ -135,12 +136,10 @@ function once(fn) {
   return () => (v ??= fn());
 }
 
-/**
- * Build every shape ahead of time, one per idle callback, while keepGoing()
- * returns true. Building the larger curved shapes takes tens of milliseconds
- * (more on a headset), which would otherwise stall frames the first time a
- * preset or gallery shape uses them. onBuilt(shape) can upload GPU data.
- */
+// Builds every shape ahead of time, one per idle callback, while keepGoing()
+// returns true. The larger curved shapes take tens of milliseconds to build
+// (more on a headset), which would otherwise stall frames the first time a
+// preset or gallery shape uses them. onBuilt(shape) can upload GPU data.
 export function prebuildShapes(keepGoing, onBuilt) {
   const keys = SHAPE_KEYS.filter((k) => !built.has(k));
   const idle = window.requestIdleCallback || ((f) => setTimeout(f, 30));

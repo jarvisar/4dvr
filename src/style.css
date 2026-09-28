@@ -1,6 +1,6 @@
 /*
  * Start screen and desktop HUD. The in-headset panels (src/core/ui.js) use the
- * same colours and fonts: slate panels with rounded corners, grey buttons, and
+ * same colors and fonts: slate panels with rounded corners, gray buttons, and
  * blue for whatever is selected.
  */
 :root {
@@ -13,7 +13,7 @@
   --muted: #9aa3b0;
   --faint: #6f7886;
   --line: rgba(255, 255, 255, 0.08);
-  --select: #1f6bd1;       /* selected fill; white text on it is 5:1 */
+  --select: #1f6bd1;       /* selected fill, white text on it has 5:1 contrast */
   --select-hover: #2a76db;
   --accent: #1a9fff;       /* focus rings and indicators, never behind text */
   --ok: #8bc34a;
@@ -174,7 +174,7 @@ kbd, #hud-help li b {
 #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
 #hud > * { pointer-events: auto; }
 
-/* scene tabs centred, tools on the right; the tabs move left, then scroll, when space runs out */
+/* scene tabs centered, tools on the right. The tabs move left, then scroll, when space runs out */
 .hud-top {
   position: absolute;
   top: var(--edge); left: var(--edge); right: var(--edge);
@@ -274,7 +274,7 @@ kbd, #hud-help li b {
   .console { margin: 0 auto; }
 }
 
-/* touch screens: no keyboard shortcuts to show */
+/* touch screens have no keyboard shortcuts to show */
 @media (hover: none) and (pointer: coarse) {
   .keys { display: none; }
 }

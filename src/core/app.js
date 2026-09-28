@@ -23,7 +23,7 @@ export class App {
     this.params = new URLSearchParams(location.search);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    renderer.setSize(window.innerWidth, window.innerHeight); // pixel ratio, foveation and shadows: _applyQuality()
+    renderer.setSize(window.innerWidth, window.innerHeight); // pixel ratio, foveation and shadows are set in _applyQuality()
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.NeutralToneMapping;
     renderer.toneMappingExposure = 1.0;
@@ -59,7 +59,7 @@ export class App {
     this.hudActive = false; // set by main.js once the start screen is dismissed
     // comfort options for scenes you move through (see setComfort)
     this.comfort = { vignette: pref.get('vignette', true), snapTurn: pref.get('snapturn', true) };
-    this._motion = 0;      // metres of artificial movement this frame (addMotion)
+    this._motion = 0;      // meters of artificial movement this frame (addMotion)
     this._vignette = this._makeVignette();
     this._snapArmed = true;
     this.statsEnabled = this.params.has('stats');
@@ -106,16 +106,16 @@ export class App {
     return this.renderer.xr.isPresenting;
   }
 
-  /** 'hands', 'controllers' or 'desktop', for choosing which instructions to show. */
+  // 'hands', 'controllers' or 'desktop', for picking which instructions to show
   get inputMode() {
     if (!this.presenting) return 'desktop';
     return this.input.xr.some((ix) => ix.kind === 'controller') ? 'controllers' : 'hands';
   }
 
   _installPointerGate() {
-    // Decide at pointerdown whether the mouse hits UI/objects (→ interact) or
-    // empty space (→ orbit the camera). Registered before OrbitControls'
-    // own listener via capture, so it runs first.
+    // Decide at pointerdown whether the mouse hits UI or objects (interact) or
+    // empty space (orbit the camera). Uses capture so it runs before
+    // OrbitControls' own listener.
     this.renderer.domElement.addEventListener('pointerdown', (e) => {
       if (this.presenting) return;
       const r = this.renderer.domElement.getBoundingClientRect();
@@ -148,12 +148,10 @@ export class App {
     return m;
   }
 
-  /**
-   * Comfort vignette: darkens the edges of the view while a scene moves the
-   * person artificially (stick or pinch-and-pull locomotion), which reduces
-   * motion sickness. Only the periphery is covered, so the centre of the view
-   * costs nothing extra.
-   */
+  // Comfort vignette. Darkens the edges of the view while a scene moves the
+  // person artificially (stick or pinch-and-pull locomotion) to cut down on
+  // motion sickness. Only the periphery is covered, so the center of the view
+  // costs nothing extra.
   _makeVignette() {
     const open = 0.5; // radians around the view direction that are never covered
     const geo = new THREE.SphereGeometry(0.2, 40, 12, 0, Math.PI * 2, open, Math.PI - open).rotateX(-Math.PI / 2);
@@ -180,7 +178,7 @@ export class App {
     return m;
   }
 
-  /** Scenes report artificial movement (metres this frame) for the comfort vignette. */
+  // Scenes report artificial movement (meters this frame) for the comfort vignette
   addMotion(metres) {
     this._motion += metres;
   }
@@ -201,7 +199,7 @@ export class App {
     pref.set(key.toLowerCase(), on);
   }
 
-  /** Right stick left/right turns in 30° steps in scenes you move through. */
+  // Right stick left/right turns in 30° steps in scenes you move through
   _updateSnapTurn() {
     if (!this.presenting || !this.activeScene?.locomotion || !this.comfort.snapTurn) return;
     for (const ix of this.input.xr) {
@@ -215,7 +213,7 @@ export class App {
     }
   }
 
-  /** Turn the person about the vertical through their head. */
+  // Rotate around the vertical axis through the head
   _turn(angle) {
     _q.setFromAxisAngle(UP, angle);
     this.rig.position.sub(this.headPosition).applyQuaternion(_q).add(this.headPosition);
@@ -224,12 +222,10 @@ export class App {
     this.audio.click();
   }
 
-  /**
-   * Move the rig so the head is over the scene's origin, facing −z, which is
-   * where every scene expects the person to start. Scenes are laid out in
-   * front of that spot, so a new scene opens in front of the person wherever
-   * they have walked or turned to. Returns the change, as a world transform.
-   */
+  // Move the rig so the head is over the scene's origin, facing -z, which is
+  // where every scene expects the person to start. Scenes are laid out in front
+  // of that spot, so a new scene opens in front of the person wherever they've
+  // walked or turned to. Returns the change as a world transform.
   recenter() {
     this.rig.updateMatrixWorld(true);
     const before = _m.copy(this.rig.matrixWorld).invert();
@@ -267,7 +263,7 @@ export class App {
     this.onDesktopMenuChanged?.(on);
   }
 
-  /** Switch scenes with a short fade (instant on first load). */
+  // Switch scenes with a short fade (instant on first load)
   setScene(key, instant = false) {
     if (key === this.sceneKey && this.activeScene) return;
     if (instant || !this.activeScene) {
@@ -322,7 +318,7 @@ export class App {
     this.camera.position.set(0, 0, 0);
     this.orbit.enabled = false;
     this.interaction.releaseAll(); // the mouse's drag or hover
-    // the desktop menu is fully opaque at the HUD position; don't let it fade out from there
+    // the desktop menu is fully opaque at the HUD position, so don't let it fade out from there
     this.menu.panel.opacity = 0;
     this.menu.panel.group.visible = false;
     this._sessionJustStarted = 2;
@@ -355,7 +351,7 @@ export class App {
     if (session.frameRate !== this._rates[i]) session.updateTargetFrameRate(this._rates[i]).catch(() => {});
   }
 
-  /** Called once a second with the measured frame rate. */
+  // Runs once a second, after this.fps is updated
   _checkFrameRate() {
     if (!this._rates || !this.presenting) return;
     if (this._rateGrace > 0) { this._rateGrace--; return; }
@@ -365,10 +361,10 @@ export class App {
   }
 
   _onSessionEnd() {
-    // drop anything the hands or controllers were holding: they stop updating now
+    // drop anything the hands or controllers were holding since they stop updating now
     this.interaction.releaseAll();
     this._rates = null;
-    this.rig.position.set(0, 0, 0); // undo snap turns and recentring for the desktop camera
+    this.rig.position.set(0, 0, 0); // undo snap turns and recentering for the desktop camera
     this.rig.quaternion.identity();
     this._vignette.level = 0;
     this._vignette.visible = false;
@@ -405,9 +401,9 @@ export class App {
   }
 
   // The Quest Browser's default WebXR resolution is below the display's (1680×1760
-  // per eye on the Quest 3, against 2064×2208), so the preset's resolution is a
-  // fraction of the native one: High renders at the display's resolution.
-  // The native scale is clamped to 1–1.5 so a headset that doesn't report it, or
+  // per eye on the Quest 3 vs 2064×2208), so the preset's resolution is a fraction
+  // of the native one. High renders at the display's resolution.
+  // The native scale is clamped to 1 to 1.5 so a headset that doesn't report it, or
   // one with a very high resolution display, stays near its default. ?scale overrides it.
   _xrScale() {
     const forced = parseFloat(this.params.get('scale'));
@@ -416,7 +412,7 @@ export class App {
     return Math.max(0.5, native * QUALITY[this.quality].resolution);
   }
 
-  /** Switch graphics preset (see quality.js) and remember it for next time. */
+  // Switch graphics preset (see quality.js) and save it for next time
   setQuality(key) {
     if (!QUALITY[key] || key === this.quality) return;
     this.quality = key;
@@ -427,13 +423,13 @@ export class App {
   _applyQuality() {
     const q = QUALITY[this.quality];
     // The XR framebuffer size is fixed for the session, so in VR only foveation and
-    // shadows change now; the resolution changes the next time VR starts.
+    // shadows change now. The resolution changes the next time VR starts.
     if (!this.presenting) this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * q.resolution);
     this.renderer.xr.setFoveation(q.foveation);
     this.env.setShadows(q.shadows);
   }
 
-  /** True in VR when the chosen preset's resolution differs from the session's. */
+  // True in VR when the chosen preset's resolution differs from the session's
   get qualityPending() {
     return this.presenting && !!this._xrScaleUsed && Math.abs(this._xrScale() - this._xrScaleUsed) > 0.001;
   }
@@ -504,12 +500,10 @@ export class App {
     }
   }
 
-  /**
-   * How the XR framebuffer's 4x MSAA is resolved, for ?stats. On the Quest's
-   * tiled GPU a resolve in tile memory is almost free. When the compositor
-   * uses the depth buffer, three.js renders to separate multisampled buffers
-   * and resolves them with a full-screen blit every frame, which is not.
-   */
+  // How the XR framebuffer's 4x MSAA gets resolved, shown in ?stats. On the
+  // Quest's tiled GPU a resolve in tile memory is almost free. When the
+  // compositor uses the depth buffer, three.js renders to separate multisampled
+  // buffers and resolves them with a full-screen blit every frame, which isn't.
   _msaaPath() {
     const rt = this.presenting ? this.renderer.getRenderTarget() : null;
     if (!rt?.isXRRenderTarget || !rt.samples) return '';

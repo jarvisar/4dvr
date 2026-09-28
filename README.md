@@ -2,7 +2,7 @@
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/hyperplay.jpg" alt="Hyperplay: 4D objects on a table as 3D cross-sections, with 4D shadows and faint ghosts of objects outside the slice"><br><b>Hyperplay</b>: a 4D physics sandbox, sliced to 3D</td>
+    <td width="50%"><img src="docs/screenshots/hyperplay.jpg" alt="Hyperplay: 4D objects on a table as 3D cross-sections, with 4D shadows and faint ghosts of objects outside the slice"><br><b>Hyperplay</b>: 4D physics sandbox, sliced to 3D</td>
     <td width="50%"><img src="docs/screenshots/polytopes.jpg" alt="Polytope Lab: the 120-cell in perspective projection"><br><b>Polytope Lab</b>: the 120-cell, projected</td>
   </tr>
   <tr>
@@ -10,95 +10,69 @@
     <td><img src="docs/screenshots/hyperbolic.jpg" alt="Hyperbolic Space: the right-angled dodecahedral honeycomb seen from inside"><br><b>Hyperbolic Space</b>: the {5,3,4} honeycomb from inside</td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/spherical.jpg" alt="Spherical Space: the 120-cell tiling of the 3-sphere, with the back of the viewer's own head in the background"><br><b>Spherical Space</b>: the 120-cell tiling of S³, with the back of your own head the long way round</td>
+    <td><img src="docs/screenshots/spherical.jpg" alt="Spherical Space: the 120-cell tiling of the 3-sphere, with the back of the viewer's own head in the background"><br><b>Spherical Space</b>: the 120-cell tiling of S³, with the back of your own head in the distance</td>
     <td><img src="docs/screenshots/klein.jpg" alt="Klein Room: copies of the room and of the viewer, every other row mirror-reversed"><br><b>Klein Room</b>: a room glued to itself with a flip</td>
   </tr>
 </table>
 
-WebXR app for viewing and interacting with 4D objects, higher-dimensional geometry, and hyperbolic and spherical space. Built with [Three.js](https://threejs.org/) for the Meta Quest with hand tracking. Controllers are also supported, and every scene works in a desktop browser with a mouse and keyboard.
+This is a WebXR app for viewing and interacting with 4D objects and non-Euclidean space. It's built with [Three.js](https://threejs.org/) for the Meta Quest with hand tracking. Controllers work too, and every scene runs in a desktop browser with a mouse and keyboard.
 
 Visit the [GitHub Pages site](https://ajarvis.co/anakata/) to access the latest deployment.
 
 ## Scenes
 
-- **Hyperplay:** 4D physics sandbox on a table. Includes all six regular 4-polytopes, hyperspheres, duocylinders, spherinders, cubinders, and a tiger. Objects are shown as 3D cross-sections, and the cross-section can be moved along the W axis or rotated in the xw/zw planes. Shadows are 4D shadows: the sun can lean towards ana, so objects outside the slice cast shadows into it. Presets:
-  - **Sealed box:** the ball has to be moved out of a closed glass box through W.
-  - **Mirror:** a chiral piece has to go into an outline of its mirror image. No 3D rotation does it, but a half-turn through W does.
-  - **Dice:** the regular 4-polytopes as a d5, d8, d16, d24, d120, and d600. A die lands on a cell, and the result is the cell facing up. Opposite cells add up to N + 1, like on a d6.
-  - **Orbits:** moons around a sun with 4D gravity, which falls off as 1/r³. Every circular orbit has zero energy, so a small nudge sends a moon into the sun or away for good. Switch to 1/r² to compare.
-  - **Shadows:** the sun leans 50° towards ana.
-  - **Worldline:** a motion with time as the W axis, so moving the slice replays it and rotating the slice in xw mixes time with space, like a slit-scan photo. Shows juggling by default, and can record 4 seconds of your hands.
-- **Polytope Lab:** The regular 4-polytopes shown as perspective or stereographic projections, with the current cross-section drawn inside. Also includes a tesseract net that folds into a tesseract, and cross-sections of curved shapes like the spheritorus and torisphere.
-- **Knot Lab:** A rope simulated in 4D. Strands only collide when they are close in all four coordinates, so a strand moved in W can pass through another one. Includes a trefoil, figure-eight knot, Hopf link, and Borromean rings. The scene detects when a knot is untied or a link is separated.
-- **Hopf Garden:** The Hopf fibration of the 3-sphere, stereographically projected. Touch the globe to add the fiber for that point. Rotating the globe rotates all of the fibers.
-- **Hyperbolic Space:** The {5,3,4} honeycomb (right-angled dodecahedra) and {4,3,5} honeycomb (cubes, five around each edge), viewed from inside. Head movement is tracked in hyperbolic space, so walking in a loop leaves you rotated (holonomy).
-- **Spherical Space:** The 120-cell, 24-cell, tesseract, and 5-cell as tilings of the 3-sphere, viewed from inside: three cells around each edge, which leaves a gap in flat space. Walking straight ahead for 2π times the radius brings you back to the start. Every line of sight is a great circle, so everything is also seen the long way round, in the opposite direction, and straight ahead at the end of the long way is the back of your own head.
-- **Klein Room:** A room glued to itself. Walk out through the left or right side and you come back in through the other. Walk out through the front or back and you come back mirror-reversed, because that pair of walls is glued with a flip. The floor plan is a Klein bottle. Copies of the room, and of you, are visible through the walls, every other row mirror-reversed. After crossing a flipped wall, text reads backwards and your left hand fits the right-hand print.
-- **Quasicrystals:** A Penrose tiling as a 2D slice of the 5D cubic lattice, on the floor around you, and an icosahedral tiling of two rhombohedra as a 3D slice of the 6D lattice. Moving the slice through the hidden dimensions rearranges tiles three at a time (phason flips), but the pattern never repeats.
+- **Hyperplay:** A 4D physics sandbox on a table with the regular 4-polytopes, hyperspheres, duocylinders, spherinders, cubinders, and a tiger. Objects are shown as 3D cross-sections. The slice can be moved along W or rotated in the xw/zw planes. The sun can lean towards +W, so objects outside the slice still cast shadows into it. Presets:
+  - Sealed box: get the ball out of a closed glass box by moving it through W.
+  - Mirror: fit a chiral piece into an outline of its mirror image. Only a half-turn through W does it.
+  - Dice: the regular 4-polytopes as a d5, d8, d16, d24, d120, and d600.
+  - Orbits: moons around a sun with 4D gravity (1/r³). There are no stable orbits, so a small nudge sends a moon into the sun or off for good. Can be switched to 1/r² to compare.
+  - Shadows: the sun leans 50° towards +W.
+  - Worldline: a motion with time as the W axis, so moving the slice replays it. Shows juggling by default and can record 4 seconds of your hands.
+- **Polytope Lab:** The regular 4-polytopes as perspective or stereographic projections, with the current cross-section drawn inside. Also has a tesseract net that folds up, and cross-sections of curved shapes like the spheritorus.
+- **Knot Lab:** A rope simulated in 4D. Strands only collide when they're close in all four coordinates, so moving a strand in W lets it pass through another one. Detects when a knot is untied or a link is separated.
+- **Hopf Garden:** The Hopf fibration of the 3-sphere. Touch the globe to add the fiber for that point.
+- **Hyperbolic Space:** The {5,3,4} and {4,3,5} honeycombs viewed from inside. Head movement is tracked in hyperbolic space, so walking in a loop leaves you slightly rotated.
+- **Spherical Space:** The 120-cell, 24-cell, tesseract, and 5-cell as tilings of the 3-sphere, viewed from inside. Walking straight for 2π times the radius brings you back to the start, and straight ahead at the end of the long way round is the back of your own head.
+- **Klein Room:** A room glued to itself. Walk out the left or right side and you come back in the other. Walk out the front or back and you come back mirror-reversed. After crossing a flipped wall, text reads backwards and your left hand fits the right-hand print.
+- **Quasicrystals:** A Penrose tiling as a 2D slice of the 5D cubic lattice, and a 3D tiling as a slice of the 6D lattice. Moving the slice through the hidden dimensions rearranges tiles, but the pattern never repeats.
 
 ## Controls
 
 ### Hand Tracking
 
-Pinch with the thumb and index finger to grab, move, and throw objects. Pinch with the middle finger and move the hand to rotate an object through 4D. The object rotates in the plane made by the hand's direction and W. A ring between the thumb and the closing finger shrinks as they close, so it shows which pinch is about to start.
+Pinch with your thumb and index finger to grab, move, and throw objects. Pinch with your middle finger and move your hand to rotate an object through 4D.
 
-Pinch empty space and move up or down to move the slice along W. Middle-finger pinch empty space and move sideways to rotate the slice. A readout next to the hand shows the value while it changes.
+Pinch empty space and move up or down to move the slice along W. Middle-finger pinch empty space and move sideways to rotate the slice.
 
-Look at a palm turned towards your face to open the menu next to that hand, and press buttons with the other index finger. A ring under the fingertip shows where the press will land, and the menu holds still while the other hand reaches for it. The menu has pages for the current scene, all scenes, and settings, and a Pin button that leaves it floating in place. Point and pinch to use distant UI.
+Turn a palm towards your face to open the menu next to that hand, and press buttons with the other index finger. Press `Pin` to leave it floating in place. Point and pinch to use UI that's out of reach.
+
+In Hyperbolic Space, Spherical Space, and the Klein Room, walk or pinch empty space and pull to move around.
 
 ### Controllers
 
-Use the trigger to grab, move, and throw objects, and the grip to rotate them through 4D. Push either stick up or down to move the slice along W, or left and right to rotate it. Press A or X to open the menu. Point and pull the trigger to use distant UI.
+Use the trigger to grab, move, and throw objects, and the grip to rotate them through 4D. Push either stick up or down to move the slice along W, or left and right to rotate it. Press `A` or `X` to open the menu.
 
-In Hyperbolic Space, Spherical Space, and the Klein Room, the left stick moves and the right stick turns in 30° steps. With snap turning off, both sticks move.
-
-### Comfort and Accessibility
-
-- The first time each scene opens in VR, a panel explains its controls. How to play, in the menu's settings, shows them again.
-- A new scene opens in front of you, wherever you have walked or turned to.
-- Moving with the sticks, or by pinching empty space and pulling, darkens the edges of the view (a comfort vignette). The vignette and snap turning can be switched off in the menu's settings.
-- The slice position and rotation also have sliders in the menu, and Reset slice returns to the straight slice at w = 0.
-- Desktop browsers set to reduce motion start with auto-rotation off in Polytope Lab and Hopf Garden.
+In the curved spaces and the Klein Room, the left stick moves and the right stick turns in 30° steps. With snap turning off, both sticks move.
 
 ### Desktop
 
-Left drag to grab, move, and throw objects. Right drag to rotate them through 4D, or right drag on empty space to rotate the slice. Use the scroll wheel or Q/E to move the slice along W, and A/D to rotate it.
+Left drag to grab, move, and throw objects. Right drag to rotate them through 4D, or right drag empty space to rotate the slice. Use the scroll wheel or `Q`/`E` to move the slice along W, and `A`/`D` to rotate it. Press `1`-`8` to switch scenes, `M` to toggle the menu, and `H` to toggle the controls.
 
-Press 1–8 to switch scenes, M to toggle the menu, and H to toggle the controls.
+In the curved spaces and the Klein Room, use `WASD` to move and drag to look.
 
-On touch screens, drag an object to move it and drag empty space to orbit. Rotating objects through 4D, changing a strand's W, and moving in Hyperbolic Space, Spherical Space, and the Klein Room require a mouse and keyboard or a headset.
+Touch screens can drag objects and orbit the camera. Rotating through 4D and moving around the curved spaces need a mouse and keyboard or a headset.
 
-### Scene Controls
-
-In Hyperbolic Space, Spherical Space, and the Klein Room, walk or pinch empty space to move through the space. On desktop, use WASD to move and drag to look.
-
-In Hopf Garden, touch the globe to add fibers and pinch it to rotate it.
-
-In Quasicrystals, pinch empty space and move your hand to move the slice through the hidden dimensions. On desktop, right drag.
-
-In Hyperplay's Worldline preset, Record captures 4 seconds of your tracked hands (the controllers, or the mouse on desktop).
+###### Note: the comfort vignette and snap turning can be turned off in the menu's settings. `How to play` shows the controls for the current scene again.
 
 ## Local Installation
 
 Requires [Node.js](https://nodejs.org/) 20.19 or newer.
 
-1. Clone the repository and install the dependencies:
+1. Clone the repo with `git clone https://github.com/jarvisar/anakata.git` and run `npm install`
+2. Run `npm run dev` and open `http://localhost:5173`
+3. To use it on a Quest, connect the headset to the same network, open `https://<pc-ip>:5173` in the Quest Browser, accept the certificate warning, and press `Enter VR`
 
-```sh
-git clone https://github.com/jarvisar/anakata.git
-cd anakata
-npm install
-```
-
-2. Start the dev server:
-
-```sh
-npm run dev
-```
-
-Open `http://localhost:5173` on the PC. The server also accepts HTTPS on the same port, with a self-signed certificate, since other devices need HTTPS for WebXR.
-
-3. To use it on a Quest, connect the headset to the same network as the PC, open `https://<pc-ip>:5173` in the Quest Browser (`http://` redirects there), accept the certificate warning, and press **Enter VR**.
+The dev server also serves HTTPS on the same port with a self-signed certificate, since WebXR needs HTTPS on other devices. Plain http from another device redirects to https.
 
 Other commands:
 
@@ -109,100 +83,64 @@ npm run test:smoke  # build and run the headless Chrome tests (requires Chrome)
 npm run screenshots # build and retake the screenshots at the top of this README (requires Chrome)
 ```
 
-Retake the screenshots after changing how a scene looks. `node tools/screenshots.mjs hopf klein` retakes only those from the last build, and the camera for each shot is set in [tools/screenshots.mjs](tools/screenshots.mjs).
+Retake the screenshots after changing how a scene looks. `node tools/screenshots.mjs hopf klein` retakes only those from the last build.
 
-Pushing to `main` builds the site, runs the smoke tests, and deploys it to GitHub Pages. Pull requests and other branches run the same tests and upload screenshots of each scene as artifacts.
+Pushing to `main` runs the smoke tests and deploys to GitHub Pages. Pull requests and other branches run the same tests and upload screenshots of each scene.
 
 ### URL Parameters
 
 - `?scene=playground|gallery|knots|hopf|hyperbolic|spherical|klein|quasicrystal` sets the starting scene
 - `?desktop` skips the start screen
-- `?quality=low|medium|high` uses a graphics preset for this visit without changing the saved one
-- `?scale=1` sets the XR framebuffer scale directly, overriding the preset's resolution
+- `?quality=low|medium|high` uses a graphics preset for this visit without saving it
+- `?scale=1` sets the XR framebuffer scale directly
 - `?hz=90` sets a fixed refresh rate
-- `?stats` shows the frame rate, CPU time, draw calls, triangle count, and resolution per eye in VR. In VR the frame rate is shown as measured/target, along with whether 4x MSAA is resolved in tile memory or with a full-screen blit.
-- `?iwer` emulates a Quest 3 with [IWER](https://github.com/meta-quest/immersive-web-emulation-runtime) so VR mode can be tested in a desktop browser. `?iwer=headless` loads it without the control panel.
+- `?stats` shows frame rate, CPU time, draw calls, triangles, and resolution per eye
+- `?iwer` emulates a Quest 3 with [IWER](https://github.com/meta-quest/immersive-web-emulation-runtime) so VR mode can be tested on desktop. `?iwer=headless` hides the control panel.
 
 ## Implementation
 
 ### Slicing
 
-4D objects are stored as tetrahedral meshes of their 3D boundary, the same approach used by 4D Toys. Polytope cells are split into tetrahedra from the cell center. Curved shapes are built from prisms and cubes, split with consistent diagonals so the cross-sections have no gaps. See [tetmesh.js](src/four/tetmesh.js).
+4D objects are stored as tetrahedral meshes of their 3D boundary, the same approach 4D Toys uses. Slicing happens in the vertex shader in [sliceMaterial.js](src/four/sliceMaterial.js). Each tetrahedron is stored in a float texture and drawn as 4 vertices, and a 16-case lookup table turns it into a triangle, a quad, or nothing. Moving or rotating an object only updates two uniforms.
 
-The slicing is done in the vertex shader in [sliceMaterial.js](src/four/sliceMaterial.js). Each tetrahedron is stored in a float texture and drawn as 4 vertices. The shader moves its corners so the slice is the hyperplane w = 0, checks which side each corner is on, and uses a 16-case lookup table to output a triangle, a quad, or nothing. Tetrahedra that are nowhere near the slice are skipped after reading only one corner. Moving or rotating an object only updates two uniforms.
-
-Hyperspheres are drawn as regular spheres with radius `sqrt(r² - d²)`, since every cross-section of a hypersphere is a sphere. The fragment shader maps each point back onto the hypersphere to draw an 8-color pattern, which shows rotation in 4D.
+Hyperspheres are drawn as regular spheres with radius `sqrt(r² - d²)`, since every cross-section of a hypersphere is a sphere.
 
 ### 4D Shadows
 
-A 4D sun shines along a 4D direction. An object's shadow on the floor, which is a 3D hyperplane in 4D, is its projection along that direction, and the slice shows the part of that 3D shadow at w = 0. If the sun has no W component, points keep their w when projected, so this is just the shadow of the cross-section. If it does, objects outside the slice can cast shadows into it.
-
-[shadow4.js](src/four/shadow4.js) compiles the slice shader with `SHADOW4`, which projects each tetrahedron's corners onto the floor before cutting it. The resulting polygons are drawn top-down into a 512x512 mask, and the table multiplies its color by the mask. A hypersphere's shadow is found per pixel: the floor points whose line towards the sun passes within r of its center.
+An object's shadow is its projection onto the floor (a 3D hyperplane in 4D) along the sun's 4D direction. If the sun leans into W, objects outside the slice can cast shadows into it. [shadow4.js](src/four/shadow4.js) draws these into a 512x512 mask that the table multiplies its color by. The three.js shadow map isn't used.
 
 ### Physics
 
-[world4.js](src/physics/world4.js) and [colliders.js](src/physics/colliders.js) handle the 4D rigid bodies. Each body has a 4x4 rotation matrix and stores its angular momentum as a bivector (6 rotation planes). Collisions are found by testing sample points on each body against the other body's signed distance function, and contacts are solved with sequential impulses. Held objects are moved by setting their velocity towards the hand instead of their position, so they still collide with walls.
+[world4.js](src/physics/world4.js) handles the 4D rigid bodies. Each body has a 4x4 rotation matrix and stores angular momentum as a bivector (6 rotation planes). Collisions test sample points on each body against the other body's signed distance function, and contacts are solved with sequential impulses. Held objects are moved by setting their velocity towards the hand so they still collide with walls.
 
-The Mirror preset's piece is a union of four hypercubes (a chiral tetracube thickened along W), with a compound box collider. In the Orbits preset a force field adds 1/r³ (or 1/r²) gravity towards the sun each substep. For 1/r³, the effective potential is (L²/m − GMm)/2r², which has no minimum, so there is no stable orbit.
+### Curved Spaces
 
-### Projections
+Hyperbolic Space and Spherical Space are based on [Non-Euclidean Virtual Reality](https://arxiv.org/abs/1702.04004) by Hart, Hawksley, Matsumoto, and Segerman. Each frame, head movement is converted to a hyperbolic translation (or a rotation of R⁴ in spherical space), separately for each eye. In spherical space every line of sight is a great circle, so everything is drawn twice, once along the short arc and once along the long one.
 
-[projection.js](src/four/projection.js) draws the polytope edges as instanced tubes and projects them to 3D in the vertex shader. Color shows the W coordinate, and edges are highlighted where they cross the slice.
+###### Note: this relies on each eye being rendered separately. Three.js's `WebGLRenderer` doesn't support multiview.
 
-### Hopf Fibration
+The Klein Room is flat, so it's just 25 instanced copies of the room and of you. Crossing a flipped wall turns the map from room coordinates to the real room into a reflection. Three.js picks the front face of a triangle per object, not per instance, so the mirrored copies need their own instanced mesh.
 
-Each fiber of the Hopf map is a great circle, and stereographic projection maps great circles to circles. The shader in [hopf.js](src/scenes/hopf.js) finds each circle from three projected points and spaces the vertices evenly around it. Rotating the globe by a quaternion u multiplies every fiber by u on the left, which keeps each fiber attached to its base point.
+### Other Scenes
 
-### Hyperbolic Space
-
-Based on [Non-Euclidean Virtual Reality](https://arxiv.org/abs/1702.04004) by Hart, Hawksley, Matsumoto, and Segerman. See [hyperbolic.js](src/scenes/hyperbolic.js).
-
-Points are stored in the hyperboloid model and drawn using the Beltrami-Klein model. Each frame, head movement is converted to a hyperbolic translation and rotation, and each eye gets its own offset. When the viewer leaves the center cell, a symmetry of the honeycomb moves them back, which keeps the coordinates small without changing what is drawn.
-
-###### Note: this relies on each eye being rendered separately. Three.js's `WebGLRenderer` does not support multiview.
-
-### Spherical Space
-
-See [spherical.js](src/scenes/spherical.js). Points of S³ are unit vectors in R⁴ and its isometries are rotations of R⁴, so head movement is tracked like in Hyperbolic Space with rotations in place of Lorentz transformations. The polytope's vertices, pushed out onto its circumscribed 3-sphere, give the tiling. S³ is finite, so all of it is drawn.
-
-Every geodesic is a great circle of length 2π, so light from each point reaches the eye along two arcs: the short one (direction u, distance t) and the long one (direction −u, distance 2π − t). Everything is drawn twice, once for each. Each vertex is placed in its true direction at its true distance in metres, which gives every triangle exactly the right outline on screen. Near the antipodal point a small triangle can cover a large part of the view, so depth is written per fragment from the interpolated distance. The avatar around the eyes (head, headset, body, and tracked hands) is only drawn along the long arc, where it fills the background.
-
-### Worldlines
-
-A ball moving along p(t) sweeps out the set of points (x, w(t)) with |x − p(t)| ≤ r: at each moment, a 3D ball in the hyperplane w = w(t). A slice of constant w cuts it in the ball at that moment. A tilted slice cuts each moment's ball in a flat disk, and the cross-section is drawn as a stack of thin disks. See [worldline.js](src/four/worldline.js).
-
-### Klein Room
-
-See [klein.js](src/scenes/klein.js). The room is a fundamental domain of a group of isometries of the plane (times the interval from floor to ceiling), generated by a translation along x and a glide reflection (x, z) → (−x, z + D). Space is flat, so the view is 25 instanced copies of the room, one per group element, and copies of the viewer's head, body, and hands. When the head leaves the room, the map from room coordinates to the real room is composed with the group element it crossed into. After a flipped wall, that map is a reflection. three.js decides which side of a triangle faces the camera per object, not per instance, so mirrored instances are drawn by a second, mirrored instanced mesh.
-
-### Quasicrystals
-
-See [quasicrystal.js](src/scenes/quasicrystal.js). The tilings are built with de Bruijn's dual method, which is equivalent to cutting the lattice. N families of parallel grid lines (planes in 3D) with normals e_j and offsets γ_j are laid out. Every point z where d of them cross, from d different families, gives one tile. It is a rhomb (rhombohedron) with the edges e_j of those families, at Σ K_j e_j with K_j = ⌈z·e_j + γ_j⌉. The Penrose tiling uses 5 directions at 72° with offsets adding up to 0. The 3D tiling uses the 6 icosahedral 5-fold axes. Moving γ along the perpendicular-space vectors e⊥_j moves the slice through the hidden dimensions. The smoke test checks that every inner edge (face in 3D) is shared by exactly two tiles.
-
-### Knots
-
-[knots.js](src/scenes/knots.js) uses position-based dynamics in 4D. A knot counts as untied when a projection of the loop has no crossings.
+- Polytope Lab draws edges as instanced tubes and projects them to 3D in the vertex shader ([projection.js](src/four/projection.js))
+- Hopf Garden finds each fiber's projected circle from three points ([hopf.js](src/scenes/hopf.js))
+- Knot Lab uses position-based dynamics in 4D. A knot counts as untied when a projection of the loop has no crossings ([knots.js](src/scenes/knots.js))
+- Quasicrystals uses de Bruijn's dual method, which is equivalent to cutting a slice through the lattice ([quasicrystal.js](src/scenes/quasicrystal.js))
 
 ## Performance
 
-- Graphics presets (Low, Medium, High) are in the menu and saved in the browser. The Quest 1 and 2 start on Medium and other devices start on High.
+Graphics presets are in the menu and saved in the browser. The Quest 1 and 2 start on Medium and everything else starts on High.
 
-  | Preset | Resolution | Fixed foveation | Shadows |
-  | --- | --- | --- | --- |
-  | High | 100% of the display's native resolution | Off | On |
-  | Medium | 80% | Low | On |
-  | Low | 60% | High | Off |
+| Preset | Resolution | Fixed foveation | Shadows |
+| --- | --- | --- | --- |
+| High | 100% | Off | On |
+| Medium | 80% | Low | On |
+| Low | 60% | High | Off |
 
-  In VR, resolution is a fraction of the display's native resolution, e.g. 2064×2208 per eye on the Quest 3 at 100%, about 1650×1770 at 80%. The Quest Browser's default is about 1680×1760. On desktop it is a fraction of the screen's pixel ratio, up to 2. The VR resolution is fixed while a session runs, so changing the preset in the headset changes foveation and shadows right away and the resolution the next time VR starts. 4x MSAA is always on.
-- The refresh rate starts at the highest rate the headset supports and drops a step if the scene cannot keep up. Switching scenes goes back to the highest rate.
-- No post-processing
-- Scenes are loaded when first opened, and the 4D shapes are built before VR starts so choosing a preset in the headset does not stall
-- Shader programs are kept when objects are removed, so switching presets doesn't compile them again, and the shaders of things only shown in VR (hands, pointer rays, the vignette) are compiled before VR starts
-- Per-frame code avoids allocations to prevent garbage collection pauses on the headset
-- Hyperplay's 4D shadows are drawn into a 512x512 mask only on frames where something moved. The three.js shadow map isn't used.
-- Menus redraw and upload only the rows that changed, so a live value (a slider during playback, a distance) doesn't upload the whole panel texture
-- Dynamic geometry (tilings, projections, worldlines) uploads only the part of its buffers in use
-- Quasicrystal tilings are rebuilt at most about 15 times a second while the slice moves
+Resolution is a fraction of the display's native resolution in VR (2064x2208 per eye on the Quest 3), or of the screen's pixel ratio on desktop. The VR resolution can't change during a session, so a new preset's resolution only applies the next time VR starts. 4x MSAA is always on.
+
+The refresh rate starts at the highest rate the headset supports and drops a step if the scene can't keep up. Shaders are compiled before VR starts, and per-frame code avoids allocations to prevent garbage collection pauses on the headset.
 
 ## References
 

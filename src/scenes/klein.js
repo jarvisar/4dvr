@@ -1,16 +1,16 @@
-// Klein Room: a flat universe that isn't orientable.
+// Klein Room: a flat space that isn't orientable.
 //
-// The room is glued to itself. Walk out through the left or right side and you
-// come back in through the other, as in a video game (a torus). Walk out
-// through the front or back and you come back in through the other, mirrored:
-// that pair of walls is glued with a flip, x → −x. The floor plan is a Klein
-// bottle, and the space is a Klein bottle times the interval from floor to ceiling.
+// The room is glued to itself. Walk out the left or right side and you come
+// back in the other side, like a video game (a torus). Walk out the front or
+// back and you come back in the other side mirrored. That pair of walls is
+// glued with a flip, so x becomes -x. The floor plan is a Klein bottle, and the
+// space is a Klein bottle times the floor-to-ceiling interval.
 //
-// Space is flat, so it's drawn as copies of the room, laid out by the gluing
-// maps (every other row of copies is mirror-reversed). Copies of you are drawn
-// in the other copies of the room. Crossing a flipped wall changes the map from
-// room coordinates to the real room into a reflection: everything around you
-// is now mirror-reversed, and your left hand fits the right-hand print.
+// Space is flat, so it's drawn as copies of the room laid out by the gluing
+// maps. Every other row of copies is mirror-reversed. Copies of you are drawn
+// in the other rooms. Crossing a flipped wall turns the map from room
+// coordinates to the real room into a reflection. After that everything around
+// you is mirror-reversed and your left hand fits the right-hand print.
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -23,13 +23,12 @@ const W = 3.2, D = 3.2, H = 2.7; // room size (x, z) and height
 const N = 2;                      // copies drawn on each side
 const COPIES = (2 * N + 1) ** 2;
 
-// Fog that fades things into the sky behind them, by distance from the eye.
-// The copies stop N·W = 6.4 m away at the nearest (standing at a wall), and
-// must be gone by then in every direction: otherwise the edge of the world
-// shows, and a row of copies pops in or out when a wall crossing re-centres
-// them. three.js fog can't do that: it has one colour, where the sky is a
-// gradient, and it uses depth, which is shorter than the distance towards the
-// sides of a wide VR view.
+// Fades the room copies into the sky by distance from the eye. The nearest
+// copies end 6.4 m away (N * W, standing at a wall), so everything has to be
+// faded out by then. Otherwise the edge of the world shows and a row of copies
+// pops in when a wall crossing re-centers them. Can't use three.js fog here.
+// It only has one color and the sky is a gradient, and it uses depth, which is
+// shorter than the real distance near the sides of a wide VR view.
 const FOG_NEAR = 4.0, FOG_FAR = N * W - 0.1;
 const SKY_FOG_FRAG = /* glsl */ `
 uniform vec3 uSkyTop;
@@ -38,7 +37,7 @@ uniform vec3 uSkyBottom;
 uniform vec3 uSkyGlow;
 uniform vec3 uSkySun;
 varying vec3 vSkyFog; // eye to this point, world axes
-// three.js's NeutralToneMapping (exposure 1), which the sky is drawn with.
+// Copy of three.js NeutralToneMapping (exposure 1), which the sky is drawn with.
 // Materials that aren't tone mapped don't include it.
 vec3 skyFogTone(vec3 color) {
   float x = min(color.r, min(color.g, color.b));
@@ -50,8 +49,8 @@ vec3 skyFogTone(vec3 color) {
   return mix(color, vec3(newPeak), 1.0 - 1.0 / (0.15 * (peak - newPeak) + 1.0));
 }
 `;
-// the sky's colour in this direction, as environment.js draws it (without the stars),
-// only worked out where there is some fog: not in the room you're standing in
+// Sky color in this direction, same as environment.js draws it minus the stars.
+// Only computed where there's some fog, so not in the room you're standing in.
 const SKY_FOG_APPLY = /* glsl */ `
 float skyFogK = smoothstep(${FOG_NEAR.toFixed(2)}, ${FOG_FAR.toFixed(2)}, length(vSkyFog));
 if (skyFogK > 0.0) {
@@ -64,14 +63,14 @@ if (skyFogK > 0.0) {
 }
 `;
 
-/** Give a built-in material the sky fog above (in place of three.js fog). */
+// Replaces three.js fog on a built-in material with the sky fog above
 function skyFog(material, sky) {
   material.fog = false;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, { uSkyTop: sky.uTop, uSkyHorizon: sky.uHorizon, uSkyBottom: sky.uBottom, uSkyGlow: sky.uGlow, uSkySun: sky.uSunDir });
     shader.vertexShader = shader.vertexShader
       .replace('#include <fog_pars_vertex>', 'varying vec3 vSkyFog;')
-      .replace('#include <fog_vertex>', 'vSkyFog = mvPosition.xyz * mat3(viewMatrix);'); // view → world rotation
+      .replace('#include <fog_vertex>', 'vSkyFog = mvPosition.xyz * mat3(viewMatrix);'); // view to world rotation
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <fog_pars_fragment>', SKY_FOG_FRAG)
       .replace('#include <fog_fragment>', SKY_FOG_APPLY);
@@ -80,7 +79,7 @@ function skyFog(material, sky) {
   return material;
 }
 
-/** Gluing map for copy (i, j): (x, y, z) → ((−1)^j x + iW, y, z + jD). */
+// Gluing map for copy (i, j). Maps (x, y, z) to ((-1)^j x + iW, y, z + jD).
 function copyMatrix(i, j) {
   const s = j % 2 === 0 ? 1 : -1;
   return new THREE.Matrix4().set(
@@ -122,7 +121,7 @@ const CYAN = '#33c3ff', PINK = '#ff4f9a';
 const INK = '#2b2f3a', SLATE = '#3a3f4d', STONE = '#eee8de';
 const BRASS = '#bda477', COPPER = '#e79970';
 
-/** A single bevel catches the light without subdividing the flat faces. */
+// One bevel segment catches the light without subdividing the flat faces
 function bevelBox(w, h, d, bevel = 0.012) {
   const x = w / 2 - bevel, y = h / 2 - bevel;
   const shape = new THREE.Shape().moveTo(-x, -y).lineTo(x, -y).lineTo(x, y).lineTo(-x, y).closePath();
@@ -131,23 +130,21 @@ function bevelBox(w, h, d, bevel = 0.012) {
     steps: 1, bevelSize: bevel, bevelThickness: bevel, curveSegments: 1,
   }).translate(0, 0, -d / 2 + bevel);
 }
-// the frame: a square pillar at each corner, and a lintel along the top of each wall
+// frame is a square pillar at each corner and a lintel along the top of each wall
 const PILLAR = 0.16, LINTEL = 0.2, CAP = 0.22, CAP_H = 0.06, BASE_H = 0.1;
 const JAMB_TOP = H - LINTEL - CAP_H; // where the pillar's capital starts
-// things standing in the room: (x, z) and the size of their plinths
+// things standing in the room, with (x, z), plinth size and plinth top height
 const CLOCK = { x: -0.9, z: -0.8, size: 0.34, top: 1.0 };
 const PLATE = { x: 0.2, z: -1.0, size: 0.44, top: 0.9 };
 const HELIX = { x: 0.9, z: 0.8, size: 0.44, top: 0.8 };
-const CLOCK_C = new THREE.Vector3(CLOCK.x, 1.3, CLOCK.z); // centre of the clock, inside its body
+const CLOCK_C = new THREE.Vector3(CLOCK.x, 1.3, CLOCK.z); // center of the clock, inside its body
 const SIGN_POS = new THREE.Vector3(-0.2, 1.9, -D / 2 + 0.05); // facing +z, into the room
 const SIGN_W = 1.4, SIGN_H = 0.35, PORTAL_Y = H - LINTEL - 0.1;
 
-/**
- * Everything in the room that doesn't move and is lit, in room coordinates,
- * merged into one mesh. The pillars and lintels are shared with the copies
- * next door, so each copy only draws the ones on its +x and +z sides; the
- * copies on the other sides draw the rest.
- */
+// Everything in the room that doesn't move and is lit, in room coordinates,
+// merged into one mesh. Pillars and lintels are shared with the neighboring
+// copies, so each copy only draws the ones on its +x and +z sides. The copies
+// on the other sides draw the rest.
 function roomGeometry() {
   const parts = [];
   const add = (geo, color, matrix) => parts.push({ geo, color, matrix });
@@ -157,32 +154,32 @@ function roomGeometry() {
   add(box(CAP, CAP_H, CAP), SLATE, at(W / 2, JAMB_TOP + CAP_H / 2, D / 2));
   add(box(PILLAR, LINTEL, D), SLATE, at(W / 2, H - LINTEL / 2, 0));
   add(box(W, LINTEL, PILLAR), SLATE, at(0, H - LINTEL / 2, D / 2));
-  // Chamfered stone, a recessed foot and a thin brass reveal under each cap.
+  // plinths with a recessed foot and a thin brass strip under the cap
   for (const { x, z, size, top } of [CLOCK, PLATE, HELIX]) {
     add(box(size - 0.04, 0.05, size - 0.04), INK, at(x, 0.025, z));
     add(bevelBox(size, top - 0.095, size, 0.018), STONE, at(x, 0.05 + (top - 0.095) / 2, z));
     add(box(size - 0.025, 0.012, size - 0.025), BRASS, at(x, top - 0.038, z));
     add(bevelBox(size + 0.03, 0.032, size + 0.03, 0.008), SLATE, at(x, top - 0.016, z));
   }
-  // The spiral is mounted on a shallow disc, rather than hovering over its plinth.
+  // shallow disc so the spiral doesn't look like it's hovering over its plinth
   add(new THREE.CylinderGeometry(0.18, 0.19, 0.018, 32), BRASS, at(HELIX.x, HELIX.top + 0.009, HELIX.z));
-  // a helix, which is chiral: this one twists to the right
+  // helix is chiral. This one twists to the right.
   const helixPts = Array.from({ length: 60 }, (_, k) => {
     const t = k / 59, a = t * Math.PI * 6;
     return new THREE.Vector3(Math.cos(a) * 0.14, HELIX.top + 0.02 + t * 0.7, -Math.sin(a) * 0.14);
   });
   add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(helixPts), 80, 0.025, 8, false), COPPER, at(HELIX.x, 0, HELIX.z));
-  // the tube is open-ended: round off both ends
+  // tube is open-ended, so round off both ends
   for (const p of [helixPts[0], helixPts[59]]) add(new THREE.SphereGeometry(0.025, 8, 6), COPPER, at(HELIX.x + p.x, p.y, HELIX.z + p.z));
-  // the clock: a body facing +z with a bezel round the face (see clockFaceTexture()), on a stand
-  // thinner than the body (0.03), so where it runs up behind the face it stays inside it
+  // clock body facing +z with a bezel around the face (see clockFaceTexture()). The stand is
+  // thinner than the body (0.03) so the part that runs up behind the face stays inside the body.
   add(new THREE.CylinderGeometry(0.21, 0.21, 0.03, 48).rotateX(Math.PI / 2), INK, at(CLOCK_C.x, CLOCK_C.y, CLOCK_C.z));
   add(new THREE.TorusGeometry(0.205, 0.013, 6, 48), BRASS, at(CLOCK_C.x, CLOCK_C.y, CLOCK_C.z + 0.015));
   add(box(0.03, 0.3, 0.02), INK, at(CLOCK_C.x, CLOCK.top + 0.08, CLOCK_C.z));
   add(bevelBox(0.19, 0.022, 0.12, 0.006), INK, at(CLOCK.x, CLOCK.top + 0.011, CLOCK.z));
   // the pin the hands turn on (see update()), from the face out past the second hand
   add(new THREE.CylinderGeometry(0.008, 0.008, 0.02, 12).rotateX(Math.PI / 2), INK, at(CLOCK_C.x, CLOCK_C.y, CLOCK_C.z + 0.025));
-  // a board behind the sign, so from behind it isn't a bare one-sided plane, hung from the lintel
+  // board behind the sign, hung from the lintel, so from behind it isn't a bare one-sided plane
   add(bevelBox(SIGN_W + 0.04, SIGN_H + 0.04, 0.032, 0.008), INK, at(SIGN_POS.x, SIGN_POS.y, SIGN_POS.z - 0.017));
   const signTop = SIGN_POS.y + (SIGN_H + 0.04) / 2;
   const rod = H - LINTEL - signTop;
@@ -192,7 +189,7 @@ function roomGeometry() {
   return mergeColored(parts);
 }
 
-/** A flat arrow on the floor, pointing along +x. */
+// flat arrow on the floor, pointing along +x
 function arrowGeometry(len = 0.3, shaft = 0.022, head = 0.07, headLen = 0.08) {
   const s = new THREE.Shape()
     .moveTo(-len / 2, -shaft / 2).lineTo(len / 2 - headLen, -shaft / 2).lineTo(len / 2 - headLen, -head / 2)
@@ -201,12 +198,10 @@ function arrowGeometry(len = 0.3, shaft = 0.022, head = 0.07, headLen = 0.08) {
   return new THREE.ShapeGeometry(s).rotateX(-Math.PI / 2);
 }
 
-/**
- * The glowing lines, drawn unlit: each wall is outlined as a doorway, along
- * the floor, up the pillars and under the lintel. Cyan where the walls are
- * glued straight across, pink where they're glued with a flip. Like the
- * frame, each copy draws the outlines on its +x and +z sides.
- */
+// Glowing lines, drawn unlit. Each wall is outlined like a doorway, along the
+// floor, up the pillars and under the lintel. Cyan where the walls are glued
+// straight across, pink where they're glued with a flip. Like the frame, each
+// copy draws the outlines on its +x and +z sides.
 function glowGeometry() {
   const parts = [];
   const add = (geo, color, matrix) => parts.push({ geo, color, matrix });
@@ -220,9 +215,9 @@ function glowGeometry() {
   }
   add(box(0.03, 0.006, D - CAP), CYAN, at(W / 2, H - LINTEL - 0.003, 0));
   add(box(W - CAP, 0.006, 0.03), PINK, at(0, H - LINTEL - 0.003, D / 2));
-  // arrows along the edges, as on a diagram of a Klein bottle. Every arrow points the same way in
-  // the room, so across a cyan edge the arrows agree, and across a pink edge (seen in the next,
-  // mirrored copy) they point opposite ways: that's the flip
+  // arrows along the edges, like a Klein bottle diagram. Every arrow points the same way in
+  // the room, so across a cyan edge the arrows agree. Across a pink edge (seen in the next,
+  // mirrored copy) they point opposite ways, which shows the flip.
   const inset = CAP / 2 - 0.045; // on the dark sill (see floorTexture()), clear of the line
   for (const s of [-1, 1]) {
     add(arrowGeometry(), PINK, at(0, 0.003, s * (D / 2 - inset)));
@@ -231,7 +226,7 @@ function glowGeometry() {
   return mergeColored(parts);
 }
 
-/** A texture drawn on a canvas; with text, it's drawn again once the web fonts have loaded. */
+// With text, the canvas gets redrawn once the web fonts have loaded
 function canvasTexture(width, height, draw, { text = false, anisotropy = 4 } = {}) {
   const c = document.createElement('canvas');
   c.width = width; c.height = height;
@@ -248,19 +243,17 @@ function canvasTexture(width, height, draw, { text = false, anisotropy = 4 } = {
   return t;
 }
 
-/**
- * The floor, seen from above with −z at the top: tiles inside a dark sill,
- * where the rooms meet, as wide as the bases of the pillars, a large F whose mirror image is easy to recognise,
- * and soft shadows under the things standing on it. It's drawn unlit, so the
- * shadows are painted in.
- */
+// Floor seen from above with -z at the top. Tiles inside a dark sill where the
+// rooms meet (as wide as the pillar bases), a large F so the mirror image is
+// easy to spot, and soft shadows under the things standing on it. The floor is
+// unlit so the shadows are painted in.
 function floorTexture() {
-  const S = 1024, px = S / W; // W = D; baked detail needs no extra geometry or lights
+  const S = 1024, px = S / W; // assumes W = D. Baked detail needs no extra geometry or lights.
   const X = (x) => (x + W / 2) * px, Z = (z) => (z + D / 2) * px;
   return canvasTexture(S, S, (g) => {
     g.fillStyle = '#373e4b';
     g.fillRect(0, 0, S, S);
-    // Larger, quieter limestone tiles leave the coloured boundaries easy to read.
+    // big, low-contrast tiles so the colored edges stay easy to read
     const N_T = 6, t0 = -(W - CAP) / 2, T = -2 * t0 / N_T;
     let seed = 11;
     const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -279,11 +272,11 @@ function floorTexture() {
       g.moveTo(X(t0), Z(p)); g.lineTo(X(-t0), Z(p));
     }
     g.stroke();
-    // a brass line round the tiles
+    // brass line around the tiles
     g.strokeStyle = BRASS;
     g.lineWidth = 3;
     g.strokeRect(X(t0), Z(t0), N_T * T * px, N_T * T * px);
-    // An inlaid orientation medallion: F has an unmistakable mirror image.
+    // medallion with an F, which is easy to spot when mirrored
     g.beginPath();
     g.arc(X(-0.13), Z(0.35), 0.6 * px, 0, Math.PI * 2);
     g.fillStyle = '#ded8cb';
@@ -297,7 +290,7 @@ function floorTexture() {
     g.fill();
     g.lineWidth = 2.5;
     g.stroke(); // brass, as above
-    // soft shadows: the shape is drawn off the canvas, so only its blurred shadow lands on it
+    // soft shadows. The shape is drawn off the canvas so only its blurred shadow lands on it.
     const shadow = (x, z, size, blur, alpha) => {
       g.save();
       g.shadowColor = `rgba(22, 20, 32, ${alpha})`;
@@ -311,7 +304,7 @@ function floorTexture() {
   }, { anisotropy: 8 });
 }
 
-/** A right hand, palm down, seen from above with the fingers towards −z: the thumb is on the left. */
+// Right hand, palm down, seen from above with the fingers towards -z. The thumb is on the left.
 function handPrintTexture() {
   return canvasTexture(512, 512, (g) => {
     g.fillStyle = INK;
@@ -356,7 +349,7 @@ function labelTexture() {
   return canvasTexture(1024, 512, (g) => {
     g.fillStyle = INK;
     g.fillRect(0, 0, 1024, 512);
-    // Enamel nameplate, with the room's edge identifications beside its name.
+    // nameplate, with a diagram of how the room's edges are glued next to the name
     g.fillStyle = '#ede9df';
     g.fillRect(0, 0, 1024, 256);
     g.strokeStyle = INK;
@@ -369,7 +362,7 @@ function labelTexture() {
     g.fillText('Klein', 52, 105);
     g.font = `600 32px ${FONTS.sans}`;
     g.fillText('R O O M', 62, 208);
-    // Cyan sides have matching arrows; pink sides have opposite arrows.
+    // cyan sides have matching arrows and pink sides have opposite arrows
     const edge = (x1, y1, x2, y2, color) => {
       const dx = (x2 - x1) / 176, dy = (y2 - y1) / 176;
       const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
@@ -402,7 +395,7 @@ function labelGeometry() {
     const [x, y, tw, th] = LABEL_TILES[tile];
     const geo = new THREE.PlaneGeometry(w, h).applyMatrix4(matrix);
     const uv = geo.attributes.uv;
-    // Half-pixel inset keeps the base-level samples within their atlas tile.
+    // half-pixel inset keeps base-level samples inside their atlas tile
     for (let i = 0; i < uv.count; i++) uv.setXY(i,
       (x + 0.5 + (mirror ? 1 - uv.getX(i) : uv.getX(i)) * (tw - 1)) / 1024,
       1 - (y + 0.5 + (1 - uv.getY(i)) * (th - 1)) / 512);
@@ -411,8 +404,8 @@ function labelGeometry() {
   panel('title', SIGN_W, SIGN_H, at(SIGN_POS.x, SIGN_POS.y, SIGN_POS.z));
   for (const s of [-1, 1]) {
     panel('wrap', 0.64, 0.16, at(W / 2 + s * 0.031, PORTAL_Y, 0, 0, s * Math.PI / 2));
-    // The outward pink face belongs to the reflected neighbour. Its lettering
-    // must use that room's handedness, so both exits read correctly from inside.
+    // The outward pink face belongs to the mirrored neighbor, so its text uses
+    // that room's handedness. That way both exits read correctly from inside.
     panel('flip', 0.64, 0.16, at(0, PORTAL_Y, D / 2 + s * 0.031, 0, s === 1 ? 0 : Math.PI), s === 1);
   }
   const merged = mergeGeometries(parts);
@@ -420,7 +413,7 @@ function labelGeometry() {
   return merged;
 }
 
-/** A shoulder-and-waist silhouette with a collar, using fewer faces than a capsule. */
+// Shoulder and waist profile with a collar. Uses fewer faces than a capsule.
 function torsoGeometry() {
   const profile = [[0, -0.33], [0.105, -0.33], [0.13, -0.29], [0.135, -0.08],
     [0.2, 0.19], [0.195, 0.24], [0.15, 0.29], [0.065, 0.33], [0, 0.33]];
@@ -437,7 +430,7 @@ function visorGeometry() {
   ]);
 }
 
-/** The clock's face, with numerals, which read backwards in a mirrored copy. */
+// The numerals read backwards in a mirrored copy
 function clockFaceTexture() {
   return canvasTexture(512, 512, (g) => {
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -462,11 +455,9 @@ function clockFaceTexture() {
   }, { text: true });
 }
 
-/**
- * Instances that may be mirror images. three.js decides which side of a
- * triangle faces the camera per object, not per instance, so mirrored
- * instances go into a second mesh that is itself mirrored (scale x = −1).
- */
+// Instances that may be mirror images. three.js picks which side of a triangle
+// faces the camera per object, not per instance, so mirrored instances go into
+// a second mesh that is itself mirrored (scale x = -1).
 class MirrorableInstances {
   constructor(parent, geo, mat, count) {
     this.meshes = [0, 1].map((k) => {
@@ -518,7 +509,7 @@ const _s = new THREE.Vector3();
 const _e = new THREE.Euler();
 const _up = new THREE.Vector3(0, 1, 0);
 
-/** A clock hand at time t (s), a turn per period, dz in front of the clock's centre, stretched by (sx, sy, sz). */
+// Clock hand at time t (seconds), one turn per period, dz in front of the clock center, scaled by (sx, sy, sz)
 function clockHand(m, t, period, dz, sx = 1, sy = 1, sz = 1) {
   return m.makeRotationZ(-((t % period) / period) * Math.PI * 2).scale(_s.set(sx, sy, sz)).setPosition(CLOCK_C.x, CLOCK_C.y, CLOCK_C.z + dz);
 }
@@ -537,15 +528,15 @@ export class KleinScene extends SceneBase {
 
     this.copies = [];
     for (let i = -N; i <= N; i++) for (let j = -N; j <= N; j++) this.copies.push({ i, j, C: copyMatrix(i, j) });
-    this.M = new THREE.Matrix4();    // room → real world
+    this.M = new THREE.Matrix4();    // room to real world
     this.Minv = new THREE.Matrix4();
     this.crossings = 0;
 
     const sky = app.env.skyMat.uniforms;
     const inst = (geo, mat, count) => new MirrorableInstances(this.root, geo, skyFog(mat, sky), count);
-    // the parts of the room that don't move, in room coordinates: one instance per copy.
-    // The floor is unlit, with its shading painted in, as it covers so much of the view.
-    // The rest is Lambert: at this roughness, Standard's highlight barely shows,
+    // static parts of the room in room coordinates, one instance per copy.
+    // The floor is unlit with its shading painted in, since it covers so much of the view.
+    // The rest is Lambert. At this roughness Standard's highlight barely shows,
     // and it costs about twice as much per pixel.
     this.platePos = new THREE.Vector3(PLATE.x, PLATE.top + 0.002, PLATE.z);
     this.plateMat = new THREE.MeshBasicMaterial({ map: handPrintTexture(), toneMapped: false });
@@ -557,7 +548,7 @@ export class KleinScene extends SceneBase {
       inst(new THREE.CircleGeometry(0.2, 48).translate(CLOCK_C.x, CLOCK_C.y, CLOCK_C.z + 0.017), new THREE.MeshBasicMaterial({ map: clockFaceTexture(), toneMapped: false }), COPIES),
       inst(new THREE.PlaneGeometry(0.34, 0.34).rotateX(-Math.PI / 2).translate(this.platePos.x, this.platePos.y, this.platePos.z), this.plateMat, COPIES),
     ];
-    // the clock's hands: hour and minute hands are one box, stretched (see update()), with a short tail
+    // hour and minute hands share one box, stretched in update(), with a short tail
     this.hands = inst(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.4, 0), new THREE.MeshLambertMaterial({ color: INK }), 2 * COPIES);
     this.secondHand = inst(new THREE.BoxGeometry(0.006, 0.22, 0.004).translate(0, 0.07, 0), new THREE.MeshLambertMaterial({ color: '#e63946' }), COPIES);
 
@@ -592,7 +583,7 @@ export class KleinScene extends SceneBase {
     this._placeRoom();
   }
 
-  /** Room copies and fixed objects, after M changes. */
+  // Re-places the room copies and fixed objects after M changes
   _placeRoom() {
     this.Minv.copy(this.M).invert();
     for (const m of this.fixed) m.begin();
@@ -622,7 +613,7 @@ export class KleinScene extends SceneBase {
     this.app.renderer.domElement.removeEventListener('pointermove', this._onPointerMove);
   }
 
-  /** Move the room by a real-world displacement (the viewer moves the opposite way). */
+  // Moves the room by a real-world offset. The viewer moves the opposite way.
   _moveRoom(dx, dz) {
     _m.makeTranslation(dx, 0, dz);
     this.M.premultiply(_m);
@@ -640,12 +631,12 @@ export class KleinScene extends SceneBase {
     this.pull.last.copy(ix.grabPos);
     const gain = ix.isMouse ? 2.5 : 3.0;
     this.app.addMotion(Math.hypot(d.x, d.z) * gain);
-    this._moveRoom(d.x * gain, d.z * gain); // pulling the room towards you moves you forwards
+    this._moveRoom(d.x * gain, d.z * gain); // pulling the room towards you moves you forward
   }
 
   onEmptyGrabEnd() { this.pull = null; }
 
-  /** Keep the head inside the central copy: crossing a wall re-glues the room around you. */
+  // Keeps the head inside the central copy. Crossing a wall re-glues the room around you.
   _wrap() {
     const p = _v.copy(this.app.headPosition).applyMatrix4(this.Minv);
     let g = null;
@@ -654,7 +645,7 @@ export class KleinScene extends SceneBase {
     else if (p.z > D / 2) g = copyMatrix(0, 1);
     else if (p.z < -D / 2) g = copyMatrix(0, -1);
     if (!g) return;
-    // the head is now in copy g of the room: re-label so it's in the central one
+    // head is now in copy g of the room, so re-label that one as the central copy
     this.M.multiply(g);
     this.crossings++;
     this._placeRoom();
@@ -703,7 +694,7 @@ export class KleinScene extends SceneBase {
     this._updatePlate();
   }
 
-  /** Copies of you in the other copies of the room. */
+  // copies of you in the other rooms
   _updateSelf() {
     const app = this.app;
     const parts = [this.head, this.visor, this.neck, this.torso, this.joints, this.bones];
@@ -715,8 +706,8 @@ export class KleinScene extends SceneBase {
       _v2.copy(app.headPosition).addScaledVector(fwd, -0.08);
       _v2.y -= 0.52;
       _bodyM.compose(_v2, _bodyQ, _s.set(1.1, 1, 0.75));
-      // neck: from inside the top of the torso to inside the bottom of the head,
-      // which turns and tilts on it (the body only turns)
+      // neck runs from inside the top of the torso to inside the bottom of the head.
+      // The head turns and tilts on it. The body only turns.
       _v2.y += 0.33;
       _v.copy(NECK_TOP).applyMatrix4(_headM).sub(_v2);
       const len = _v.length();
@@ -747,7 +738,7 @@ export class KleinScene extends SceneBase {
       }
       for (const c of this.copies) {
         if (c.i === 0 && c.j === 0) continue; // that one is you
-        // real world → room → this copy → real world
+        // real world to room coordinates, then room to this copy in the real world
         _m.multiplyMatrices(c.world, this.Minv);
         this.head.push(_m2.multiplyMatrices(_m, _headM).multiply(HEAD_SHAPE));
         this.visor.push(_m2.multiplyMatrices(_m, _headM).multiply(VISOR_SHAPE));
@@ -759,7 +750,7 @@ export class KleinScene extends SceneBase {
     for (const m of parts) m.end();
   }
 
-  /** Which hand fits the print right now: with the room mirrored around you, it's your left. */
+  // Which hand fits the print right now. With the room mirrored around you it's your left.
   _updatePlate() {
     let fits = null;
     if (this.app.presenting) {
@@ -767,7 +758,7 @@ export class KleinScene extends SceneBase {
         if (ix.kind !== 'hand' || !ix.jointsValid) continue;
         const palm = _v.copy(ix.joints[J.wrist].pos).lerp(ix.joints[J['middle-finger-phalanx-proximal']].pos, 0.6).applyMatrix4(this.Minv);
         if (palm.distanceTo(this.platePos) > 0.12) continue;
-        // in room coordinates a hand is right-handed if it's a right hand and the room isn't mirrored around you
+        // in room coordinates it's a right hand if it really is one and the room isn't mirrored, or a left hand and it is
         const right = (ix.handedness === 'right') !== this.mirrored;
         fits = right;
       }
@@ -782,7 +773,7 @@ export class KleinScene extends SceneBase {
       { type: 'toggles', items: [{ label: 'Show copies of yourself', get: () => this.showSelf, set: (v) => { this.showSelf = v; } }] },
       {
         type: 'text', lines: 2, color: '#dfe2ff',
-        text: () => `Walls crossed: ${this.crossings}. You are ${this.mirrored ? 'mirror-reversed: your left hand fits the right-hand print' : 'the right way round'}.`,
+        text: () => `Walls crossed: ${this.crossings}. You are ${this.mirrored ? 'mirror-reversed. Your left hand fits the right-hand print' : 'the right way round'}.`,
       },
     ];
   }
@@ -790,7 +781,7 @@ export class KleinScene extends SceneBase {
   hint(mode) {
     const sticks = this.app.comfort.snapTurn ? 'Walk, or use the left stick (the right stick turns)' : 'Walk, or use the sticks';
     const move = { hands: 'Walk, or pinch empty space and pull', controllers: sticks, desktop: 'Use WASD' }[mode];
-    return `${move} to move. The cyan walls are glued straight across. The pink walls are glued with a flip, so crossing one leaves you mirror-reversed: text reads backwards and your left hand fits the right-hand print.`;
+    return `${move} to move. The cyan walls are glued straight across. The pink walls are glued with a flip, so crossing one leaves you mirror-reversed. Text reads backwards and your left hand fits the right-hand print.`;
   }
 
   desktopHelp({ touch } = {}) {

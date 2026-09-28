@@ -28,7 +28,7 @@ function chromePath() {
     linux: ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'],
   }[process.platform] || [];
   const found = candidates.find((p) => fs.existsSync(p));
-  if (!found) throw new Error('Chrome not found; set CHROME_PATH');
+  if (!found) throw new Error('Chrome not found, set CHROME_PATH');
   return found;
 }
 
@@ -122,13 +122,13 @@ try {
     ['sealed-box puzzle solvable through W', r.boxSolved],
     ['polytope turns in 4D', r.galleryRotated > 0.5, r.galleryRotated],
     ['air pinch moves the slicing hyperplane', Math.abs(r.gallerySliceW) > 0.3, r.gallerySliceW],
-    ['touching the globe paints fibres', r.hopfPainted > 5, r.hopfPainted],
+    ['touching the globe paints fibers', r.hopfPainted > 5, r.hopfPainted],
     ['pinch-twist turns the globe', r.globeTurned > 0.5, r.globeTurned],
     ['trefoil is detected as knotted', r.knots?.trefoilMinCrossings >= 3, r.knots?.trefoilMinCrossings],
     ['middle-pinch lifts a strand into W', r.knots?.liftedW > 0.05, r.knots?.liftedW],
     ['flatten returns the rope to our slice', r.knots?.wAfterFlatten < 0.006, r.knots?.wAfterFlatten],
     ['a plain loop has no crossings', r.knots?.circleCrossings === 0, r.knots?.circleCrossings],
-    ['hyperbolic re-centring keeps the head in the central cell', r.hyperbolic?.headDistFromOrigin < 1.5, r.hyperbolic?.headDistFromOrigin],
+    ['hyperbolic re-centering keeps the head in the central cell', r.hyperbolic?.headDistFromOrigin < 1.5, r.hyperbolic?.headDistFromOrigin],
     ['hyperbolic distance travelled is preserved', Math.abs(r.hyperbolic?.homeDistance - 6) < 0.01, r.hyperbolic?.homeDistance],
     ['head pose stays on the hyperboloid', Math.abs(r.hyperbolic?.lorentzCheck + 1) < 1e-3, r.hyperbolic?.lorentzCheck],
     ['S³: walking π reaches the antipode', Math.abs(r.spherical?.antipode - Math.PI) < 1e-3, r.spherical?.antipode],
@@ -205,8 +205,8 @@ try {
     await vr.screenshot({ path: path.join(OUT, `vr-menu-${scene}.png`) });
   }
 
-  // A new scene opens in front of the person wherever they've walked and turned to:
-  // stand 1 m to the side facing +x, then switch scenes.
+  // A new scene should open in front of the person wherever they've walked and
+  // turned to. Stand 1 m to the side facing +x, then switch scenes.
   const headPose = (js) => ev(`(() => { ${js} })()`);
   const headNow = `(() => { const f = new (__app.headPosition.constructor)(0, 0, -1).applyQuaternion(__app.headQuaternion); const p = __app.headPosition; return { x: +p.x.toFixed(3), y: +p.y.toFixed(3), z: +p.z.toFixed(3), fx: +f.x.toFixed(3), fz: +f.z.toFixed(3) }; })()`;
   await headPose(`__xrDevice.position.set(0.8, 1.6, 0.5); __xrDevice.quaternion.set(0, -0.7071, 0, 0.7071);`);
@@ -214,7 +214,7 @@ try {
   await ev(`__app.setScene('hyperbolic', true)`);
   await sleep(300);
   const recentred = await ev(headNow);
-  // snap turn: the right stick turns 30° about the head; the left stick moves (and closes the vignette)
+  // The right stick snap-turns 30° about the head. The left stick moves (and closes the vignette).
   await ev(`__xrDevice.controllers.right.updateAxes('thumbstick', 1, 0)`); await sleep(250);
   await ev(`__xrDevice.controllers.right.updateAxes('thumbstick', 0, 0)`); await sleep(250);
   const turned = await ev(headNow);
@@ -222,7 +222,7 @@ try {
   const vignetteMoving = await ev(`__app._vignette.level`);
   await ev(`__xrDevice.controllers.left.updateAxes('thumbstick', 0, 0)`);
   // dt is capped per frame, so on a slow CI renderer the vignette opens slower than
-  // wall time: poll for it rather than sleeping a fixed amount
+  // wall time. Poll for it instead of sleeping a fixed amount.
   let vignetteStill = 1;
   for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
     vignetteStill = await ev(`__app._vignette.level`);
@@ -241,7 +241,7 @@ try {
   await vr.screenshot({ path: path.join(OUT, 'vr-hand-menu.png') });
 
   // Bring the right index fingertip 5 cm in front of the menu, then move the left
-  // hand: the menu holds still while it's about to be pressed, and follows again after.
+  // hand. The menu should hold still while it's about to be pressed, and follow again after.
   const menuPos = `(() => { const p = __app.menu.panel.group.position; return [p.x, p.y, p.z]; })()`;
   await ev(`(() => {
     const R = __xrDevice.hands.right, ix = __app.input.xr.find((i) => i.handedness === 'right');
@@ -257,8 +257,8 @@ try {
   await ev(`__xrDevice.hands.right.position.set(0.45, 0.9, -0.1)`);
   await sleep(800);
   const released = await ev(`({ pos: ${menuPos}, shown: __app.menu.shown })`);
-  // poke the "Scenes" page button with the right index fingertip: the page
-  // changes and the menu's top row stays where it was
+  // Poke the "Scenes" page button with the right index fingertip. The page should
+  // change and the menu's top row should stay where it was.
   const pokeAt = (label, z) => ev(`(() => {
     const R = __xrDevice.hands.right, ix = __app.input.xr.find((i) => i.handedness === 'right');
     const p = __app.menu.panel, tip = ix.joints[9].pos;

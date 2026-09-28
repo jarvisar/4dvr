@@ -6,3 +6,4 @@ smoke-artifacts/
 Thumbs.db
 .vscode/*
 !.vscode/extensions.json
+CLAUDE.md

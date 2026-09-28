@@ -4,18 +4,19 @@
 // Take the cubic lattice Z⁵ and a 2D plane through it at an irrational angle.
 // The lattice points close to the plane, flattened onto it, are the corners of
 // a Penrose tiling of thick and thin rhombs. Moving the plane sideways through
-// the hidden directions changes which points count as close: tiles rearrange
-// three at a time (phason flips), while every patch that occurs still occurs
-// everywhere. The same construction from Z⁶ gives a 3D tiling of two
-// rhombohedra with icosahedral symmetry, the pattern of real quasicrystals
-// (Shechtman, Nobel Prize 2011).
+// the hidden directions changes which points count as close. Tiles rearrange
+// three at a time (phason flips), but every patch that occurs still occurs
+// everywhere. The same thing from Z⁶ gives a 3D tiling of two rhombohedra with
+// icosahedral symmetry, which is the pattern of real quasicrystals (Shechtman,
+// Nobel Prize 2011).
 //
-// The tilings are built with de Bruijn's dual method, which is equivalent: N
-// families of parallel grid lines (planes in 3D) with normals e_j and offsets
-// γ_j. Every point z where d of them cross, from d different families, gives
-// one tile: a rhomb (rhombohedron) with the edges e_j of those families, at
-// Σ K_j e_j, where K_j = ⌈z·e_j + γ_j⌉ counts the lines of each family below
-// the crossing. Moving γ along the perpendicular-space vectors e⊥_j moves the
+// The tilings are actually built with de Bruijn's dual method, which gives the
+// same result. There are N families of parallel grid lines (planes in 3D) with
+// normals e_j and offsets γ_j. Every point z where d of them cross, from d
+// different families, gives one tile. That tile is a rhomb (rhombohedron in 3D)
+// with the edges e_j of those families, placed at Σ K_j e_j, where
+// K_j = ⌈z·e_j + γ_j⌉ counts the lines of each family below the crossing.
+// Moving γ along the perpendicular-space vectors e⊥_j moves the
 // slice through the hidden dimensions.
 
 import * as THREE from 'three';
@@ -23,7 +24,7 @@ import { SceneBase } from './base.js';
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 
-/** Grid of the Penrose tiling: e_j at 72° steps, e⊥_j at 144° steps. */
+// Penrose grid. e_j at 72° steps, e⊥_j at 144° steps.
 const PENROSE = {
   d: 2,
   axes: [0, 1, 2, 3, 4].map((j) => [Math.cos((2 * Math.PI * j) / 5), Math.sin((2 * Math.PI * j) / 5)]),
@@ -32,7 +33,7 @@ const PENROSE = {
   gamma: [0.1377, 0.2551, -0.0823, 0.3314, -0.6419],
 };
 
-/** The six icosahedral 5-fold axes (no two opposite), and their images in perpendicular space (φ → −1/φ). */
+// The six icosahedral 5-fold axes (no two opposite) and their images in perpendicular space, where φ becomes -1/φ
 const ICOSA = (() => {
   const par = [[0, 1, PHI], [0, -1, PHI], [1, PHI, 0], [-1, PHI, 0], [PHI, 0, 1], [-PHI, 0, 1]];
   const per = par.map((v) => v.map((x) => (Math.abs(x) === PHI ? Math.sign(x) * (-1 / PHI) : x)));
@@ -50,7 +51,7 @@ function combinations(n, d) {
   return out;
 }
 
-/** Inverse of a 2×2 or 3×3 matrix (given as rows), flattened row-major. */
+// Inverse of a 2×2 or 3×3 matrix (given as rows), returned flattened row-major
 function invert(M) {
   if (M.length === 2) {
     const [[a, b], [c, d]] = M, det = a * d - b * c;
@@ -73,9 +74,9 @@ for (const g of [PENROSE, ICOSA]) {
 const _z = [0, 0, 0], _n = [0, 0, 0], _rhs = [0, 0, 0], _base = [0, 0, 0], _lo = [0, 0, 0], _hi = [0, 0, 0];
 
 /**
- * Tiles of the dual of a multigrid with offsets gamma, whose centres are within
- * `radius` (in edge lengths) of the origin. Each tile: { set, base, key }; its
- * corners are base + Σ c_a e_{set[a]} for c ∈ {0,1}^d.
+ * Tiles of the dual of a multigrid with offsets gamma, with centers within
+ * `radius` (in edge lengths) of the origin. Each tile is { set, base, key }, and
+ * its corners are base + Σ c_a e_{set[a]} for c ∈ {0,1}^d.
  */
 function dualTiles(grid, gamma, radius) {
   const { d, axes, sets } = grid;
@@ -145,14 +146,14 @@ void main() {
 const FLOOR_FRAG = /* glsl */ `
 uniform float uTime;
 uniform float uRadius; // the tiling is complete out to here
-uniform vec3 uHorizon; // the sky's colours (see environment.js)
+uniform vec3 uHorizon; // the sky's colors (see environment.js)
 uniform vec3 uBottom;
 varying vec3 vColor;
 varying vec2 vUV;
 varying float vBirth;
 varying vec3 vPos;
 void main() {
-  // a round edge: past it the outermost tiles leave a ragged border
+  // cut a round edge, otherwise the outermost tiles leave a ragged border
   float rad = length(vPos.xz);
   if (rad > uRadius) discard;
   // edge lines (uv are the rhomb's two edge coordinates, 0..1)
@@ -192,7 +193,7 @@ void main() {
   float glow = exp(-(uTime - vBirth) * 1.6);
   vec3 col = mix(vColor, vec3(1.0, 0.88, 0.45), glow);
   if (uGlowOnly > 0.5) {
-    // faces: faint, except tiles that just flipped (additive, so no sorting needed)
+    // faces are faint, except tiles that just flipped (additive, so no sorting needed)
     gl_FragColor = vec4(col * (uAlpha + glow * 0.45), 1.0);
   } else {
     gl_FragColor = vec4(col, 1.0);
@@ -206,11 +207,11 @@ const THICK = new THREE.Color('#f2cc8f'), THIN = new THREE.Color('#81b29a');
 const PROLATE = new THREE.Color('#ff8fb1'), OBLATE = new THREE.Color('#7fd1ff');
 const _c = new THREE.Color();
 
-/** Mark the first `count` vertices of each attribute for upload (the buffers are sized for the most tiles). */
+// Only uploads the first count vertices of each attribute. The buffers are sized for the most tiles.
 function uploadFirst(attrs, count) {
   if (count <= 0) return;
   for (const a of Object.values(attrs)) {
-    a.clearUpdateRanges(); // replaces a pending range: nothing past `count` is drawn
+    a.clearUpdateRanges(); // drops any pending range, fine since nothing past count is drawn
     a.addUpdateRange(0, count * a.itemSize);
     a.needsUpdate = true;
   }
@@ -222,7 +223,7 @@ function dynamicGeometry(verts, attrs) {
   return g;
 }
 
-/** Keep the birth time of tiles that were already there; new ones are born now (and glow). */
+// Keeps the birth time of tiles that were already there. New ones are born now and glow.
 function birthOf(prev, next, key, time) {
   let born = prev.get(key);
   const isNew = born === undefined && prev.size > 0;
@@ -231,29 +232,28 @@ function birthOf(prev, next, key, time) {
   return [born, isNew];
 }
 
-/** A Penrose floor around the viewer. */
 class PenroseFloor {
-  /** sky: the environment's sky uniforms, whose colours the edge fades into. */
+  // sky is the environment's sky uniforms, the edge fades into its colors
   constructor(parent, sky, { edge = 0.28, radius = 3.4, capacity = 2600 } = {}) {
     this.edge = edge;
     this.radius = radius;
     this.capacity = capacity;
     this.births = new Map();
-    // Tiles are kept if their centre is within radius, and every point of a
-    // rhomb is within one edge length of its centre, so the tiling has no
-    // holes out to radius − edge.
+    // Tiles are kept if their center is within radius, and every point of a
+    // rhomb is within one edge length of its center, so the tiling has no
+    // holes out to radius - edge.
     this.uniforms = { uTime: { value: 0 }, uRadius: { value: radius - edge }, uHorizon: sky.uHorizon, uBottom: sky.uBottom };
     this.geo = dynamicGeometry(capacity * 4, [['position', 3], ['aColor', 3], ['aUV', 2], ['aBirth', 1]]);
     const index = new Uint32Array(capacity * 6);
     for (let i = 0; i < capacity; i++) index.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3], i * 6);
     this.geo.setIndex(new THREE.BufferAttribute(index, 1));
-    // a rhomb's corners go round clockwise or anticlockwise depending on its two edge directions
+    // a rhomb's corners go clockwise or counterclockwise depending on its two edge directions
     this.mesh = new THREE.Mesh(this.geo, new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: FLOOR_VERT, fragmentShader: FLOOR_FRAG, side: THREE.DoubleSide }));
     this.mesh.frustumCulled = false;
     parent.add(this.mesh);
   }
 
-  /** Rebuild for the slice offset delta (2D); returns how many tiles are new. */
+  // Rebuilds for the 2D slice offset delta and returns how many tiles are new
   build(delta, time) {
     const g = PENROSE;
     const gamma = g.gamma.map((x, j) => x + delta[0] * g.perp[j][0] + delta[1] * g.perp[j][1]);
@@ -302,7 +302,7 @@ for (let axis = 0; axis < 3; axis++) for (let m = 0; m < 4; m++) {
   EDGES.push(p, q);
 }
 
-/** The 3D icosahedral tiling (prolate and oblate rhombohedra), as a floating ball. */
+// The 3D icosahedral tiling (prolate and oblate rhombohedra) as a floating ball
 class IcosaCrystal {
   constructor(parent, { edge = 0.07, radius = 0.34, capacity = 1600 } = {}) {
     this.edge = edge;
@@ -318,7 +318,7 @@ class IcosaCrystal {
     this.faces = new THREE.Mesh(this.faceGeo, new THREE.ShaderMaterial({
       uniforms: { uTime: this.uniforms.uTime, uAlpha: { value: 0.012 }, uGlowOnly: { value: 1 } }, vertexShader: CRYSTAL_VERT, fragmentShader: CRYSTAL_FRAG,
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-      forceSinglePass: true, // additive, so back and front faces needn't be drawn in separate passes
+      forceSinglePass: true, // additive, so back and front faces don't need separate passes
     }));
     this.lines = new THREE.LineSegments(this.lineGeo, new THREE.ShaderMaterial({
       uniforms: { uTime: this.uniforms.uTime, uAlpha: { value: 1 }, uGlowOnly: { value: 0 } }, vertexShader: CRYSTAL_VERT, fragmentShader: CRYSTAL_FRAG,
@@ -327,7 +327,7 @@ class IcosaCrystal {
     this._q = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
   }
 
-  /** Rebuild for the slice offset delta (3D); returns how many tiles are new. */
+  // Rebuilds for the 3D slice offset delta and returns how many tiles are new
   build(delta, time) {
     const g = ICOSA;
     const gamma = g.gamma.map((x, j) => x + delta[0] * g.perp[j][0] + delta[1] * g.perp[j][1] + delta[2] * g.perp[j][2]);
@@ -349,7 +349,7 @@ class IcosaCrystal {
         for (let k = 0; k < 3; k++) out[k] = (t.base[k] + cc[0] * a[k] + cc[1] * b[k] + cc[2] * c[k]) * this.edge;
         return out;
       };
-      // prolate (acute) or oblate: |a · (b × c)| is 0.76 or 0.47 for unit icosahedral axes
+      // prolate (acute) or oblate. |a · (b × c)| is 0.76 or 0.47 for unit icosahedral axes
       const vol = Math.abs(a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0]));
       _c.copy(vol > 0.6 ? PROLATE : OBLATE);
       const r = birthOf(this.births, births, `${t.set.join('')}:${t.key}`, time);
@@ -427,13 +427,12 @@ export class QuasicrystalScene extends SceneBase {
     this.crystal.group.position.copy(this.crystalCenter);
   }
 
-  /** Move the slice through the hidden directions (in edge lengths of the lattice). */
+  // Moves the slice through the hidden directions, in edge lengths of the lattice
   shift(dx, dy, dz) {
     if (this.mode === 'floor') { this.delta2[0] += dx; this.delta2[1] += dy; } else { this.delta3[0] += dx; this.delta3[1] += dy; this.delta3[2] += dz; }
-    this.dirty = true; // rebuilt in update(), at most ~15 times a second: a rebuild takes a few ms
+    this.dirty = true; // rebuilt in update() at most ~15 times a second, since a rebuild takes a few ms
   }
 
-  /** Rebuild the current tiling now if the slice moved. */
   rebuild(time) {
     if (!this.dirty) return;
     this.dirty = false;
@@ -507,7 +506,7 @@ export class QuasicrystalScene extends SceneBase {
   hint(mode) {
     const how = { hands: 'Pinch empty space and move your hand', controllers: 'Push the stick, or hold the trigger in empty space and move', desktop: 'Right-drag' }[mode];
     if (this.mode === 'crystal') return `A slice of the 6D cubic lattice: two rhombohedra with icosahedral symmetry that never repeat. ${how} to shift the slice through the hidden dimensions. Changed tiles glow.`;
-    return `A Penrose tiling is a slice of the 5D cubic lattice. ${how} to shift the slice through the hidden dimensions: tiles flip three at a time (they glow), but the pattern never repeats.`;
+    return `A Penrose tiling is a slice of the 5D cubic lattice. ${how} to shift the slice through the hidden dimensions. Tiles flip three at a time (they glow), but the pattern never repeats.`;
   }
 
   desktopHelp({ touch } = {}) {

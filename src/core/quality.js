@@ -17,7 +17,7 @@ export const QUALITY = {
 
 const KEY = '4dvr.quality';
 
-/** The saved preset, or medium on the Quest 1 and 2 and high elsewhere. */
+// Saved preset, otherwise medium on the Quest 1 and 2 and high everywhere else
 export function initialQuality() {
   try {
     const saved = localStorage.getItem(KEY);
