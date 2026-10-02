@@ -23,8 +23,9 @@ const HIT_PAD = 0.003;
 const ROW_H = { title: 0.054, titleOnly: 0.036, tabs: 0.036, buttons: 0.036, toggles: 0.036, slider: 0.054, text: 0.0 };
 // close button at the right end of a title row. It stays above the subtitle.
 const CLOSE_SIZE = 0.03;
-// inset of the selected page tab on its track (see the 'pages' style)
-const TAB_INSET = 0.0025;
+// corner radius of the plate and of buttons (m)
+const PLATE_R = 0.005;
+const BTN_R = 0.003;
 const TEXT_SIZE = 0.0108;
 const LINE_H = 0.0158;
 const LEGEND_GAP = 0.005; // between the entries of a legend row
@@ -35,30 +36,37 @@ const CHECK = { size: 0.0115, x: 0.009, textX: 0.0275 };
 // widgets draw at most this far above or below their box (hover rings), in m
 const BAND_PAD = 0.004;
 
-// Same colors and fonts as style.css. Slate panels with rounded corners, gray
-// buttons, and blue for whatever is selected. Pink (ana, +w) and cyan (kata, -w)
-// are only used where they mean a direction along w.
+// Same look as style.css. Charcoal plates with a black rim, beveled gradient
+// buttons, and glossy blue for whatever is selected. Pairs are the top and
+// bottom of a vertical gradient. Pink (ana, +w) and cyan (kata, -w) are only
+// used where they mean a direction along w.
 export const COLORS = {
-  bg: 'rgba(27, 31, 38, 0.95)',
-  frame: 'rgba(255, 255, 255, 0.1)',
-  ink: '#e6e8ec',
-  muted: '#9aa3b0',
-  faint: '#6f7886',
-  btn: '#2c323c',
-  btnHover: '#3b4350',
-  btnPress: '#4a5362',
-  btnOff: 'rgba(44, 50, 60, 0.45)', // a button that does nothing right now
-  track: '#15181e', // behind the menu's page tabs, like the scene tab bar on desktop
-  select: '#1f6bd1',
-  selectHover: '#2a74da',
-  accent: '#1a9fff',
+  plate: 'rgba(20, 20, 20, 0.95)',
+  plateTop: 'rgba(38, 38, 38, 0.95)',
+  titlebar: ['#3d3d3d', '#262626'],
+  edge: '#050505',
+  ink: '#eeeeee',
+  muted: '#a6a6a6',
+  faint: '#6c6c6c',
+  btn: ['#4a4a4a', '#2d2d2d'],
+  btnHover: ['#585858', '#393939'],
+  btnPress: ['#232323', '#323232'],
+  btnOff: 'rgba(40, 40, 40, 0.6)', // a button that does nothing right now
+  select: ['#2c75c9', '#1a55a2'], // white text on the top has 4.8:1 contrast
+  selectHover: ['#2f79cd', '#1d5cad'],
+  selectIn: ['#1a55a2', '#2c75c9'], // pressed in, for the selected page tab
+  selectEdge: '#0c3163',
+  well: '#0b0b0b', // slider grooves
+  accent: '#4d9cf8',
+  glow: 'rgba(77, 156, 248, 0.9)', // hover rings
+  label: 'rgba(20, 20, 20, 0.9)', // plate behind text labels in the scenes
   ana: '#ff4f9a',
   kata: '#33c3ff',
 };
 
 export const FONTS = {
-  sans: "'Figtree', 'Segoe UI', system-ui, sans-serif",
-  mono: "'IBM Plex Mono', ui-monospace, Consolas, monospace",
+  sans: "'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif",
+  mono: "'Inconsolata', Consolas, monospace",
 };
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -68,6 +76,22 @@ function roundRect(ctx, x, y, w, h, r) {
 
 function setFont(ctx, weight, size, family) {
   ctx.font = `${weight} ${size}px ${family}`;
+}
+
+// Fill the current path with a vertical gradient from y to y + h
+function fillV(ctx, y, h, [top, bottom]) {
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, top);
+  g.addColorStop(1, bottom);
+  ctx.fillStyle = g;
+  ctx.fill();
+}
+
+function shadow(ctx, color = 'transparent', dy = 0, blur = 0) {
+  ctx.shadowColor = color;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = dy;
+  ctx.shadowBlur = blur;
 }
 
 // Unit plane whose v runs down the canvas, for textures uploaded without a flip
@@ -336,18 +360,44 @@ export class UIPanel {
     }
     ctx.clearRect(0, y0, W, y1 - y0);
 
-    // panel: plate with a hairline frame
+    // panel: plate with a black rim and a faint highlight just inside it
     const inset = lw(2);
-    roundRect(ctx, inset, inset, W - 2 * inset, H - 2 * inset, 0.01 * S);
-    ctx.fillStyle = COLORS.bg;
+    const plate = () => roundRect(ctx, inset, inset, W - 2 * inset, H - 2 * inset, PLATE_R * S);
+    plate();
+    const sheen = ctx.createLinearGradient(0, 0, 0, Math.min(H, 0.08 * S));
+    sheen.addColorStop(0, COLORS.plateTop);
+    sheen.addColorStop(1, COLORS.plate);
+    ctx.fillStyle = sheen;
     ctx.fill();
-    ctx.lineWidth = lw(2);
-    ctx.strokeStyle = COLORS.frame;
-    ctx.stroke();
+    const rim = () => {
+      plate();
+      ctx.lineWidth = lw(2);
+      ctx.strokeStyle = COLORS.edge;
+      ctx.stroke();
+      roundRect(ctx, inset * 2, inset * 2, W - 4 * inset, H - 4 * inset, PLATE_R * S - inset);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.stroke();
+    };
+    rim();
 
     const hovered = this._hovered;
     const pressed = this._pressed;
     this._relayout = false;
+    // etched line: dark, with a light line under it
+    const etch = (x0, yy, x1) => {
+      ctx.fillStyle = COLORS.edge;
+      ctx.fillRect(x0, yy, x1 - x0, lw(2));
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.07)';
+      ctx.fillRect(x0, yy + lw(2), x1 - x0, lw(2));
+    };
+    // 1px highlight along the top of the current path
+    const bevel = (top, alpha) => {
+      ctx.save();
+      ctx.clip();
+      ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+      ctx.fillRect(0, top + lw(1), W, lw(2));
+      ctx.restore();
+    };
 
     for (const w of this.widgets) {
       if (band && !reaches(w)) continue;
@@ -355,50 +405,111 @@ export class UIPanel {
       const r = w.row;
       if (w.type === 'title') {
         const text = typeof r.text === 'function' ? r.text() : r.text;
+        const lineY = y + hh - 0.001 * S;
+        const bar = w.y <= PAD + 1e-6;
+        if (bar) {
+          // the first title gets a title bar across the top of the plate
+          ctx.save();
+          plate();
+          ctx.clip();
+          ctx.beginPath();
+          ctx.rect(0, 0, W, lineY);
+          fillV(ctx, 0, lineY, COLORS.titlebar);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+          ctx.fillRect(0, inset * 2, W, lw(2));
+          ctx.restore();
+          rim();
+        }
+        etch(bar ? inset * 2 : x, lineY, bar ? W - inset * 2 : x + ww);
         ctx.textBaseline = 'alphabetic';
         ctx.textAlign = 'left';
         ctx.fillStyle = COLORS.ink;
+        shadow(ctx, 'rgba(0, 0, 0, 0.85)', -lw(2));
         setFont(ctx, 700, 0.0195 * S, FONTS.sans);
-        ctx.fillText(String(text), x, y + 0.022 * S);
+        ctx.fillText(String(text), x, y + 0.0205 * S);
         const sub = typeof r.sub === 'function' ? r.sub() : r.sub;
         if (sub) {
           ctx.fillStyle = COLORS.muted;
           setFont(ctx, 500, 0.0106 * S, FONTS.sans);
-          ctx.fillText(String(sub), x, y + 0.0385 * S);
+          ctx.fillText(String(sub), x, y + 0.0375 * S);
         }
-        ctx.fillStyle = COLORS.frame;
-        ctx.fillRect(x, y + hh - 0.004 * S, ww, lw(2));
+        shadow(ctx);
       } else if (w.type === 'button' || w.type === 'tab' || w.type === 'toggle') {
         const on = w.type === 'tab' ? r.get() === w.item.value : w.type === 'toggle' ? w.item.get() : (w.item.active ? w.item.active() : false);
         const off = isDisabled(w);
         const isHover = !off && hovered.has(w), isPressed = !off && pressed.has(w);
         const selected = on && w.type !== 'toggle' && !off;
         const pages = r.style === 'pages';
-        let bx = x, by = y, bw = ww, bh = hh;
         if (pages) {
-          // The menu's page tabs sit on one darker track, so they read as
-          // switching pages rather than as more buttons. The selected page
-          // is a blue tab inset on the track.
+          // The menu's page tabs are one segmented control, so they read as
+          // switching pages rather than as more buttons. Each tab's segment
+          // reaches halfway into the gaps beside it, and the selected page is
+          // pressed in.
           const ws = this._rowWidgets.get(r);
-          if (w === ws[0]) {
-            const last = ws[ws.length - 1];
-            roundRect(ctx, x, y, (last.x + last.w) * S - x, hh, 0.0045 * S);
-            ctx.fillStyle = COLORS.track;
-            ctx.fill();
+          const i = ws.indexOf(w), last = ws[ws.length - 1];
+          const tx = ws[0].x * S, tw = (last.x + last.w) * S - tx;
+          const track = () => roundRect(ctx, tx, y, tw, hh, BTN_R * S);
+          if (i === 0) {
+            track();
+            fillV(ctx, y, hh, COLORS.btn);
+            bevel(y, 0.14);
           }
-          const inset = TAB_INSET * S;
-          bx += inset; by += inset; bw -= 2 * inset; bh -= 2 * inset;
-        }
-        roundRect(ctx, bx, by, bw, bh, 0.0035 * S);
-        if (!pages || selected || isHover || isPressed) {
-          ctx.fillStyle = off ? COLORS.btnOff : selected ? (isHover ? COLORS.selectHover : COLORS.select) : isPressed ? COLORS.btnPress : isHover ? COLORS.btnHover : COLORS.btn;
-          ctx.fill();
-        }
-        // a ring on hover shows what a finger or ray is on
-        if (isHover || isPressed) {
-          ctx.lineWidth = lw(3);
-          ctx.strokeStyle = selected ? '#fff' : 'rgba(255, 255, 255, 0.5)';
+          const sx0 = i === 0 ? tx : ((ws[i - 1].x + ws[i - 1].w + w.x) / 2) * S;
+          const sx1 = w === last ? tx + tw : ((w.x + w.w + ws[i + 1].x) / 2) * S;
+          ctx.save();
+          track();
+          ctx.clip();
+          if (selected || isHover || isPressed) {
+            ctx.beginPath();
+            ctx.rect(sx0, y, sx1 - sx0, hh);
+            fillV(ctx, y, hh, selected ? COLORS.selectIn : isPressed ? COLORS.btnPress : COLORS.btnHover);
+            if (selected) {
+              const g = ctx.createLinearGradient(0, y, 0, y + 0.005 * S);
+              g.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
+              g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+              ctx.fillStyle = g;
+              ctx.fillRect(sx0, y, sx1 - sx0, 0.005 * S);
+            }
+          }
+          if (i > 0) {
+            ctx.fillStyle = COLORS.edge;
+            ctx.fillRect(sx0 - lw(1), y, lw(2), hh);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.07)';
+            ctx.fillRect(sx0 + lw(1), y, lw(2), hh);
+          }
+          // a ring on hover shows what a finger or ray is on
+          if (isHover || isPressed) {
+            ctx.lineWidth = lw(3);
+            ctx.strokeStyle = selected ? '#fff' : COLORS.glow;
+            ctx.strokeRect(sx0 + lw(3), y + lw(3), sx1 - sx0 - lw(6), hh - lw(6));
+          }
+          ctx.restore();
+          if (w === last) {
+            track();
+            ctx.lineWidth = lw(2);
+            ctx.strokeStyle = COLORS.edge;
+            ctx.stroke();
+          }
+        } else {
+          roundRect(ctx, x, y, ww, hh, BTN_R * S);
+          if (off) {
+            ctx.fillStyle = COLORS.btnOff;
+            ctx.fill();
+          } else {
+            fillV(ctx, y, hh, selected ? (isHover ? COLORS.selectHover : COLORS.select) : isPressed ? COLORS.btnPress : isHover ? COLORS.btnHover : COLORS.btn);
+            if (!isPressed) bevel(y, selected ? 0.28 : 0.14);
+          }
+          ctx.lineWidth = lw(2);
+          ctx.strokeStyle = selected ? COLORS.selectEdge : COLORS.edge;
           ctx.stroke();
+          // a glowing ring on hover shows what a finger or ray is on
+          if (isHover || isPressed) {
+            shadow(ctx, selected ? 'rgba(255, 255, 255, 0.6)' : COLORS.glow, 0, 0.003 * S);
+            ctx.lineWidth = lw(3);
+            ctx.strokeStyle = selected ? '#fff' : COLORS.glow;
+            ctx.stroke();
+            shadow(ctx);
+          }
         }
         if (w.item.icon === 'close') {
           const c = 0.0052 * S, cx = x + ww / 2, cy = y + hh / 2;
@@ -408,18 +519,22 @@ export class UIPanel {
           ctx.lineWidth = 0.0017 * S;
           ctx.lineCap = 'round';
           ctx.strokeStyle = COLORS.ink;
+          shadow(ctx, 'rgba(0, 0, 0, 0.7)', -lw(2));
           ctx.stroke();
+          shadow(ctx);
           continue;
         }
         let tx = x + ww / 2;
         ctx.textAlign = 'center';
         if (w.type === 'toggle') {
-          // checkbox: outlined when off, blue with a check mark when on
+          // checkbox: a light box when off, blue with a white check mark when on
           const sz = CHECK.size * S, px = x + CHECK.x * S, py = y + hh / 2 - sz / 2;
           roundRect(ctx, px, py, sz, sz, 0.0022 * S);
+          fillV(ctx, py, sz, off ? [COLORS.faint, '#454545'] : on ? ['#4b94e6', '#1c5cab'] : ['#f4f4f4', '#bdbdbd']);
+          ctx.lineWidth = lw(2);
+          ctx.strokeStyle = on && !off ? COLORS.selectEdge : COLORS.edge;
+          ctx.stroke();
           if (on) {
-            ctx.fillStyle = off ? COLORS.faint : COLORS.accent;
-            ctx.fill();
             ctx.beginPath();
             ctx.moveTo(px + sz * 0.24, py + sz * 0.52);
             ctx.lineTo(px + sz * 0.43, py + sz * 0.7);
@@ -427,20 +542,20 @@ export class UIPanel {
             ctx.lineWidth = lw(4);
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
-            ctx.strokeStyle = '#0e1116';
+            ctx.strokeStyle = '#fff';
+            shadow(ctx, 'rgba(0, 0, 0, 0.5)', -lw(2));
             ctx.stroke();
-          } else {
-            ctx.lineWidth = lw(3);
-            ctx.strokeStyle = off ? COLORS.faint : COLORS.muted;
-            ctx.stroke();
+            shadow(ctx);
           }
           tx = x + CHECK.textX * S;
           ctx.textAlign = 'left';
         }
-        ctx.fillStyle = off ? COLORS.faint : selected ? '#fff' : pages ? '#c9ced6' : (w.type === 'toggle' && !on ? '#c3c8d0' : COLORS.ink);
+        ctx.fillStyle = off ? COLORS.faint : selected ? '#fff' : pages ? '#dcdcdc' : (w.type === 'toggle' && !on ? '#d0d0d0' : COLORS.ink);
         setFont(ctx, 600, this._fitRow(r), FONTS.sans);
         ctx.textBaseline = 'middle';
+        if (!off) shadow(ctx, 'rgba(0, 0, 0, 0.6)', -lw(2));
         ctx.fillText(labelText(w.item), tx, y + hh / 2 + 0.0006 * S);
+        shadow(ctx);
       } else if (w.type === 'slider') {
         const v = r.get();
         const span = r.max - r.min;
@@ -451,16 +566,31 @@ export class UIPanel {
         ctx.fillStyle = off ? COLORS.faint : COLORS.muted;
         setFont(ctx, 500, 0.0106 * S, FONTS.sans);
         ctx.fillText(String(r.label), x, y + 0.0125 * S);
+        // the value in a small recessed readout
+        const value = r.format ? r.format(v) : v.toFixed(2);
+        setFont(ctx, 600, 0.0118 * S, FONTS.mono);
+        const vw = ctx.measureText(value).width + 0.007 * S;
+        roundRect(ctx, x + ww - vw, y + 0.0013 * S, vw, 0.0148 * S, 0.002 * S);
+        ctx.fillStyle = COLORS.well;
+        ctx.fill();
+        ctx.lineWidth = lw(2);
+        ctx.strokeStyle = COLORS.edge;
+        ctx.stroke();
         ctx.textAlign = 'right';
         ctx.fillStyle = off ? COLORS.faint : COLORS.ink;
-        setFont(ctx, 500, 0.0108 * S, FONTS.mono);
-        ctx.fillText(r.format ? r.format(v) : v.toFixed(2), x + ww, y + 0.0125 * S);
+        ctx.fillText(value, x + ww - 0.0035 * S, y + 0.0122 * S);
 
+        // groove, with a light line under it so it looks cut into the plate
         const ty = y + 0.032 * S;
-        const th = 0.003 * S;
+        const th = 0.0045 * S;
         roundRect(ctx, x, ty - th / 2, ww, th, th / 2);
-        ctx.fillStyle = COLORS.btnHover;
+        ctx.fillStyle = COLORS.well;
         ctx.fill();
+        ctx.lineWidth = lw(2);
+        ctx.strokeStyle = COLORS.edge;
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.fillRect(x + th / 2, ty + th / 2 + lw(1), ww - th, lw(2));
         // center detent mark
         const from = r.center !== undefined ? (r.center - r.min) / span : 0;
         if (r.center !== undefined) {
@@ -469,30 +599,37 @@ export class UIPanel {
         }
         // fill from the center detent (or the minimum) to the value
         const x0 = x + ww * Math.min(from, t), x1 = x + ww * Math.max(from, t);
-        let fill = off ? COLORS.btnPress : COLORS.accent;
-        if (r.gradient && !off) {
-          fill = ctx.createLinearGradient(x, 0, x + ww, 0);
-          fill.addColorStop(0, r.gradient[0]); fill.addColorStop(1, r.gradient[1]);
-        }
         roundRect(ctx, x0, ty - th / 2, Math.max(th, x1 - x0), th, th / 2);
-        ctx.fillStyle = fill;
-        ctx.fill();
-        // knob: a round handle, larger with a halo while hovered or held
+        if (off) {
+          ctx.fillStyle = '#2a2a2a';
+          ctx.fill();
+        } else if (r.gradient) {
+          const g = ctx.createLinearGradient(x, 0, x + ww, 0);
+          g.addColorStop(0, r.gradient[0]); g.addColorStop(1, r.gradient[1]);
+          ctx.fillStyle = g;
+          ctx.fill();
+          bevel(ty - th / 2, 0.35);
+        } else {
+          fillV(ctx, ty - th / 2, th, ['#6aacf5', '#2668b8']);
+          bevel(ty - th / 2, 0.35);
+        }
+        // knob: a glossy round handle, larger with a halo while hovered or held
         const kx = x + ww * t;
         const active = !off && (hovered.has(w) || pressed.has(w));
-        const kr = (active ? 0.0075 : 0.0062) * S;
+        const kr = (active ? 0.0078 : 0.0066) * S;
         if (active) {
           ctx.beginPath();
           ctx.arc(kx, ty, kr + 0.004 * S, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(26, 159, 255, 0.3)';
+          ctx.fillStyle = 'rgba(77, 156, 248, 0.35)';
           ctx.fill();
         }
         ctx.beginPath();
         ctx.arc(kx, ty, kr, 0, Math.PI * 2);
-        ctx.fillStyle = off ? COLORS.faint : COLORS.ink;
-        ctx.fill();
+        shadow(ctx, 'rgba(0, 0, 0, 0.6)', lw(2), lw(4));
+        fillV(ctx, ty - kr, kr * 2, off ? [COLORS.faint, '#454545'] : ['#fdfdfd', '#adadad']);
+        shadow(ctx);
         ctx.lineWidth = lw(2);
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
         ctx.stroke();
       } else if (w.type === 'text') {
         const lines = this._wrap(r, w.w);
@@ -786,7 +923,7 @@ export class DomPanel {
     const dpr = window.devicePixelRatio || 1;
     c.style.width = `${c.width / dpr}px`;
     c.style.height = `${c.height / dpr}px`;
-    this.el.style.borderRadius = `${(0.01 * this.panel.px) / dpr}px`; // the plate's corners
+    this.el.style.borderRadius = `${(PLATE_R * this.panel.px) / dpr}px`; // the plate's corners
     this._fade();
   }
 
@@ -866,7 +1003,7 @@ const _m4 = new THREE.Matrix4();
 const _look = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 const HANDLE_HALF = 0.04;
-const HANDLE_IDLE = new THREE.Color('#9aa3b0');
+const HANDLE_IDLE = new THREE.Color('#a6a6a6');
 const HANDLE_HOT = new THREE.Color('#ffffff');
 
 // Bar under a VR panel for moving it, like the one under Quest system windows.
@@ -976,7 +1113,7 @@ export class UISystem {
     // Canvas text only uses web fonts that have finished loading, so lay out
     // and redraw every panel once they arrive.
     if (document.fonts?.load) {
-      const faces = [`700 20px ${FONTS.sans}`, `600 20px ${FONTS.sans}`, `500 20px ${FONTS.sans}`, `500 20px ${FONTS.mono}`];
+      const faces = [`700 20px ${FONTS.sans}`, `600 20px ${FONTS.sans}`, `500 20px ${FONTS.sans}`, `600 20px ${FONTS.mono}`];
       Promise.all(faces.map((f) => document.fonts.load(f)))
         .then(() => { for (const p of this.panels) p.setRows(p.rows); })
         .catch(() => {});

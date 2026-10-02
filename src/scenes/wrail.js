@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { ANA_COLOR, KATA_COLOR } from '../four/sliceView.js';
 import { makeLabel } from './base.js';
+import { COLORS } from '../core/ui.js';
 
 const ROD_VERT = /* glsl */ `
 varying float vT;
@@ -107,7 +108,7 @@ export class WRail {
     this.group.add(this.tags);
 
     // ana goes above the rod. kata goes beside the post and update() moves it to the viewer's side.
-    const plate = 'rgba(27,31,38,0.92)'; // the text alone is hard to see against the light sky
+    const plate = COLORS.label; // the text alone is hard to see against the light sky
     const ana = makeLabel('ana  +w', { size: 0.018, color: '#ff8fbf', bg: plate });
     ana.position.set(0, base + height + 0.022, 0);
     const kata = makeLabel('kata  −w', { size: 0.018, color: '#7fd8ff', bg: plate });

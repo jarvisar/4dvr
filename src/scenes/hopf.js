@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import * as R4 from '../math/rot4.js';
 import { SceneBase, makeLabel } from './base.js';
+import { COLORS } from '../core/ui.js';
 import { LIGHT, LIGHTING_GLSL } from '../core/lighting.js';
 import { raySphere } from '../core/interaction.js';
 import { REDUCED_MOTION } from '../core/prefs.js';
@@ -231,7 +232,7 @@ export class HopfScene extends SceneBase {
     this._buildFibers();
     this._buildGlobe();
 
-    const l1 = makeLabel('S²: touch to add fibers', { size: 0.016, color: '#e8eaf0', bg: 'rgba(27,31,38,0.92)' });
+    const l1 = makeLabel('S²: touch to add fibers', { size: 0.016, color: '#e8eaf0', bg: COLORS.label });
     this.globeLabel = l1;
     this.root.add(l1);
 

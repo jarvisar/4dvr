@@ -128,11 +128,19 @@ export function makeLabel(text, { size = 0.02, color = '#ffffff', weight = 600, 
 function drawLabel(ctx, text, { w, h, px, font, color, bg }) {
   ctx.clearRect(0, 0, w, h);
   if (bg) {
-    // rounded plate to match the UI panels
-    ctx.fillStyle = bg;
+    // plate to match the UI panels, a little lighter at the top with a dark rim
     ctx.beginPath();
-    ctx.roundRect(0, 0, w, h, h * 0.22);
+    ctx.roundRect(1.5, 1.5, w - 3, h - 3, h * 0.16);
+    ctx.fillStyle = bg;
     ctx.fill();
+    const sheen = ctx.createLinearGradient(0, 0, 0, h);
+    sheen.addColorStop(0, 'rgba(255, 255, 255, 0.14)');
+    sheen.addColorStop(0.55, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = sheen;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.stroke();
   }
   ctx.font = font;
   ctx.fillStyle = color;

@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import { J } from './input.js';
-import { FONTS } from './ui.js';
+import { FONTS, COLORS } from './ui.js';
 import { JOINT_RADII } from './handPoses.js';
 
 const CHAINS = [
@@ -67,7 +67,7 @@ const TINT_PINCH = new THREE.Color('#33c3ff');
 const TINT_GRIP = new THREE.Color('#ff4f9a');
 const TINT_POKE = new THREE.Color('#eceef4');
 const RING_IDLE = new THREE.Color('#ffffff');
-const POKE_PRESS = new THREE.Color('#1a9fff');
+const POKE_PRESS = new THREE.Color(COLORS.accent);
 const READOUT_HOLD = 0.12; // seconds a readout stays up after its last update
 const TIPS = [J['thumb-tip'], J['index-finger-tip'], J['middle-finger-tip'], J['ring-finger-tip'], J['pinky-finger-tip']];
 
@@ -149,10 +149,13 @@ class Readout {
     ctx.clearRect(0, 0, W, H);
     ctx.font = `600 44px ${FONTS.mono}`;
     const tw = Math.min(W - 4, ctx.measureText(text).width + 40);
-    ctx.fillStyle = 'rgba(27, 31, 38, 0.92)';
+    ctx.fillStyle = COLORS.label;
     ctx.beginPath();
-    ctx.roundRect((W - tw) / 2, 4, tw, H - 8, 18);
+    ctx.roundRect((W - tw) / 2, 4, tw, H - 8, 14);
     ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.stroke();
     ctx.fillStyle = color;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

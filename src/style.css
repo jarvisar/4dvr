@@ -1,32 +1,41 @@
 /*
- * Start screen and desktop HUD. The in-headset panels (src/core/ui.js) use the
- * same colors and fonts: slate panels with rounded corners, gray buttons, and
- * blue for whatever is selected.
+ * Start screen and desktop HUD. The in-headset panels (src/core/ui.js) are
+ * drawn to match: dark charcoal plates with a black border and a 1px top
+ * highlight, beveled gradient buttons, and glossy blue for whatever is selected.
  */
 :root {
-  --bg: #101318;
-  --plate: rgba(27, 31, 38, 0.94);
-  --btn: #2c323c;
-  --btn-hover: #3b4350;
-  --btn-press: #4a5362;
-  --ink: #e6e8ec;
-  --muted: #9aa3b0;
-  --faint: #6f7886;
-  --line: rgba(255, 255, 255, 0.08);
-  --select: #1f6bd1;       /* selected fill, white text on it has 5:1 contrast */
-  --select-hover: #2a74da;
-  --accent: #1a9fff;       /* focus rings and indicators, never behind text */
-  --ok: #8bc34a;
-  --radius: 8px;
-  --radius-sm: 4px;
+  --bg: #121212;
+  --ink: #eeeeee;
+  --muted: #a6a6a6;
+  --faint: #6c6c6c;
+  --accent: #4d9cf8;       /* focus rings and indicators, never behind text */
+  --link: #8ab8f0;
+  /* button gradients (top, bottom) */
+  --btn: linear-gradient(#4a4a4a, #2d2d2d);
+  --btn-hover: linear-gradient(#585858, #393939);
+  --btn-press: linear-gradient(#232323, #323232);
+  --select: linear-gradient(#2c75c9, #1a55a2); /* white text on the top stop has 4.8:1 contrast */
+  --select-hover: linear-gradient(#2f79cd, #1d5cad);
+  --bevel: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --bevel-blue: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --emboss: 0 -1px 0 rgba(0, 0, 0, 0.6);
+  --edge-dark: #0a0a0a;
+  --plate: rgba(18, 18, 18, 0.9);
+  --titlebar: linear-gradient(#3d3d3d, #262626);
+  --well: rgba(0, 0, 0, 0.35);
+  --well-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.07);
+  /* film grain, tiled over the dark backgrounds */
+  --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 .09 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --radius: 5px;
+  --radius-sm: 3px;
   --edge: 16px; /* distance of HUD elements from the window edge */
   /* and from a notch or rounded corner, where there is one (viewport-fit=cover) */
   --edge-top: max(var(--edge), env(safe-area-inset-top));
   --edge-right: max(var(--edge), env(safe-area-inset-right));
   --edge-bottom: max(var(--edge), env(safe-area-inset-bottom));
   --edge-left: max(var(--edge), env(safe-area-inset-left));
-  --sans: 'Figtree', 'Segoe UI', system-ui, sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --sans: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --mono: 'Inconsolata', Consolas, monospace;
   font-family: var(--sans);
   color-scheme: dark;
 }
@@ -45,7 +54,6 @@ html, body {
   color: var(--ink);
   overflow: hidden;
   overscroll-behavior: none;
-  -webkit-font-smoothing: antialiased;
 }
 
 #app, #app canvas {
@@ -57,34 +65,40 @@ html, body {
   touch-action: none;
 }
 
+/* keycaps */
 kbd, #hud-help li b {
-  font: 600 0.8em/1.4 var(--sans);
+  font: 700 0.78em/1.45 var(--sans);
   display: inline-block;
-  min-width: 1.7em;
-  padding: 0.05em 0.4em;
+  min-width: 1.8em;
+  padding: 0.05em 0.45em 0.1em;
   text-align: center;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-bottom-width: 2px;
+  color: #e6e6e6;
+  text-shadow: var(--emboss);
+  background: linear-gradient(#4c4c4c, #2a2a2a);
+  border: 1px solid var(--edge-dark);
   border-radius: var(--radius-sm);
-  color: var(--ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 0 #050505;
   white-space: nowrap;
 }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+a { color: var(--link); text-decoration-color: rgba(138, 184, 240, 0.45); text-underline-offset: 2px; }
+a:hover { color: #b3d3fa; text-decoration-color: currentColor; }
+
 /* ------------------------------------------------------------------------ */
 /* Buttons                                                                    */
 
 .btn {
-  font: 600 15px/1 var(--sans);
+  font: 700 15px/1 var(--sans);
   cursor: pointer;
   color: var(--ink);
+  text-shadow: var(--emboss);
   background: var(--btn);
-  border: 0;
-  border-radius: var(--radius-sm);
-  padding: 13px 22px;
-  transition: background 0.15s, color 0.15s;
+  border: 1px solid var(--edge-dark);
+  border-radius: var(--radius);
+  box-shadow: var(--bevel), 0 1px 2px rgba(0, 0, 0, 0.45);
+  padding: 12px 22px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -93,16 +107,17 @@ kbd, #hud-help li b {
 }
 
 .btn:hover:not(:disabled) { background: var(--btn-hover); }
-.btn:active:not(:disabled) { background: var(--btn-press); }
-.btn:disabled { cursor: default; color: var(--faint); background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+.btn:active:not(:disabled) { background: var(--btn-press); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.06); }
+.btn:disabled { cursor: default; color: var(--faint); text-shadow: none; background: rgba(40, 40, 40, 0.6); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); border-color: #1a1a1a; }
 
-.btn.primary, .btn.on { background: var(--select); color: #fff; }
+.btn.primary, .btn.on { background: var(--select); color: #fff; border-color: #0c3163; box-shadow: var(--bevel-blue), 0 1px 2px rgba(0, 0, 0, 0.45); text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.45); }
 .btn.primary:hover:not(:disabled), .btn.on:hover:not(:disabled) { background: var(--select-hover); }
-.btn.primary:disabled { background: transparent; color: var(--faint); }
+.btn.primary:active:not(:disabled), .btn.on:active:not(:disabled) { background: linear-gradient(#1a55a2, #2466b5); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45); }
+.btn.primary:disabled { color: var(--faint); text-shadow: none; background: rgba(40, 40, 40, 0.6); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); border-color: #1a1a1a; }
 
-.btn.small { font-size: 13px; padding: 8px 12px; gap: 8px; }
-.btn.small kbd { font-size: 10px; min-width: 1.6em; padding: 0 0.3em; }
-.btn.on kbd { color: #fff; background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.35); }
+.btn.small { font-size: 13px; padding: 7px 12px; gap: 8px; }
+.btn.small kbd { font-size: 10px; min-width: 1.7em; padding: 0 0.35em; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 0 #050505; }
+.btn.on kbd { color: #fff; background: linear-gradient(#3a7fcf, #1d5aa6); border-color: #0c3163; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 1px 0 #0a2a55; }
 
 /* ------------------------------------------------------------------------ */
 /* Start screen                                                               */
@@ -121,7 +136,8 @@ kbd, #hud-help li b {
   /* Dark behind the text column (580px wide), and the live scene shows
      through to the right of it. The stops follow the column, so the text
      never ends up over the lighter part. */
-  background: linear-gradient(90deg, rgba(16, 19, 24, 0.97), rgba(16, 19, 24, 0.93) calc(var(--pad-x) + 600px), rgba(16, 19, 24, 0.35) calc(var(--pad-x) + 900px), rgba(16, 19, 24, 0.15));
+  --shade: linear-gradient(90deg, rgba(14, 14, 14, 0.97), rgba(14, 14, 14, 0.93) calc(var(--pad-x) + 600px), rgba(14, 14, 14, 0.4) calc(var(--pad-x) + 900px), rgba(14, 14, 14, 0.2));
+  background: var(--noise), radial-gradient(ellipse 90% 80% at 70% 50%, transparent 50%, rgba(0, 0, 0, 0.55)), var(--shade);
   transition: opacity 0.35s ease, visibility 0s linear 0s;
 }
 
@@ -132,16 +148,37 @@ kbd, #hud-help li b {
 
 .wordmark {
   margin: 0 0 clamp(6px, 1.4vh, 10px);
-  font: 700 clamp(34px, min(6vw, 7.5vh), 56px)/1.05 var(--sans);
-  letter-spacing: -0.02em;
+  font: 800 clamp(36px, min(6.4vw, 8vh), 60px)/1.05 var(--sans);
+  letter-spacing: -0.01em;
+  /* brushed metal, the shadow has to be a filter since the text itself is transparent */
+  color: #e8e8e8;
+  background: linear-gradient(#ffffff 25%, #c4c4c4 60%, #8e8e8e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.9));
 }
 
-.lede { color: var(--muted); font-size: 16px; line-height: 1.6; margin: 0 0 clamp(14px, 3vh, 24px); }
+.lede { color: var(--muted); font-size: 15px; line-height: 1.65; margin: 0 0 clamp(14px, 3vh, 24px); text-shadow: 0 1px 1px #000; }
 
-/* one grid shared by all rows (subgrid), so the descriptions line up */
-/* the first column includes the button's left padding */
-.index { list-style: none; margin: 0 0 clamp(14px, 3vh, 24px); padding: 0; display: grid; grid-template-columns: 20px max-content 1fr; gap: 2px 12px; }
+/* One grid shared by all rows (subgrid), so the descriptions line up. The
+   first column includes the button's left padding. The list sits in a
+   recessed well with etched lines between the rows. */
+.index {
+  list-style: none;
+  margin: 0 0 clamp(14px, 3vh, 24px);
+  padding: 0;
+  display: grid;
+  grid-template-columns: 20px max-content 1fr;
+  gap: 0 12px;
+  background: var(--well);
+  border: 1px solid #000;
+  border-radius: var(--radius);
+  box-shadow: var(--well-shadow);
+  overflow: hidden;
+}
 .index li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
+.index li + li { border-top: 1px solid rgba(0, 0, 0, 0.6); }
 
 .index button {
   all: unset;
@@ -152,18 +189,19 @@ kbd, #hud-help li b {
   grid-template-columns: subgrid;
   align-items: baseline;
   gap: 2px 12px;
-  padding: clamp(5px, 1vh, 11px) 12px clamp(5px, 1vh, 11px) 10px;
-  border-radius: var(--radius-sm);
-  transition: background 0.15s;
+  padding: clamp(5px, 1vh, 10px) 12px clamp(5px, 1vh, 10px) 10px;
+  line-height: 1.25;
+  text-shadow: 0 1px 1px #000;
 }
+.index li + li button { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045); }
 
-.index .n { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.index b { font-weight: 600; font-size: 16px; }
-.index .d { font-size: 14px; color: var(--muted); }
+.index .n { font: 600 13px var(--mono); color: var(--faint); }
+.index b { font-weight: 700; font-size: 15px; }
+.index .d { font-size: 13.5px; color: var(--muted); }
 
-.index button:hover { background: rgba(255, 255, 255, 0.06); }
+.index button:hover { background: linear-gradient(rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05)); }
 .index button:focus-visible { background: rgba(255, 255, 255, 0.06); outline: 2px solid var(--accent); outline-offset: -2px; }
-.index button.selected { background: var(--select); color: #fff; }
+.index button.selected { background: var(--select); color: #fff; box-shadow: var(--bevel-blue); text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.45); }
 .index button.selected .n, .index button.selected .d { color: #fff; }
 .index button.selected:focus-visible { outline-color: #fff; }
 
@@ -171,20 +209,28 @@ kbd, #hud-help li b {
 /* with a headset, Enter VR is the main action, so it goes first */
 .actions.xr #enter-vr { order: -1; }
 
-.status { display: flex; align-items: baseline; gap: 10px; color: var(--muted); font-size: 14px; line-height: 1.5; margin: clamp(10px, 2vh, 16px) 0 0; min-height: 1.5em; }
-.status i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); transform: translateY(-1px); }
-.status.ok i { background: var(--ok); }
-.status.pending i { animation: blink 1s steps(2) infinite; }
-.status a { color: var(--ink); white-space: nowrap; }
-@keyframes blink { 50% { opacity: 0.2; } }
+.status { display: flex; align-items: baseline; gap: 10px; color: var(--muted); font-size: 13.5px; line-height: 1.5; margin: clamp(10px, 2vh, 16px) 0 0; min-height: 1.5em; text-shadow: 0 1px 1px #000; }
+/* status LED: gray when off, amber while checking, green when a headset is ready */
+.status i {
+  flex: none;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #7a7a7a, #3a3a3a 65%, #262626);
+  box-shadow: 0 0 0 1px #000, 0 1px 0 1px rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+}
+.status.ok i { background: radial-gradient(circle at 35% 30%, #e4ffb8, #79c928 55%, #3d7a0c); box-shadow: 0 0 0 1px #000, 0 0 7px 1px rgba(130, 220, 50, 0.7); }
+.status.pending i { background: radial-gradient(circle at 35% 30%, #ffe9b3, #f0a523 55%, #9a5d00); box-shadow: 0 0 0 1px #000, 0 0 7px 1px rgba(255, 170, 40, 0.6); animation: blink 1s steps(2) infinite; }
+.status a { color: var(--link); white-space: nowrap; }
+@keyframes blink { 50% { opacity: 0.25; } }
 
-.keys { color: var(--muted); font-size: 13px; margin: clamp(8px, 1.5vh, 12px) 0 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.keys { color: var(--muted); font-size: 13px; margin: clamp(8px, 1.5vh, 12px) 0 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; text-shadow: 0 1px 1px #000; }
 .keys kbd { margin-left: 8px; }
 .keys kbd:first-child { margin-left: 0; }
 
 /* links to the topic pages, mostly there so search engines find them */
 .pages { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: clamp(8px, 1.5vh, 12px) 0 0; font-size: 13px; }
-.pages a { color: var(--muted); }
+.pages a { color: var(--muted); text-decoration-color: rgba(166, 166, 166, 0.4); }
 .pages a:hover { color: var(--ink); }
 
 /* ------------------------------------------------------------------------ */
@@ -210,13 +256,14 @@ kbd, #hud-help li b {
 }
 .hud-top > * { pointer-events: auto; }
 
+/* segmented control: one beveled bar, etched dividers, the current scene pressed in blue */
 #scene-tabs {
   grid-column: 2;
   display: flex;
-  gap: 2px;
-  padding: 4px;
-  background: var(--plate);
+  background: var(--btn);
+  border: 1px solid var(--edge-dark);
   border-radius: var(--radius);
+  box-shadow: var(--bevel), 0 2px 6px rgba(0, 0, 0, 0.4);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -234,25 +281,24 @@ kbd, #hud-help li b {
   display: inline-flex;
   align-items: baseline;
   gap: 7px;
-  padding: 8px 13px;
-  border-radius: var(--radius-sm);
-  font: 600 14px var(--sans);
-  color: #c9ced6;
-  transition: background 0.15s, color 0.15s;
+  padding: 9px 14px;
+  font: 700 13.5px var(--sans);
+  color: #dcdcdc;
+  text-shadow: var(--emboss);
 }
-#scene-tabs button i { font-size: 12px; font-weight: 500; font-style: normal; color: var(--muted); font-variant-numeric: tabular-nums; }
-#scene-tabs button:hover, #scene-tabs button:focus-visible { background: var(--btn-hover); color: var(--ink); }
+#scene-tabs button + button { border-left: 1px solid #111; box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.07); }
+#scene-tabs button i { font: 600 12px var(--mono); font-style: normal; color: #8a8a8a; }
+#scene-tabs button:hover, #scene-tabs button:focus-visible { background: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)); color: #fff; }
 /* the tab bar scrolls, which would clip an outside outline */
 #scene-tabs button:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
-#scene-tabs button.active { background: var(--select); color: #fff; }
-#scene-tabs button.active i { color: #fff; }
+#scene-tabs button.active { background: linear-gradient(#1a55a2, #2c75c9); color: #fff; box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.35); text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.5); }
+#scene-tabs button.active + button { border-left-color: #0c3163; }
+#scene-tabs button.active i { color: #d6e6fa; }
 #scene-tabs button.active:focus-visible { box-shadow: inset 0 0 0 2px #fff; }
 
 .hud-tools { grid-column: 3; justify-self: end; display: flex; gap: 6px; }
-/* solid plates so the buttons stay readable over bright scenes */
-.hud-tools .btn:not(.on) { background: var(--plate); }
-.hud-tools .btn:not(.on):hover { background: var(--btn-hover); }
 
+/* HUD window: title bar on a dark glass plate */
 #hud-help {
   position: absolute;
   left: var(--edge-left);
@@ -261,24 +307,31 @@ kbd, #hud-help li b {
   max-height: calc(100% - 90px);
   overflow-y: auto;
   background: var(--plate);
+  border: 1px solid #000;
   border-radius: var(--radius);
-  padding: 12px 16px 14px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 4px 14px rgba(0, 0, 0, 0.5);
   transition: opacity 0.2s, transform 0.2s;
 }
 #hud-help.closed { opacity: 0; transform: translateY(8px); pointer-events: none; visibility: hidden; transition: opacity 0.2s, transform 0.2s, visibility 0s linear 0.2s; }
 #hud-help h2 {
+  position: sticky;
+  top: 0;
   margin: 0;
-  font-weight: 600;
-  font-size: 14px;
-  padding-bottom: 8px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid var(--line);
+  padding: 7px 14px 6px;
+  font: 700 11px/1.4 var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #c4c4c4;
+  text-shadow: 0 -1px 0 #000;
+  background: var(--titlebar);
+  border-bottom: 1px solid #000;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 1px 0 rgba(255, 255, 255, 0.05);
 }
-#hud-help ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
-#hud-help li { font-size: 14px; line-height: 1.45; color: var(--muted); }
-#hud-help li b { font-size: 12px; margin-right: 2px; }
+#hud-help ul { list-style: none; margin: 0; padding: 11px 14px 13px; display: grid; gap: 6px; }
+#hud-help li { font-size: 13.5px; line-height: 1.5; color: var(--muted); }
+#hud-help li b { font-size: 11px; margin-right: 3px; }
 /* rows without a key, like what needs a mouse or a headset */
-#hud-help li.note { margin-top: 3px; padding-top: 8px; border-top: 1px solid var(--line); }
+#hud-help li.note { margin-top: 3px; padding-top: 8px; border-top: 1px solid #000; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05); }
 
 /* The menu. Its canvas (plate and all) is drawn by src/core/ui.js, the same
    panel as in VR. It keeps one width and scrolls when it doesn't fit, and main.js
@@ -310,14 +363,15 @@ kbd, #hud-help li b {
 .hud-panel.more-above { mask-image: linear-gradient(transparent, #000 40px); }
 .hud-panel.more-above.more-below { mask-image: linear-gradient(transparent, #000 40px, #000 calc(100% - 40px), transparent); }
 
+/* like the stats.js meter in old three.js demos */
 #hud-stats {
   position: absolute;
   top: 64px; left: var(--edge-left);
-  padding: 6px 10px;
-  background: var(--plate);
-  border-radius: var(--radius-sm);
-  font: 500 11px var(--mono);
-  color: var(--ok);
+  padding: 3px 7px;
+  background: #020;
+  border: 1px solid #0a3a0a;
+  font: 600 12px/1.35 var(--mono);
+  color: #0f0;
   pointer-events: none !important;
 }
 
@@ -327,7 +381,7 @@ kbd, #hud-help li b {
 /* Smaller screens                                                            */
 
 @media (max-width: 860px) {
-  #overlay { align-items: flex-start; background: rgba(16, 19, 24, 0.9); }
+  #overlay { align-items: flex-start; background: var(--noise), rgba(14, 14, 14, 0.9); }
   .console { margin: 0 auto; }
 }
 
@@ -342,7 +396,7 @@ kbd, #hud-help li b {
 @media (max-width: 720px) {
   :root { --edge: 12px; }
   .hud-top { display: block; }
-  #scene-tabs button { padding: 8px 11px; }
+  #scene-tabs button { padding: 8px 12px; }
   #scene-tabs button i { display: none; }
   .hud-tools { position: fixed; right: var(--edge-right); bottom: var(--edge-bottom); }
   #hud-help { bottom: calc(var(--edge-bottom) + 52px); max-height: calc(100% - 136px); }
@@ -351,22 +405,22 @@ kbd, #hud-help li b {
   .hud-panel { left: var(--edge-left); width: auto; max-width: 440px; margin: 0 auto; }
   .index { grid-template-columns: 20px 1fr; }
   .index .d { grid-column: 2; }
-  .lede { font-size: 15px; }
+  .lede { font-size: 14.5px; }
   .actions .btn { flex: 1 1 160px; }
 }
 
 /* short screens (phones in landscape) */
 @media (max-height: 520px) {
-  #hud-help { padding: 8px 12px 10px; max-height: calc(100% - 76px); }
+  #hud-help ul { padding: 8px 12px 10px; gap: 3px; }
+  #hud-help { max-height: calc(100% - 76px); }
   #hud-help li { font-size: 13px; line-height: 1.35; }
-  #hud-help ul { gap: 3px; }
   #hud-stats { top: 56px; }
 }
 
 /* Phones in landscape: the scene list goes in a second column, so the start
    screen fits without scrolling */
 @media (max-height: 520px) and (min-width: 600px) {
-  #overlay { align-items: center; padding-inline: max(28px, env(safe-area-inset-left)) max(28px, env(safe-area-inset-right)); background: rgba(16, 19, 24, 0.9); }
+  #overlay { align-items: center; padding-inline: max(28px, env(safe-area-inset-left)) max(28px, env(safe-area-inset-right)); background: var(--noise), rgba(14, 14, 14, 0.9); }
   .console {
     width: 100%;
     max-width: 920px;
@@ -378,10 +432,17 @@ kbd, #hud-help li b {
   }
   .console > * { grid-column: 1; }
   .console > .index { grid-column: 2; grid-row: 1 / -1; align-self: center; margin: 0; }
-  .wordmark { font-size: 34px; }
-  .lede { font-size: 14px; line-height: 1.5; }
-  .index b { font-size: 15px; }
+  .wordmark { font-size: 36px; }
+  /* so both buttons fit on one row in the narrow column */
+  .actions .btn { padding-inline: 16px; }
+  .lede { font-size: 13.5px; line-height: 1.5; }
+  .index b { font-size: 14.5px; }
   .index .d { font-size: 12.5px; }
+}
+
+/* the wordmark's gradient text would disappear in Windows high contrast */
+@media (forced-colors: active) {
+  .wordmark { -webkit-text-fill-color: currentColor; background: none; filter: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

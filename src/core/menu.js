@@ -91,7 +91,7 @@ export class HandMenu {
     this.dwellBar = new THREE.Mesh(new THREE.PlaneGeometry(0.062, 0.004), new THREE.ShaderMaterial({
       uniforms: { uFill: { value: 0 }, uOpacity: { value: 0 } },
       vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: 'uniform float uFill; uniform float uOpacity; varying vec2 vUv; void main() { vec3 c = vUv.x < uFill ? vec3(0.1, 0.62, 1.0) : vec3(0.23, 0.26, 0.31); gl_FragColor = vec4(c, uOpacity); }',
+      fragmentShader: 'uniform float uFill; uniform float uOpacity; varying vec2 vUv; void main() { vec3 c = vUv.x < uFill ? vec3(0.3, 0.61, 0.97) : vec3(0.2, 0.2, 0.2); gl_FragColor = vec4(c, uOpacity); }',
       transparent: true, depthTest: false, depthWrite: false,
     }));
     this.dwellBar.renderOrder = 21;

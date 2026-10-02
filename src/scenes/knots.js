@@ -10,6 +10,7 @@ import { SceneBase, Burst, makeLabel, disposeLabel, TextLabel } from './base.js'
 import { LIGHT, LIGHTING_GLSL } from '../core/lighting.js';
 import { ANA_COLOR, KATA_COLOR } from '../four/sliceView.js';
 import { GHOST_STYLE } from '../four/sliceMaterial.js';
+import { COLORS } from '../core/ui.js';
 
 const TUBE_R = 0.0095;
 const COLLIDE = TUBE_R * 2.3;
@@ -439,7 +440,7 @@ export class KnotScene extends SceneBase {
     this.group.add(this.markers);
 
     this.burst = new Burst(this.group);
-    this.wLabel = new TextLabel({ size: 0.016, template: 'w −00.0 cm', bg: 'rgba(27,31,38,0.92)' });
+    this.wLabel = new TextLabel({ size: 0.016, template: 'w −00.0 cm', bg: COLORS.label });
     this.wLabel.mesh.visible = false;
     this.group.add(this.wLabel.mesh);
     this.message = null;
@@ -490,7 +491,7 @@ export class KnotScene extends SceneBase {
   _say(text, seconds = 3, color = '#e8eaf0') {
     this.app.announce(text);
     disposeLabel(this.message);
-    this.message = makeLabel(text, { size: 0.02, color, bg: 'rgba(27,31,38,0.92)' });
+    this.message = makeLabel(text, { size: 0.02, color, bg: COLORS.label });
     this.message.position.set(0, 0.2, 0);
     this.group.add(this.message);
     this.messageT = seconds;
