@@ -98,11 +98,14 @@ npm run screenshots # build and retake the screenshots at the top of this README
 
 Retake the screenshots after changing how a scene looks. `node tools/screenshots.mjs hopf klein` retakes only those from the last build.
 
+The `about/`, `120-cell/`, `hopf-fibration/`, `klein-bottle/`, and `hyperbolic-space/` folders are plain HTML pages about the app and some of the scenes. They're mostly there so search engines have something to index besides a canvas. They use the README screenshots, and a new page needs adding to `PAGES` in `vite.config.js` and to `public/sitemap.xml`.
+
 Pushing to `main` runs the smoke tests and deploys to GitHub Pages. Pull requests and other branches run the same tests and upload screenshots of each scene.
 
 ### URL Parameters
 
 - `?scene=playground|gallery|knots|hopf|hyperbolic|spherical|klein|quasicrystal` sets the starting scene
+- `?shape=hecatonicosachoron` sets Polytope Lab's starting shape, using the keys in [gallery.js](src/scenes/gallery.js)
 - `?desktop` skips the start screen
 - `?quality=low|medium|high` uses a graphics preset for this visit without saving it
 - `?scale=1` sets the XR framebuffer scale directly

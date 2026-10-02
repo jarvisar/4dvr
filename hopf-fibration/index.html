@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101318" />
+    <title>Interactive Hopf Fibration Visualization in VR | 4D VR</title>
+    <meta name="description" content="An interactive Hopf fibration. Touch a globe to add the circle in the 3-sphere over that point, and rotate the 3-sphere through 4D to see the fibers move. Runs in VR or a desktop browser." />
+    <link rel="canonical" href="https://4dvr.jarvisar.com/hopf-fibration/" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="4D VR" />
+    <meta property="og:title" content="Interactive Hopf Fibration in VR" />
+    <meta property="og:description" content="Touch a globe to add Hopf fibers and rotate the 3-sphere through 4D." />
+    <meta property="og:url" content="https://4dvr.jarvisar.com/hopf-fibration/" />
+    <meta property="og:image" content="https://4dvr.jarvisar.com/og-image.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="../favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" />
+    <link rel="stylesheet" href="../src/page.css" />
+    <script>
+      if (location.hostname === '4dvr.jarvisar.com') {
+        const beacon = document.createElement('script');
+        beacon.type = 'module';
+        beacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+        beacon.dataset.cfBeacon = '{"token": "a52a84e110ba48c0868dd4ae87e235b7"}';
+        document.head.appendChild(beacon);
+      }
+    </script>
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <a class="home" href="../">4D VR</a>
+        <a class="gh" href="https://github.com/jarvisar/anakata">GitHub</a>
+      </header>
+
+      <main>
+        <h1>The Hopf Fibration</h1>
+        <p class="lede">
+          Hopf Garden is an interactive version of the Hopf fibration. There's a globe in front of you, and touching a point on it
+          adds that point's circle (its fiber) to the space around the globe.
+        </p>
+
+        <figure>
+          <img src="../docs/screenshots/hopf.jpg" width="1280" height="720" alt="Nested tori made of Hopf fibers around a globe" />
+          <figcaption>The nested tori preset. Each torus is the fibers over one circle of latitude on the globe.</figcaption>
+        </figure>
+
+        <div class="launch">
+          <a class="btn primary" href="../?scene=hopf">Open Hopf Garden</a>
+        </div>
+        <p class="launch-note">Works in a desktop browser, on a phone, or in the Quest Browser. Press <kbd>Enter VR</kbd> on the start screen to use a headset.</p>
+
+        <h2>What You're Looking At</h2>
+        <p>
+          The Hopf fibration splits the 3-sphere (S³, all the unit vectors in 4D) into circles.
+          There's exactly one circle for each point on an ordinary 2-sphere, and no two of them touch.
+          The globe in the scene is that 2-sphere, and each fiber is drawn in the color of the point it belongs to.
+        </p>
+        <p>
+          S³ doesn't fit in 3D, so the fibers are stereographically projected. Every circle stays a circle after that,
+          except the one through the projection point, which becomes a straight line. Sizes get distorted a lot though.
+          Fibers close to the projection point come out huge, so they fade out before they reach the floor or your head.
+        </p>
+        <p>
+          With quaternions, a unit quaternion q maps to q i q̄ on the 2-sphere, and the fiber over that point is every q e<sup>iθ</sup>.
+          That's what the scene uses. Rotating the globe by a unit quaternion u maps q to u q, which is a 4D rotation that keeps every fiber over its point.
+        </p>
+
+        <h2>Things to Try</h2>
+        <ul>
+          <li>Add two fibers anywhere. Any two fibers are linked once, like links in a chain.</li>
+          <li>Drag along a circle on the globe. The fibers over a circle fill in a torus.</li>
+          <li>Try the presets: nested tori, the Clifford torus (the fibers over the equator), a Hopf link, and a spiral.</li>
+          <li>Rotate the globe and every fiber follows its point around.</li>
+          <li>Rotate S³ through 4D instead. The circles are the same, but the projection is from a different point, so the whole picture changes shape.</li>
+        </ul>
+
+        <h2>Controls</h2>
+        <p>
+          In VR, touch the globe with a finger or controller to add fibers. Pinch the globe and turn your hand to rotate it,
+          or pinch empty space and drag to rotate S³ in 4D. With controllers it's the trigger or grip instead of a pinch.
+        </p>
+        <p>
+          On a desktop, drag on the globe to add fibers. Right-drag the globe to rotate it, and right-drag empty space to rotate S³ in 4D.
+          <kbd>C</kbd> clears the fibers and <kbd>Space</kbd> starts or stops the auto-rotation. It holds up to 360 fibers.
+        </p>
+        <p>
+          For more on the math, Niles Johnson's <a href="https://nilesjohnson.net/hopf.html">Hopf fibration page and video</a> are a good place to start.
+          They were one of the references I used for this scene.
+        </p>
+      </main>
+
+      <footer class="more">
+        <ul>
+          <li><a href="../about/">About 4D VR</a></li>
+          <li><a href="../120-cell/">The 120-cell</a></li>
+          <li><a href="../klein-bottle/">The Klein bottle room</a></li>
+          <li><a href="../hyperbolic-space/">Hyperbolic space</a></li>
+        </ul>
+      </footer>
+    </div>
+  </body>
+</html>

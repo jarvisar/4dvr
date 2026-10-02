@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101318" />
+    <title>About 4D VR | Scenes, Controls & How It Works</title>
+    <meta name="description" content="4D VR is a free WebXR app for exploring 4D shapes, 4D physics, and hyperbolic and spherical space on a Meta Quest or in a desktop browser. What's in it, the controls, and how it works." />
+    <link rel="canonical" href="https://4dvr.jarvisar.com/about/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="4D VR" />
+    <meta property="og:title" content="About 4D VR" />
+    <meta property="og:description" content="A WebXR app for exploring 4D shapes and non-Euclidean space in VR or a desktop browser." />
+    <meta property="og:url" content="https://4dvr.jarvisar.com/about/" />
+    <meta property="og:image" content="https://4dvr.jarvisar.com/og-image.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="../favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" />
+    <link rel="stylesheet" href="../src/page.css" />
+    <script>
+      if (location.hostname === '4dvr.jarvisar.com') {
+        const beacon = document.createElement('script');
+        beacon.type = 'module';
+        beacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+        beacon.dataset.cfBeacon = '{"token": "a52a84e110ba48c0868dd4ae87e235b7"}';
+        document.head.appendChild(beacon);
+      }
+    </script>
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <a class="home" href="../">4D VR</a>
+        <a class="gh" href="https://github.com/jarvisar/anakata">GitHub</a>
+      </header>
+
+      <main>
+        <h1>About 4D VR</h1>
+        <p class="lede">
+          4D VR is a WebXR app for viewing and interacting with 4D objects and non-Euclidean space.
+          Built with <a href="https://threejs.org/">Three.js</a> for the Meta Quest with hand tracking.
+          Controllers work too, and every scene runs in a desktop browser with a mouse and keyboard or on a phone.
+        </p>
+
+        <figure>
+          <img src="../docs/screenshots/hyperplay.jpg" width="1280" height="720" alt="4D objects on a table shown as 3D cross-sections, with 4D shadows and faint ghosts of objects outside the slice" />
+          <figcaption>Hyperplay. 4D objects on a table, shown as 3D cross-sections.</figcaption>
+        </figure>
+
+        <div class="launch">
+          <a class="btn primary" href="../">Open 4D VR</a>
+        </div>
+        <p class="launch-note">It's free and runs in the browser, so there's nothing to install. On a Quest, open it in the Quest Browser and press <kbd>Enter VR</kbd>.</p>
+
+        <h2>Scenes</h2>
+        <ul>
+          <li>
+            <b>Hyperplay:</b> a 4D physics sandbox on a table. Objects like the tesseract, hyperspheres, and duocylinders are shown as 3D cross-sections,
+            and you can move the slice along the fourth axis (w) or rotate it. There are presets for things like getting a ball out of a sealed box through w,
+            dice made from the regular 4-polytopes, and orbits under 4D gravity, which are never stable.
+          </li>
+          <li><b>Polytope Lab:</b> the regular 4-polytopes as projections you can rotate through 4D, with the current cross-section drawn inside. Also a tesseract net that folds up. More on the <a href="../120-cell/">120-cell page</a>.</li>
+          <li><b>Knot Lab:</b> a rope simulated in 4D. Strands only collide when they're close in all four coordinates, so moving one in w lets it pass through another and untie the knot.</li>
+          <li><b>Hopf Garden:</b> the Hopf fibration of the 3-sphere. Touch the globe to add the circle for that point. More on the <a href="../hopf-fibration/">Hopf fibration page</a>.</li>
+          <li><b>Hyperbolic Space:</b> the {5,3,4} and {4,3,5} honeycombs seen from inside. More on the <a href="../hyperbolic-space/">hyperbolic space page</a>.</li>
+          <li><b>Spherical Space:</b> the 120-cell and other polytopes as tilings of the 3-sphere, seen from inside. Far away straight ahead is the back of your own head.</li>
+          <li><b>Klein Room:</b> a room glued to itself like a Klein bottle. Walk out the front and you come back in the back mirror-reversed. More on the <a href="../klein-bottle/">Klein bottle page</a>.</li>
+          <li><b>Quasicrystals:</b> a Penrose tiling as a 2D slice of the 5D cubic lattice, and a 3D tiling as a slice of the 6D lattice. Moving the slice rearranges the tiles but the pattern never repeats.</li>
+        </ul>
+
+        <h2>Controls</h2>
+        <p>
+          The first time Hyperplay opens in VR, a short tutorial goes through grabbing, moving the slice, rotating through 4D, and opening the menu.
+          The other scenes use the same grabs and gestures for their own things, and each scene's page in the menu says what they do there.
+        </p>
+        <p>
+          <b>Hand tracking:</b> pinch with your thumb and index finger to grab, move, and throw things. Pinch with your middle finger and move your hand to rotate an object through 4D.
+          Pinch empty space and move up or down to move the slice along w. Turn a palm towards your face and tap the <code>Menu</code> button next to it with your other hand.
+        </p>
+        <p>
+          <b>Controllers:</b> trigger or grip to grab. Hold both to rotate through 4D. Push a stick up or down to move the slice, or left and right to rotate it. <kbd>A</kbd> or <kbd>X</kbd> opens the menu.
+        </p>
+        <p>
+          <b>Desktop:</b> left drag to grab and throw. Right drag to rotate through 4D. Use the scroll wheel or <kbd>Q</kbd>/<kbd>E</kbd> to move the slice, <kbd>1</kbd>-<kbd>8</kbd> to switch scenes,
+          <kbd>M</kbd> for the menu, and <kbd>H</kbd> for the controls. In the curved spaces and the Klein Room, use <kbd>WASD</kbd> to move and drag to look.
+        </p>
+        <p>
+          <b>Touch:</b> drag with one finger to grab things and orbit the camera. A two-finger drag does what a right drag does.
+        </p>
+
+        <h2>How It Works</h2>
+        <p>
+          4D objects are stored as tetrahedral meshes of their 3D boundary, the same approach 4D Toys uses.
+          The slicing happens on the GPU. Each tetrahedron becomes a triangle, a quad, or nothing, depending on where it crosses the slice,
+          so moving or rotating an object through 4D is cheap.
+        </p>
+        <p>
+          Shadows are 4D too. An object's shadow is its projection onto the floor along the sun's 4D direction, and the sun can lean into w,
+          so objects outside the slice can still cast shadows into it.
+        </p>
+        <p>
+          The physics is a 4D rigid body engine. Each body has a 4D rotation and its spin is stored as a bivector, since 4D rotations happen in planes (six of them) instead of around an axis.
+        </p>
+        <figure>
+          <img src="../docs/screenshots/spherical.jpg" loading="lazy" width="1280" height="720" alt="Inside the 120-cell tiling of the 3-sphere, with the back of the viewer's own head in the distance" />
+          <figcaption>Spherical Space, inside the 120-cell. The head in the distance is yours.</figcaption>
+        </figure>
+        <p>
+          Hyperbolic and spherical space are based on <a href="https://arxiv.org/abs/1702.04004">Non-Euclidean Virtual Reality</a> by Hart, Hawksley, Matsumoto, and Segerman.
+          Head movement is converted into movement in curved space separately for each eye. In spherical space every line of sight is a great circle,
+          so everything gets drawn twice, once the short way round and once the long way.
+        </p>
+        <p>
+          The source code and the full list of references are on <a href="https://github.com/jarvisar/anakata">GitHub</a>.
+        </p>
+      </main>
+
+      <footer class="more">
+        <ul>
+          <li><a href="../120-cell/">The 120-cell</a></li>
+          <li><a href="../hopf-fibration/">The Hopf fibration</a></li>
+          <li><a href="../klein-bottle/">The Klein bottle room</a></li>
+          <li><a href="../hyperbolic-space/">Hyperbolic space</a></li>
+        </ul>
+      </footer>
+    </div>
+  </body>
+</html>

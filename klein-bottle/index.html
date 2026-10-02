@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101318" />
+    <title>Walk Around Inside a Klein Bottle in VR | 4D VR</title>
+    <meta name="description" content="A room glued to itself like a Klein bottle. Walk out one wall and come back in the opposite one mirror-reversed, with your left hand fitting the right-hand print. Runs in VR or a desktop browser." />
+    <link rel="canonical" href="https://4dvr.jarvisar.com/klein-bottle/" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="4D VR" />
+    <meta property="og:title" content="Walk Around Inside a Klein Bottle in VR" />
+    <meta property="og:description" content="A room glued to itself like a Klein bottle. Walk through a wall and come back mirror-reversed." />
+    <meta property="og:url" content="https://4dvr.jarvisar.com/klein-bottle/" />
+    <meta property="og:image" content="https://4dvr.jarvisar.com/og-image.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="../favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" />
+    <link rel="stylesheet" href="../src/page.css" />
+    <script>
+      if (location.hostname === '4dvr.jarvisar.com') {
+        const beacon = document.createElement('script');
+        beacon.type = 'module';
+        beacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+        beacon.dataset.cfBeacon = '{"token": "a52a84e110ba48c0868dd4ae87e235b7"}';
+        document.head.appendChild(beacon);
+      }
+    </script>
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <a class="home" href="../">4D VR</a>
+        <a class="gh" href="https://github.com/jarvisar/anakata">GitHub</a>
+      </header>
+
+      <main>
+        <h1>The Klein Bottle Room</h1>
+        <p class="lede">
+          The Klein Room is a small room glued to itself so that its floor plan is a Klein bottle.
+          Walk out the left or right wall and you come back in the other side. Walk out the front or back and you come back mirror-reversed.
+        </p>
+
+        <figure>
+          <img src="../docs/screenshots/klein.jpg" width="1280" height="720" alt="Copies of the Klein room and of the viewer, with every other row mirror-reversed" />
+          <figcaption>Looking through the walls at copies of the room and of yourself. Every other row is mirror-reversed.</figcaption>
+        </figure>
+
+        <div class="launch">
+          <a class="btn primary" href="../?scene=klein">Open the Klein Room</a>
+        </div>
+        <p class="launch-note">Works in a desktop browser, on a phone, or in the Quest Browser. Press <kbd>Enter VR</kbd> on the start screen to use a headset.</p>
+
+        <h2>A Klein Bottle From the Inside</h2>
+        <p>
+          The usual picture of a Klein bottle is a bottle whose neck goes back in through its own side.
+          That self-intersection is only there because it's being squeezed into 3D. The surface itself is easier to think about as a square
+          with its edges glued together, one pair straight across and the other pair with a flip.
+        </p>
+        <p>
+          The room is that square with walls and a ceiling added. It's 3.2 m across.
+          The walls outlined in cyan are glued straight across, like the edges of the screen in Asteroids. On their own they'd make a torus.
+          The walls outlined in pink are glued with a flip, so whatever goes out the front comes back in the back mirrored left to right.
+          The floor and ceiling aren't glued, so the full space is a Klein bottle times the floor-to-ceiling height.
+        </p>
+        <p>
+          Space in the room is still flat, so looking through a wall just shows the next copy of the room.
+          It draws 25 copies around you, along with copies of yourself, so you can see what you look like from the other side of each wall.
+        </p>
+
+        <h2>Coming Back Mirrored</h2>
+        <p>
+          After you cross a pink wall, the room around you is the mirror image of the one you left.
+          The sign reads backwards, the big F on the floor is flipped, the clock runs the other way, and the copper helix twists the other way.
+          There's a print of a right hand on a plinth, and now your left hand is the one that fits it. Cross a pink wall again and everything is back to normal.
+        </p>
+        <p>
+          Nothing in the room changed. You're the one that got reflected, which can only happen in a space that isn't orientable.
+          The menu shows how many walls you've crossed and whether you're currently mirrored.
+        </p>
+
+        <h2>Controls</h2>
+        <p>
+          In VR, walk around, or pinch empty space and pull to move. With controllers the left stick moves and the right stick turns.
+          On a desktop, use <kbd>WASD</kbd> or the arrow keys to move and drag to look. <code>Return to start</code> in the menu puts you back
+          where you started, the right way round.
+        </p>
+      </main>
+
+      <footer class="more">
+        <ul>
+          <li><a href="../about/">About 4D VR</a></li>
+          <li><a href="../120-cell/">The 120-cell</a></li>
+          <li><a href="../hopf-fibration/">The Hopf fibration</a></li>
+          <li><a href="../hyperbolic-space/">Hyperbolic space</a></li>
+        </ul>
+      </footer>
+    </div>
+  </body>
+</html>

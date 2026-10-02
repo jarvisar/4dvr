@@ -83,7 +83,9 @@ export class GalleryScene extends SceneBase {
     this._buildPedestal();
     this.handle = this._makeHandle();
     this.interactables = [this.handle];
-    this.setShape('tesseract');
+    // ?shape=hecatonicosachoron etc, for the links on the topic pages
+    const start = new URLSearchParams(location.search).get('shape');
+    this.setShape(POLYS[start] || SMOOTH[start] ? start : 'tesseract');
     this._layout();
 
     this.desktopView = { position: new THREE.Vector3(0, 1.42, 0.12), target: this.center.clone() };

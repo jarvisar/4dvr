@@ -182,6 +182,11 @@ kbd, #hud-help li b {
 .keys kbd { margin-left: 8px; }
 .keys kbd:first-child { margin-left: 0; }
 
+/* links to the topic pages, mostly there so search engines find them */
+.pages { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: clamp(8px, 1.5vh, 12px) 0 0; font-size: 13px; }
+.pages a { color: var(--muted); }
+.pages a:hover { color: var(--ink); }
+
 /* ------------------------------------------------------------------------ */
 /* Desktop HUD                                                                */
 

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101318" />
+    <title>The 120-Cell in 3D: Projection, Cross-Sections & VR | 4D VR</title>
+    <meta name="description" content="Rotate the 120-cell through 4D and watch its 3D projection and cross-sections change, then walk around inside it as a tiling of the 3-sphere. Runs in VR or a desktop browser." />
+    <link rel="canonical" href="https://4dvr.jarvisar.com/120-cell/" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="4D VR" />
+    <meta property="og:title" content="The 120-Cell in 3D and VR" />
+    <meta property="og:description" content="Rotate the 120-cell through 4D, slice it, and walk around inside it." />
+    <meta property="og:url" content="https://4dvr.jarvisar.com/120-cell/" />
+    <meta property="og:image" content="https://4dvr.jarvisar.com/og-image.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="../favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" />
+    <link rel="stylesheet" href="../src/page.css" />
+    <script>
+      if (location.hostname === '4dvr.jarvisar.com') {
+        const beacon = document.createElement('script');
+        beacon.type = 'module';
+        beacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+        beacon.dataset.cfBeacon = '{"token": "a52a84e110ba48c0868dd4ae87e235b7"}';
+        document.head.appendChild(beacon);
+      }
+    </script>
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <a class="home" href="../">4D VR</a>
+        <a class="gh" href="https://github.com/jarvisar/anakata">GitHub</a>
+      </header>
+
+      <main>
+        <h1>The 120-Cell</h1>
+        <p class="lede">
+          The 120-cell is the biggest of the six regular 4D polytopes. It's made of 120 dodecahedra, three around each edge.
+          4D VR has two ways to look at it: as a projection you can turn through 4D, and from the inside as a tiling of curved space.
+        </p>
+
+        <figure>
+          <img src="../docs/screenshots/polytopes.jpg" width="1280" height="720" alt="The 120-cell in perspective projection, on a pedestal in Polytope Lab" />
+          <figcaption>The 120-cell in Polytope Lab, in perspective projection.</figcaption>
+        </figure>
+
+        <div class="launch">
+          <a class="btn primary" href="../?scene=gallery&amp;shape=hecatonicosachoron">Open in Polytope Lab</a>
+          <a class="btn" href="../?scene=spherical">Walk around inside it</a>
+        </div>
+        <p class="launch-note">Works in a desktop browser, on a phone, or in the Quest Browser. Press <kbd>Enter VR</kbd> on the start screen to use a headset.</p>
+
+        <h2>What It Is</h2>
+        <p>
+          The 120-cell has 600 vertices, 1200 edges, 720 pentagonal faces, and 120 dodecahedral cells.
+          Its Schläfli symbol is {5,3,3}, its dual is the 600-cell, and its long name is hecatonicosachoron.
+        </p>
+        <p>
+          The 3D version of the idea is the dodecahedron, where 12 pentagons close up with three around each vertex.
+          The 120-cell does the same thing one dimension up. Three dodecahedra don't quite fit around an edge in flat 3D space.
+          Their dihedral angle is about 116.6°, so three of them leave a gap of about 10°. In 4D the cells can bend out of 3D to close the gap,
+          the same way a flat net of pentagons folds up into a dodecahedron.
+        </p>
+
+        <h2>Projection & Slicing</h2>
+        <p>
+          In Polytope Lab the 120-cell sits on a pedestal as a perspective projection, which is the 4D version of a shadow.
+          Cells near the 4D viewpoint look big and the ones on the far side get squashed into the middle.
+          You can rotate it in any of the six 4D rotation planes. When a rotation involves w, cells turn inside out as they pass through the middle of the projection.
+          That's the part that's hard to get from still pictures.
+        </p>
+        <p>
+          The cross-section with a 3D hyperplane is drawn inside the projection at the same scale.
+          Move the hyperplane along w and you can see which cells it cuts through. There's also a stereographic projection and a view that only shows the slice.
+        </p>
+        <p>The other regular 4-polytopes (5-cell, tesseract, 16-cell, 24-cell, and 600-cell) are in the same scene.</p>
+
+        <h2>Inside the 120-Cell</h2>
+        <p>
+          If you puff the 120-cell out onto a 3-sphere (the 3D surface of a 4D ball), its 120 dodecahedra fill it with no gaps.
+          The cells are curved a little there, and the dihedral angle becomes exactly 120°.
+        </p>
+        <p>
+          Spherical Space puts you inside one of those cells. Every room is a dodecahedron and three meet at every edge.
+          Walk straight through 10 of them and you're back where you started, which is about 10 m at the default size.
+          Light goes all the way around too, so far away straight ahead is the back of your own head.
+        </p>
+        <figure>
+          <img src="../docs/screenshots/spherical.jpg" loading="lazy" width="1280" height="720" alt="Inside the 120-cell tiling of the 3-sphere, with the back of the viewer's own head in the distance" />
+          <figcaption>Inside the 120-cell. The head in the middle is yours, seen the long way round.</figcaption>
+        </figure>
+        <p>
+          In VR, walk around or pinch empty space and pull to move. On a desktop, use <kbd>WASD</kbd> to move, drag to look, and <kbd>Q</kbd>/<kbd>E</kbd> to go down and up.
+          The menu also has the 24-cell, tesseract, and 5-cell as tilings, and a slider for the radius of the 3-sphere.
+        </p>
+      </main>
+
+      <footer class="more">
+        <ul>
+          <li><a href="../about/">About 4D VR</a></li>
+          <li><a href="../hopf-fibration/">The Hopf fibration</a></li>
+          <li><a href="../klein-bottle/">The Klein bottle room</a></li>
+          <li><a href="../hyperbolic-space/">Hyperbolic space</a></li>
+        </ul>
+      </footer>
+    </div>
+  </body>
+</html>

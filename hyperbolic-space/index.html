@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101318" />
+    <title>Walk Around in Hyperbolic Space in VR | 4D VR</title>
+    <meta name="description" content="Walk around inside 3D hyperbolic space in VR or a desktop browser. The {5,3,4} honeycomb of right-angled dodecahedra and the {4,3,5} honeycomb of cubes, seen from inside, with head tracking in hyperbolic space." />
+    <link rel="canonical" href="https://4dvr.jarvisar.com/hyperbolic-space/" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="4D VR" />
+    <meta property="og:title" content="Walk Around in Hyperbolic Space in VR" />
+    <meta property="og:description" content="The {5,3,4} and {4,3,5} honeycombs seen from inside, with head tracking in hyperbolic space." />
+    <meta property="og:url" content="https://4dvr.jarvisar.com/hyperbolic-space/" />
+    <meta property="og:image" content="https://4dvr.jarvisar.com/og-image.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="../favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" />
+    <link rel="stylesheet" href="../src/page.css" />
+    <script>
+      if (location.hostname === '4dvr.jarvisar.com') {
+        const beacon = document.createElement('script');
+        beacon.type = 'module';
+        beacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+        beacon.dataset.cfBeacon = '{"token": "a52a84e110ba48c0868dd4ae87e235b7"}';
+        document.head.appendChild(beacon);
+      }
+    </script>
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <a class="home" href="../">4D VR</a>
+        <a class="gh" href="https://github.com/jarvisar/anakata">GitHub</a>
+      </header>
+
+      <main>
+        <h1>Hyperbolic Space</h1>
+        <p class="lede">
+          This scene puts you inside a tiling of 3D hyperbolic space, the space that curves the opposite way to a sphere.
+          Head tracking happens in hyperbolic space too, so walking around your room actually moves you through it.
+        </p>
+
+        <figure>
+          <img src="../docs/screenshots/hyperbolic.jpg" width="1280" height="720" alt="The {5,3,4} honeycomb of right-angled dodecahedra seen from inside" />
+          <figcaption>The {5,3,4} honeycomb from inside. Every cell is the same size.</figcaption>
+        </figure>
+
+        <div class="launch">
+          <a class="btn primary" href="../?scene=hyperbolic">Open Hyperbolic Space</a>
+        </div>
+        <p class="launch-note">Works in a desktop browser, on a phone, or in the Quest Browser. Press <kbd>Enter VR</kbd> on the start screen to use a headset.</p>
+
+        <h2>The Honeycombs</h2>
+        <p>There are two to pick from in the menu.</p>
+        <ul>
+          <li>
+            <b>{5,3,4}:</b> dodecahedra with 90° angles between their faces, four around each edge and eight around each vertex.
+            A regular dodecahedron in flat space has angles of about 116.6°, so these can only exist in hyperbolic space.
+          </li>
+          <li><b>{4,3,5}:</b> cubes with 72° angles between their faces, five around each edge. In flat space only four fit.</li>
+        </ul>
+        <p>
+          All the cells are the same size. Far away ones look small, but they shrink a lot faster with distance than anything would in flat space.
+          That's why you can see so many of them at once.
+        </p>
+
+        <h2>Walking in a Loop</h2>
+        <p>
+          In hyperbolic space the angles of a triangle add up to less than 180°. One side effect is that if you walk in a loop and end up back where you started,
+          you're turned a little compared to when you left (holonomy). Walk a big square around your room and the tiling ends up rotated.
+          Bigger loops give bigger turns.
+        </p>
+        <p>
+          The <code>Curvature scale</code> slider in the menu sets how many meters one unit of hyperbolic space is, from 0.5 to 3.5.
+          Smaller values pack more curvature into your room and make the effect easier to see.
+          The menu also shows how far you are from the start, and <code>Return to start</code> brings you back.
+        </p>
+
+        <h2>How It's Drawn</h2>
+        <p>
+          This is based on <a href="https://arxiv.org/abs/1702.04004">Non-Euclidean Virtual Reality</a> by Hart, Hawksley, Matsumoto, and Segerman.
+          Points are stored in the hyperboloid model. Each frame, your head movement is turned into a hyperbolic translation and rotation,
+          and the world is drawn in the Beltrami-Klein model, which keeps straight lines straight. Each eye gets its own offset in hyperbolic space.
+        </p>
+        <p>
+          When you walk out of the center cell, a symmetry of the honeycomb moves you back into it.
+          The picture doesn't change, but the numbers stay small, so you can keep walking as far as you want without losing precision.
+        </p>
+        <p>
+          The opposite case, positively curved space, is in the Spherical Space scene. See the <a href="../120-cell/">120-cell page</a> for that one.
+        </p>
+
+        <h2>Controls</h2>
+        <p>
+          In VR, walk around, or pinch empty space and pull to move. With controllers the left stick moves and the right stick turns.
+          On a desktop, use <kbd>WASD</kbd> or the arrow keys to move, drag to look, and <kbd>Q</kbd>/<kbd>E</kbd> to go down and up.
+        </p>
+      </main>
+
+      <footer class="more">
+        <ul>
+          <li><a href="../about/">About 4D VR</a></li>
+          <li><a href="../120-cell/">The 120-cell</a></li>
+          <li><a href="../hopf-fibration/">The Hopf fibration</a></li>
+          <li><a href="../klein-bottle/">The Klein bottle room</a></li>
+        </ul>
+      </footer>
+    </div>
+  </body>
+</html>

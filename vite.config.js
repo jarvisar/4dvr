@@ -2,6 +2,8 @@ import http from 'node:http';
 import { defineConfig } from 'vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 
+const PAGES = ['', 'about', '120-cell', 'hopf-fibration', 'klein-bottle', 'hyperbolic-space'];
+
 // WebXR needs a secure context: https, or http on localhost. `npm run dev` serves
 // both on one port, so http://localhost:5173 works on this PC, and a Quest on the
 // same network can open https://<your-pc-ip>:5173 (accept the certificate warning
@@ -16,6 +18,8 @@ export default defineConfig({
     target: 'es2022',
     chunkSizeWarningLimit: 1500,
     rolldownOptions: {
+      // the topic pages are plain HTML, each in its own folder so the URLs are /120-cell/ and so on
+      input: Object.fromEntries(PAGES.map((p) => [p || 'main', `${p ? `${p}/` : ''}index.html`])),
       // the IWER DevUI chunk (?iwer only) bundles React components marked "use client"
       onwarn(warning, warn) {
         if (warning.code !== 'MODULE_LEVEL_DIRECTIVE') warn(warning);
