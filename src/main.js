@@ -25,7 +25,7 @@ async function loadExtraScenes() {
     { key: 'hyperbolic', short: 'Hyperbolic', title: 'Hyperbolic Space', create: (app) => new HyperbolicScene(app) },
     { key: 'spherical', short: 'Spherical', title: 'Spherical Space', create: (app) => new SphericalScene(app) },
     { key: 'klein', short: 'Klein', title: 'Klein Room', create: (app) => new KleinScene(app) },
-    { key: 'quasicrystal', short: 'Penrose', title: 'Quasicrystals', create: (app) => new QuasicrystalScene(app) },
+    { key: 'quasicrystal', short: 'Quasicrystals', title: 'Quasicrystals', create: (app) => new QuasicrystalScene(app) },
   );
 }
 
@@ -50,6 +50,7 @@ const index = $('scene-index');
 
 // touch screens get touch instructions in the controls card
 const touch = matchMedia('(hover: none) and (pointer: coarse)').matches;
+if (touch) deskBtn.textContent = 'Explore with touch';
 // On narrow or short screens (phones) the controls card and the menu would
 // overlap or leave no room for the scene, so only one is open at a time
 const cramped = () => window.innerWidth < 800 || window.innerHeight < 540;
@@ -62,17 +63,21 @@ if (params.has('iwer')) {
     .catch((e) => console.error('Could not load the WebXR emulator', e));
 }
 
-let app;
-try {
-  app = new App($('app'), SCENES);
-} catch (e) {
-  note.textContent = `Could not start WebGL 2 (${e.message}). Try an up-to-date browser.`;
-  throw e;
-}
+const app = new App($('app'), SCENES);
 window.__app = app; // for debugging from the console and for tools/ci-smoke.mjs
 app.menu.mountHud(hud);
 const menuPanel = app.menu.hud.el;
 menuPanel.id = 'hud-menu-panel';
+
+let sceneLoadError = '';
+function hudMessage(text = '') {
+  const message = [sceneLoadError, text].filter(Boolean).join(' ');
+  $('scene-load-status').textContent = message;
+  $('retry-scenes').hidden = !sceneLoadError;
+  $('hud-notice').hidden = false;
+  measureHud();
+  app.announce(message);
+}
 
 // --- scenes ---------------------------------------------------------------------
 let pendingScene = null;
@@ -145,7 +150,11 @@ function measureHud() {
     const r = el.getBoundingClientRect();
     if (r.height && r.top > H / 2) bottom = Math.min(bottom, r.top - 10);
   }
-  hud.style.setProperty('--hud-top', `${Math.round(hudTop.getBoundingClientRect().bottom + 10)}px`);
+  const tabsBottom = Math.round(hudTop.getBoundingClientRect().bottom + 10);
+  hud.style.setProperty('--hud-tabs-bottom', `${tabsBottom}px`);
+  const notice = $('hud-notice');
+  const top = notice.hidden ? tabsBottom : Math.round(notice.getBoundingClientRect().bottom + 10);
+  hud.style.setProperty('--hud-top', `${top}px`);
   hud.style.setProperty('--hud-bottom', `${Math.round(H - bottom)}px`);
 }
 window.addEventListener('resize', () => {
@@ -177,6 +186,10 @@ app.onSceneChanged = () => {
 app.onSessionChange = (on) => {
   hud.hidden = on;
   app.hudActive = !on;
+  if (on) {
+    if (sceneLoadError) hudMessage();
+    else $('hud-notice').hidden = true;
+  }
   overlay.classList.add('hidden'); // also when a session starts without the Enter VR button
   if (!on) renderTabs();
 };
@@ -198,7 +211,20 @@ loadExtraScenes().then(() => {
   // pointer rays, the comfort vignette, the scene fade) now, so they don't
   // stall the headset the first time they appear.
   if (!app.presenting) app.renderer.compileAsync(app.scene, app.camera).catch(() => {});
-}).catch((e) => console.error('Failed to load scenes', e));
+}).catch((e) => {
+  console.error('Failed to load scenes', e);
+  const requested = pendingScene || initial;
+  const message = 'The other scenes could not load. Check your connection and reload to try again.';
+  sceneLoadError = message;
+  hudMessage();
+  note.textContent = message;
+  for (const button of index.querySelectorAll('button')) button.disabled = button.dataset.scene !== 'playground';
+  $('retry-scenes').onclick = () => {
+    const url = new URL(location.href);
+    url.searchParams.set('scene', requested);
+    location.assign(url);
+  };
+});
 
 // --- HUD toggles ------------------------------------------------------------------
 function setHelp(open, save = true) {
@@ -218,6 +244,7 @@ function syncMenuButton(on) {
 app.onDesktopMenuChanged = (on) => {
   syncMenuButton(on);
   if (on && cramped() && !helpBox.classList.contains('closed')) setHelp(false);
+  if (!on && menuPanel.contains(document.activeElement)) menuBtn.focus({ preventScroll: true });
 };
 menuBtn.onclick = () => app.setDesktopMenu(!app.desktopMenu);
 // Escape closes the menu when the keyboard is in it
@@ -285,14 +312,25 @@ checkXR();
 // a headset plugged in after the page loaded, like Quest Link on a PC
 navigator.xr?.addEventListener?.('devicechange', checkXR);
 
+let enteringVR = false;
 const enterVR = async () => {
+  if (enteringVR || app.presenting) return;
+  const fromDesktop = app.hudActive;
+  enteringVR = true;
+  vrBtn.disabled = true;
+  hudVr.disabled = true;
   try {
-    overlay.classList.add('hidden');
     await app.enterVR();
   } catch (e) {
     console.error(e);
-    setStatus(`Could not start VR: ${e.message}`, 'off');
-    overlay.classList.remove('hidden');
+    const message = `Could not start VR: ${e.message}. You can keep using desktop mode or try again.`;
+    setStatus(message, 'off');
+    if (fromDesktop) hudMessage(message);
+    else overlay.classList.remove('hidden');
+  } finally {
+    enteringVR = false;
+    vrBtn.disabled = !xrOk;
+    hudVr.disabled = !xrOk;
   }
 };
 vrBtn.onclick = enterVR;
@@ -307,6 +345,15 @@ function enterDesktop(fromClick = true) {
   renderTabs();
 }
 deskBtn.onclick = enterDesktop;
+$('hud-home').onclick = () => {
+  app.input.clearDesktop();
+  app.activeScene?.walk?.clear();
+  app.interaction.releaseAll();
+  app.hudActive = false;
+  hud.hidden = true;
+  overlay.classList.remove('hidden');
+  deskBtn.focus();
+};
 
 // Scene index. With a headset this picks the scene to enter VR in. Without one, or on a phone, it goes straight in.
 index.addEventListener('click', (e) => {

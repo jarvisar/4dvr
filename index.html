@@ -86,6 +86,7 @@
           <button id="enter-desktop" class="btn primary">Desktop mode</button>
           <button id="enter-vr" class="btn" disabled>Enter VR</button>
         </div>
+        <noscript><p class="status">Enable JavaScript to use the interactive scenes. The About and topic pages are still available below.</p></noscript>
         <p class="status pending" id="xr-status" role="status"><i></i><span id="xr-note">Checking for a headset</span></p>
         <p class="keys"><kbd>1</kbd>–<kbd>8</kbd> scenes <kbd>M</kbd> menu <kbd>H</kbd> help</p>
         <nav class="pages" aria-label="About">
@@ -102,10 +103,15 @@
       <div class="hud-top">
         <nav id="scene-tabs" aria-label="Scenes"></nav>
         <div class="hud-tools">
+          <button id="hud-home" class="btn small" title="Return to the start screen">Home</button>
           <button id="hud-menu" class="btn small" title="Menu (M)" aria-expanded="false" aria-controls="hud-menu-panel">Menu <kbd>M</kbd></button>
           <button id="hud-help-toggle" class="btn small" title="Controls (H)" aria-expanded="false" aria-controls="hud-help">Help <kbd>H</kbd></button>
         </div>
       </div>
+      <section id="hud-notice" hidden>
+        <p id="scene-load-status" role="status"></p>
+        <button id="retry-scenes" class="btn small" hidden>Reload</button>
+      </section>
       <section id="hud-help" aria-label="Controls">
         <h2>Controls</h2>
         <ul id="hud-help-list"></ul>
@@ -114,6 +120,6 @@
       <button id="hud-vr" class="btn primary small" hidden>Enter VR</button>
     </div>
 
-    <script type="module" src="./src/main.js"></script>
+    <script type="module" src="./src/bootstrap.js"></script>
   </body>
 </html>

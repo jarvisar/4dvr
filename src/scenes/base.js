@@ -43,22 +43,23 @@ export class WalkControls {
     this._listeners = [
       [window, 'keydown', (e) => {
         // a slider in the menu uses the arrow keys itself
-        if (e.ctrlKey || e.metaKey || e.altKey || e.target?.tagName === 'INPUT') return;
+        if (app.presenting || !app.hudActive || e.ctrlKey || e.metaKey || e.altKey || e.target?.tagName === 'INPUT' || e.target?.tagName === 'TEXTAREA') return;
         this.keys.add(e.code);
       }],
       [window, 'keyup', (e) => this.keys.delete(e.code)],
-      [window, 'blur', () => this.keys.clear()], // keyup never arrives after alt-tab
+      [window, 'blur', () => this.clear()], // keyup never arrives after alt-tab
       [canvas, 'pointerdown', (e) => {
         // a second finger pulls you along instead (see InputSystem)
         if (this._drag) { if (e.pointerType === 'touch') this._drag = null; return; }
         // App's pointer gate has already checked whether this press hit something
-        if (app.presenting || e.button !== 0 || !app.pointerOnEmpty) return;
+        if (app.presenting || !app.hudActive || e.button !== 0 || !app.pointerOnEmpty) return;
         this._drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
       }],
       // Deltas come from clientX/Y. movementX is missing for touch in some
       // browsers and in device pixels in others.
       [window, 'pointermove', (e) => {
         const d = this._drag;
+        if (app.presenting || !app.hudActive) { this._drag = null; return; }
         if (!d || e.pointerId !== d.id) return;
         this.yaw -= (e.clientX - d.x) * LOOK;
         this.pitch = THREE.MathUtils.clamp(this.pitch - (e.clientY - d.y) * LOOK, -1.4, 1.4);
@@ -67,6 +68,7 @@ export class WalkControls {
       }],
       [window, 'pointerup', end],
       [window, 'pointercancel', end],
+      [canvas, 'lostpointercapture', end],
     ];
   }
 
@@ -76,6 +78,10 @@ export class WalkControls {
 
   detach() {
     for (const [el, type, fn] of this._listeners) el.removeEventListener(type, fn);
+    this.clear();
+  }
+
+  clear() {
     this.keys.clear();
     this._drag = null;
   }

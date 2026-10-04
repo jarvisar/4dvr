@@ -148,7 +148,7 @@ export class InteractionManager {
       return;
     }
     if (ix.uiCapture) {
-      if (!held) ui.endCapture(ix);
+      if (!held || !ix.uiCapture.panel.visible) ui.endCapture(ix);
       else ui.updateCapture(ix);
       ix.rayVisible = true;
       return;
@@ -239,6 +239,7 @@ export class InteractionManager {
       this._grab(ix, rayTarget, pressed, 'ray');
     } else if (!(ix.isMouse && pressed === 'primary') // on desktop, left-drag on empty space orbits the camera
       && !ix.palmGrab // a fist in empty space is usually just a relaxed hand
+      && !this.app.input.all.some((other) => other !== ix && other.emptyGrab)
       && scene.onEmptyGrabStart && scene.onEmptyGrabStart(ix, pressed) !== false) {
       ix.emptyGrab = { mode: pressed };
     }

@@ -49,7 +49,7 @@ export class App {
     this.env = new Environment(this.scene);
     // ?quality=low|medium|high overrides the saved preset without replacing it
     const q = this.params.get('quality');
-    this.quality = QUALITY[q] ? q : initialQuality();
+    this.quality = Object.hasOwn(QUALITY, q) ? q : initialQuality();
     this._applyQuality();
     this.audio = new AudioEngine();
     this.input = new InputSystem(this); // registers pointer listeners before OrbitControls on purpose
@@ -117,10 +117,12 @@ export class App {
     return this.renderer.xr.isPresenting;
   }
 
-  // 'hands', 'controllers' or 'desktop', for picking which instructions to show
+  // Picks instructions for the inputs currently available.
   get inputMode() {
     if (!this.presenting) return 'desktop';
-    return this.input.xr.some((ix) => ix.kind === 'controller') ? 'controllers' : 'hands';
+    if (this.input.xr.some((ix) => ix.active && ix.kind === 'controller')) return 'controllers';
+    if (this.input.xr.some((ix) => ix.active && ix.kind === 'hand')) return 'hands';
+    return this.input.xr.some((ix) => ix.active && ix.kind === 'pointer') ? 'pointers' : 'hands';
   }
 
   _installPointerGate() {
@@ -259,7 +261,7 @@ export class App {
     } else if (Math.abs(x) < 0.3) this._snapArmed = true;
     // The right stick only turns, or a flick that isn't perfectly sideways
     // would also slide you forward or back
-    if (ix === right) ix.stick.set(0, 0);
+    if (ix === right && n > 1) ix.stick.set(0, 0);
     else ix.stick.x = 0;
   }
 
@@ -298,6 +300,25 @@ export class App {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
+  _limitOrbit() {
+    const radius = this.camera.position.distanceTo(this.orbit.target);
+    const floor = Math.max(0, this.activeScene?.tableY || 0) + 0.05;
+    if (radius > 0) this.orbit.maxPolarAngle = Math.acos(THREE.MathUtils.clamp((floor - this.orbit.target.y) / radius, -1, 1));
+  }
+
+  resetDesktopView() {
+    const view = this.activeScene?.desktopView;
+    if (this.presenting || !view) return;
+    const damping = this.orbit.enableDamping;
+    this.orbit.enableDamping = false;
+    this.orbit.update(); // clear the tail of the previous drag before resetting
+    this.camera.position.copy(view.position);
+    this.orbit.target.copy(view.target);
+    this._limitOrbit();
+    this.orbit.update();
+    this.orbit.enableDamping = damping;
+  }
+
   _key(e) {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
     // Space and Enter on a focused button press the button, not also the scene
@@ -324,8 +345,15 @@ export class App {
 
   // Switch scenes with a short fade (instant on first load)
   setScene(key, instant = false) {
-    if (key === this.sceneKey && this.activeScene) return;
+    if (!this.sceneList.some((s) => s.key === key)) return;
+    if (key === this.sceneKey && this.activeScene) {
+      this._pendingScene = null;
+      this.fadeTarget = 0;
+      return;
+    }
     if (instant || !this.activeScene) {
+      this._pendingScene = null;
+      this.fadeTarget = 0;
       this._switchTo(key);
       return;
     }
@@ -361,9 +389,7 @@ export class App {
     }
     this.menu.rebuild();
     if (!this.presenting && scene.desktopView) {
-      this.camera.position.copy(scene.desktopView.position);
-      this.orbit.target.copy(scene.desktopView.target);
-      this.orbit.update();
+      this.resetDesktopView();
     }
     this.orbit.enabled = !scene.noOrbit;
     this.onSceneChanged?.(key);
@@ -372,6 +398,8 @@ export class App {
   _onSessionStart() {
     this.audio.unlock();
     this._initFrameRate();
+    this.input.clearDesktop();
+    this.activeScene?.walk?.clear();
     this.rig.position.set(0, 0, 0);
     this.rig.quaternion.identity();
     this.camera.position.set(0, 0, 0);
@@ -422,6 +450,8 @@ export class App {
   _onSessionEnd() {
     // drop anything the hands or controllers were holding since they stop updating now
     this.interaction.releaseAll();
+    this.input.clearDesktop();
+    this.activeScene?.walk?.clear();
     this._rates = null;
     this.rig.position.set(0, 0, 0); // undo snap turns and recentering for the desktop camera
     this.rig.quaternion.identity();
@@ -429,7 +459,7 @@ export class App {
     this._vignette.visible = false;
     this._xrScaleUsed = null;
     this._applyQuality(); // three.js restored the pixel ratio from before the session
-    this.orbit.enabled = true;
+    this.orbit.enabled = !this.activeScene?.noOrbit;
     this.guide.sessionEnded();
     this.menu.shown = false;
     this.menu.palm.shown = false;
@@ -477,7 +507,7 @@ export class App {
 
   // Switch graphics preset (see quality.js) and save it for next time
   setQuality(key) {
-    if (!QUALITY[key] || key === this.quality) return;
+    if (!Object.hasOwn(QUALITY, key) || key === this.quality) return;
     this.quality = key;
     saveQuality(key);
     this._applyQuality();
@@ -500,7 +530,8 @@ export class App {
 
   _frame(t, xrFrame) {
     const cpu0 = this.statsEnabled ? performance.now() : 0;
-    const dt = this._lastT === null ? 1 / 72 : Math.min(0.05, Math.max(0, (t - this._lastT) / 1000));
+    const elapsed = this._lastT === null ? 1 / 72 : Math.max(0, (t - this._lastT) / 1000);
+    const dt = Math.min(0.05, elapsed);
     this._lastT = t;
     this.time += dt;
     this.frameCount++;
@@ -509,7 +540,7 @@ export class App {
       this.rig.updateMatrixWorld(true);
       this.renderer.xr.updateCamera(this.camera);
     } else {
-      if (!this.activeScene?.noOrbit) this.orbit.update();
+      if (!this.activeScene?.noOrbit) { this._limitOrbit(); this.orbit.update(); }
       this.camera.updateMatrixWorld();
     }
     this.camera.getWorldPosition(this.headPosition);
@@ -549,7 +580,7 @@ export class App {
 
     this.renderer.render(this.scene, this.camera);
 
-    this._fpsT += dt; this._fpsN++;
+    this._fpsT += elapsed; this._fpsN++;
     if (this.statsEnabled) this._cpuAcc += performance.now() - cpu0;
     if (this._fpsT > 1) {
       this.fps = this._fpsN / this._fpsT;

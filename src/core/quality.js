@@ -21,7 +21,7 @@ const KEY = '4dvr.quality';
 export function initialQuality() {
   try {
     const saved = localStorage.getItem(KEY);
-    if (QUALITY[saved]) return saved;
+    if (Object.hasOwn(QUALITY, saved)) return saved;
   } catch { /* storage unavailable (private mode) */ }
   return /Quest( [12])?[;)]/.test(navigator.userAgent) ? 'medium' : 'high';
 }

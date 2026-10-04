@@ -357,6 +357,8 @@ export class HyperbolicScene extends SceneBase {
     this.headPos = new THREE.Vector3();
     this.headQuatInv = new THREE.Quaternion();
     this.home = H.ORIGIN.slice(); // true origin in current coordinates
+    this.homeLogScale = 0;
+    this.homeSteps = [];
     this.parity = 0;
     this.prevPos = new THREE.Vector3();
     this.prevQuat = new THREE.Quaternion();
@@ -428,6 +430,8 @@ export class HyperbolicScene extends SceneBase {
   goHome() {
     R4.identity(this.Hm);
     this.home = H.ORIGIN.slice();
+    this.homeLogScale = 0;
+    this.homeSteps.length = 0;
     this.parity = 0;
     this.hasPrev = false;
   }
@@ -473,9 +477,31 @@ export class HyperbolicScene extends SceneBase {
       if (worst < 0) return;
       const g = this.hc.recenter[worst];
       R4.multiply(this.Hm, g, this.Hm);
-      this.home = R4.apply([0, 0, 0, 0], g, this.home);
+      const last = this.homeSteps.at(-1);
+      if (last?.face === worst) {
+        // Each face transform is its own inverse. Restore the earlier origin
+        // when retracing a wall, rather than subtracting huge coordinates.
+        this.homeSteps.pop();
+        this.home = last.home;
+        this.homeLogScale = last.logScale;
+      } else {
+        this.homeSteps.push({ face: worst, home: this.home, logScale: this.homeLogScale });
+        this.home = R4.apply([0, 0, 0, 0], g, this.home);
+        // The origin's coordinates grow exponentially as you travel. Keep them
+        // scaled, with the missing magnitude stored as a logarithm.
+        const scale = Math.max(...this.home.map(Math.abs));
+        if (scale > 1e100) {
+          for (let i = 0; i < 4; i++) this.home[i] /= scale;
+          this.homeLogScale += Math.log(scale);
+        }
+      }
       this.parity = 1 - this.parity;
     }
+  }
+
+  _distanceHome(p) {
+    const logCosh = Math.log(Math.max(Number.MIN_VALUE, -H.mdot(p, this.home))) + this.homeLogScale;
+    return logCosh > 20 ? logCosh + Math.LN2 : Math.acosh(Math.max(1, Math.exp(logCosh)));
   }
 
   onEmptyGrabStart(ix) {
@@ -556,11 +582,13 @@ export class HyperbolicScene extends SceneBase {
     this.mesh.visible = true;
 
     // move the start marker's base sphere to the original origin
-    const hd = Math.acosh(Math.max(1, this.home[3]));
-    const k = hd > 1e-9 ? hd / Math.sinh(hd) : 0;
-    _v3[0] = this.home[0] * k; _v3[1] = this.home[1] * k; _v3[2] = this.home[2] * k;
-    H.boost(this.beaconModel, _v3);
-    this.homeDistance = H.hdist(headPoint(_p4, this.Hm), this.home);
+    const hd = this._distanceHome(H.ORIGIN);
+    if (hd < 7) {
+      const k = hd > 1e-9 ? Math.exp(this.homeLogScale) * hd / Math.sinh(hd) : 0;
+      _v3[0] = this.home[0] * k; _v3[1] = this.home[1] * k; _v3[2] = this.home[2] * k;
+      H.boost(this.beaconModel, _v3);
+    }
+    this.homeDistance = this._distanceHome(headPoint(_p4, this.Hm));
     // hidden until you're well clear of it. You start inside it, and each eye
     // would leave it at a different moment (same as spherical.js).
     this.beacon.visible = this.showBeacon && hd < 7 && this.homeDistance > 0.5;

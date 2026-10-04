@@ -459,7 +459,11 @@ export class InputSystem {
     };
     el.addEventListener('pointermove', (e) => {
       this._shift = e.shiftKey;
-      if (e.pointerType !== 'touch') { track(e.clientX, e.clientY); return; }
+      if (e.pointerType !== 'touch') {
+        this._buttons &= e.buttons;
+        track(e.clientX, e.clientY);
+        return;
+      }
       const t = this._touches.get(e.pointerId);
       if (!t) return;
       t.x = e.clientX; t.y = e.clientY;
@@ -481,14 +485,35 @@ export class InputSystem {
       }
     });
     const up = (e) => {
-      if (e.pointerType !== 'touch') { this._buttons = e.buttons; return; }
-      this._touches.delete(e.pointerId);
-      if (!this._touches.size) this.twoFinger = false;
+      if (e.pointerType !== 'touch') this._buttons = e.type === 'pointerup' ? e.buttons : 0;
+      else {
+        this._touches.delete(e.pointerId);
+        if (!this._touches.size) this.twoFinger = false;
+      }
+      if (!this._touches.size && !this._buttons && this.app.orbit) this.app.orbit.enabled = !this.app.presenting && !this.app.activeScene?.noOrbit;
     };
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
+    el.addEventListener('lostpointercapture', up);
+    const clear = () => this.clearDesktop();
+    window.addEventListener('blur', clear);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) clear(); });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     m.active = true;
+  }
+
+  clearDesktop() {
+    this._buttons = 0;
+    this._shift = false;
+    this._touches.clear();
+    this.twoFinger = false;
+    const m = this.mouse;
+    m.touch = false;
+    m.pinch.reset(); m.grip.reset();
+    m.velocity.set(0, 0, 0);
+    m.angularVelocity.set(0, 0, 0);
+    this.app.interaction?.release(m);
+    if (this.app.orbit) this.app.orbit.enabled = !this.app.presenting && !this.app.activeScene?.noOrbit;
   }
 
   _updateMouse(time) {

@@ -46,7 +46,7 @@ async function waitForServer(url, timeoutMs = 30000) {
 }
 
 // Console messages that are expected in a headless browser without a GPU.
-const IGNORED = [/favicon/i, /GPU stall due to ReadPixels/i, /Automatic fallback to software WebGL/i, /WebXR/i];
+const IGNORED = [/favicon/i, /GPU stall due to ReadPixels/i, /Automatic fallback to software WebGL/i];
 
 const failures = [];
 const fail = (msg) => { failures.push(msg); console.error(`  ✗ ${msg}`); };
@@ -61,6 +61,16 @@ const server = spawn(process.execPath, [vite, 'preview', '--port', String(PORT),
 server.stderr.on('data', (d) => process.stderr.write(d));
 
 let browser;
+async function newPage() {
+  const page = await browser.newPage();
+  await page.setRequestInterception(true);
+  page.on('request', (request) => {
+    // Optional web fonts should not make the app's smoke tests depend on Google.
+    if (new URL(request.url()).hostname === 'fonts.googleapis.com') request.respond({ status: 200, contentType: 'text/css', body: '' });
+    else request.continue();
+  });
+  return page;
+}
 try {
   await waitForServer(BASE);
   browser = await puppeteer.launch({
@@ -71,7 +81,7 @@ try {
 
   for (const scene of SCENES) {
     console.log(`scene: ${scene}`);
-    const page = await browser.newPage();
+    const page = await newPage();
     await page.setViewport({ width: 1280, height: 800 });
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
@@ -92,7 +102,7 @@ try {
   }
 
   console.log('interactions');
-  const page = await browser.newPage();
+  const page = await newPage();
   await page.setViewport({ width: 1280, height: 800 });
   page.on('pageerror', (e) => fail(`interaction pageerror: ${e.message}`));
   await page.goto(`${BASE}?desktop`, { waitUntil: 'networkidle0', timeout: 60000 });
@@ -171,7 +181,7 @@ try {
   // On a flat screen the menu is the VR panel's canvas shown in the page. 640
   // px tall so the Hyperplay page has to scroll.
   console.log('desktop menu');
-  const dm = await browser.newPage();
+  const dm = await newPage();
   await dm.setViewport({ width: 1280, height: 640 });
   dm.on('pageerror', (e) => fail(`desktop menu pageerror: ${e.message}`));
   await dm.goto(`${BASE}?desktop`, { waitUntil: 'networkidle0', timeout: 60000 });
@@ -218,7 +228,7 @@ try {
 
   // A real WebXR session on an emulated Quest 3 (IWER), rendered as one view.
   console.log('vr (IWER emulator)');
-  const vr = await browser.newPage();
+  const vr = await newPage();
   await vr.setViewport({ width: 1000, height: 900 });
   vr.on('pageerror', (e) => fail(`vr pageerror: ${e.message}`));
   // from desktop mode, so the menu goes from the page into the headset

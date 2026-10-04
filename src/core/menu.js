@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import { UIPanel, PanelHandle, DomPanel, COLORS, facePanel } from './ui.js';
 import { J } from './input.js';
 import { QUALITY } from './quality.js';
+import { POINTER_HINT } from './guide.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _pos = new THREE.Vector3();
@@ -116,7 +117,7 @@ export class HandMenu {
     if (!scene) return;
     const close = () => (app.presenting ? this.close() : app.setDesktopMenu(false));
     const title = { type: 'title', text: scene.title, sub: scene.subtitle, close };
-    const hint = { type: 'text', text: () => scene.hint(app.inputMode, { touch: app.touch }), lines: 5 };
+    const hint = { type: 'text', text: () => app.inputMode === 'pointers' ? POINTER_HINT : scene.hint(app.inputMode, { touch: app.touch }), lines: 5 };
     const quality = [
       {
         type: 'text', lines: 2,
@@ -131,7 +132,8 @@ export class HandMenu {
     ];
     let rows;
     if (!app.presenting) {
-      rows = [title, ...scene.menuRows(), ...quality, hint];
+      const view = scene.noOrbit ? [] : [{ type: 'buttons', items: [{ label: 'Reset view', onClick: () => app.resetDesktopView() }] }];
+      rows = [title, ...scene.menuRows(), ...view, ...quality, hint];
     } else {
       const page = (label, key) => ({ label, onClick: () => this.setPage(key), active: () => this.page === key });
       rows = [title, {
@@ -201,6 +203,7 @@ export class HandMenu {
   close() {
     if (!this.shown) return;
     this.shown = false;
+    this.app.ui.cancelPanel(this.panel);
     this.app.audio.toggle(false);
   }
 

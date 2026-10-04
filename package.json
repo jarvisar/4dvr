@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:smoke": "vite build && node tools/ci-smoke.mjs",
+    "test:qa": "npm run test:smoke && node tools/qa.mjs",
     "screenshots": "vite build && node tools/screenshots.mjs"
   },
   "dependencies": {

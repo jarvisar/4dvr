@@ -813,11 +813,16 @@ export class DomPanel {
 
   // Lays a DOM control over each widget. Runs after every layout. A button can
   // rebuild the rows it's in (a preset rebuilds the menu), so keyboard focus
-  // goes back to the control in the same place.
+  // goes back to the same control even when another row was inserted.
   _build() {
     if (!this.shown) return;
     const p = this.panel;
-    const focused = this.controls.contains(document.activeElement) ? document.activeElement.dataset.key : null;
+    const identity = (w) => JSON.stringify([w.type, w.type === 'slider' ? w.row.label : w.item?.value ?? labelText(w.item)]);
+    const focusedItem = this._items.find((it) => it.el === document.activeElement);
+    const focused = focusedItem ? identity(focusedItem.w) : null;
+    const title = valueOf(p.rows.find((row) => row.type === 'title')?.text);
+    if (this._pageTitle !== undefined && title !== this._pageTitle) this.el.scrollTop = 0;
+    this._pageTitle = title;
     const s = p.px / (window.devicePixelRatio || 1); // CSS pixels per meter
     this._items = p.widgets.map((w) => {
       const box = document.createElement('div');
@@ -873,7 +878,7 @@ export class DomPanel {
     });
     this.controls.replaceChildren(...this._items.map((it) => it.box));
     this._sync();
-    if (focused) this.controls.querySelector(`[data-key="${focused}"]`)?.focus({ preventScroll: true });
+    if (focused) this._items.find((it) => it.el.dataset.key && identity(it.w) === focused)?.el.focus({ preventScroll: true });
   }
 
   // Keeps the DOM controls' labels, states and values the same as the canvas
@@ -1139,7 +1144,7 @@ export class UISystem {
   // Fingertip poke. Returns true when the finger is engaged with a panel.
   updatePoke(ix) {
     ix.pokeHit.panel = null;
-    if (!ix.hasPoke) return false;
+    if (!ix.hasPoke) { this.forget(ix); return false; }
     let engaged = false;
     for (const p of this.panels) {
       if (!p.visible || !p.interactive || p.ownerIx === ix) { p.hover.delete(ix); p.pokeZ.delete(ix); continue; }
@@ -1223,6 +1228,7 @@ export class UISystem {
   updateCapture(ix) {
     const cap = ix.uiCapture;
     const p = cap.panel;
+    if (!p.visible) { this.endCapture(ix); return; }
     p.group.getWorldPosition(_c);
     _n.set(0, 0, 1).applyQuaternion(p.group.getWorldQuaternion(_wq));
     const denom = _n.dot(ix.rayDir);
@@ -1233,6 +1239,16 @@ export class UISystem {
     _hp.copy(ix.rayOrigin).addScaledVector(ix.rayDir, t);
     p.toPanel(_hp, _p);
     p.dragSlider(cap.widget, _p.x);
+  }
+
+  // Closing a panel also ends drags that could keep changing it while hidden.
+  cancelPanel(panel) {
+    for (const ix of [...this.app.input.xr, this.app.input.mouse]) {
+      if (ix.uiCapture?.panel === panel || ix.grabbed?.panel === panel) this.app.interaction.release(ix);
+      panel.hover.delete(ix);
+      panel.pressed.delete(ix);
+      panel.pokeZ.delete(ix);
+    }
   }
 
   // Drops an interactor's hover and press on every panel

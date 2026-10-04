@@ -1084,7 +1084,7 @@ export class PlaygroundScene extends SceneBase {
     if (this.preset !== 'sandbox') this.loadPreset('sandbox');
     const app = this.app;
     const held = (mode) => app.input.xr.some((ix) => ix.grabbed instanceof Toy && (!mode || ix.grabMode === mode));
-    let grabbed = false, w0 = null, turnT = 0;
+    let grabbed = false, w0 = null, turnT = 0, turnResetPending = false;
     return [
       {
         title: 'Pick something up',
@@ -1111,8 +1111,16 @@ export class PlaygroundScene extends SceneBase {
           controllers: 'Hold the trigger and grip together on an object and move the controller. It turns through w, the fourth direction.',
         },
         fingers: 'middle', tag: 'Trigger and grip: turn through w',
-        start: () => this.easeSliceTo(0), // the last step may have left nothing in the slice to turn
-        done: (dt) => { if (held('secondary')) turnT += dt; return turnT > 0.5; },
+        start: () => { turnResetPending = true; },
+        done: (dt) => {
+          // Wait for the previous stick or air pinch to end, so it can't cancel the reset.
+          if (turnResetPending && !app.input.xr.some((ix) => ix.emptyGrab || Math.abs(ix.stick.y) > 0)) {
+            this.easeSliceTo(0);
+            turnResetPending = false;
+          }
+          if (held('secondary')) turnT += dt;
+          return turnT > 0.5;
+        },
       },
       {
         title: 'Open the menu',

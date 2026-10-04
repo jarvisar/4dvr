@@ -15,10 +15,15 @@ import { J } from './input.js';
 import { pref } from './prefs.js';
 
 const INTRO = '4D objects are shown as their 3D cross-sections, or slices. The fourth direction is called w: +w is ana (pink) and −w is kata (blue).';
+export const POINTER_HINT = 'Point and select to grab objects or press buttons. The Menu button below your view opens scene options. Some actions need tracked hands or controllers.';
 
 // Controls that work the same way in every scene. What pinching empty space or
 // the sticks do depends on the scene, so that's in each scene's tips.
 const LEGEND = {
+  pointers: [
+    ['Point and select', 'Grab objects and press buttons. Hold select to move what you grabbed.'],
+    ['Menu below your view', 'Select it for scene options and settings.'],
+  ],
   hands: [
     ['Pinch or grab', 'Pick things up and move them.'],
     ['Middle-finger pinch', 'Turn or move things through w, the fourth direction.'],
@@ -32,6 +37,7 @@ const LEGEND = {
   ],
 };
 const MENU_HOW = {
+  pointers: 'Select the Menu button below your view to open the menu.',
   hands: 'Turn a palm towards you and tap Menu with your other hand to open the menu.',
   controllers: 'Press A or X to open the menu.',
 };
@@ -91,7 +97,9 @@ export class Guide {
     this.demoButton.group.visible = false;
   }
 
-  get _input() { return this.app.inputMode === 'controllers' ? 'controllers' : 'hands'; }
+  get _input() { return this.app.inputMode === 'controllers' ? 'controllers' : this.app.inputMode === 'pointers' ? 'pointers' : 'hands'; }
+
+  _hint(scene, input) { return input === 'pointers' ? POINTER_HINT : scene.hint(input); }
 
   // Entering VR, once the head pose is known
   sessionStarted() {
@@ -160,7 +168,7 @@ export class Guide {
     this.panel.width = 0.4;
     this.panel.setRows([
       { type: 'title', text: scene.title, sub: scene.subtitle },
-      { type: 'text', text: scene.hint(input), lines: 7, color: COLORS.ink },
+      { type: 'text', text: this._hint(scene, input), lines: 7, color: COLORS.ink },
       { type: 'text', text: `${MENU_HOW[input]} "How to play" in its settings shows this again.`, lines: 3 },
       { type: 'buttons', items: [{ label: 'Got it', onClick: () => this.hide(), active: () => true }], height: 0.042 },
     ]);
@@ -174,14 +182,14 @@ export class Guide {
     const scene = app.activeScene;
     const input = this._input;
     const buttons = [{ label: 'Got it', onClick: () => this.hide(), active: () => true }];
-    if (!scene?.tutorial) buttons.push({ label: 'Tutorial', onClick: () => this._tutorialElsewhere() });
+    if (!scene?.tutorial && input !== 'pointers') buttons.push({ label: 'Tutorial', onClick: () => this._tutorialElsewhere() });
     this.panel.width = 0.46;
     this.panel.setRows([
       { type: 'title', text: 'How to play', sub: scene ? scene.title : '' },
       // only where things are shown as slices. Elsewhere pink and blue mean other things.
       ...(scene?.crossSections ? [{ type: 'text', text: INTRO, lines: 3, color: COLORS.ink }] : []),
       { type: 'legend', items: LEGEND[input] },
-      ...(scene ? [{ type: 'spacer', h: 0.004 }, { type: 'text', text: scene.hint(input), lines: 6 }] : []),
+      ...(scene ? [{ type: 'spacer', h: 0.004 }, { type: 'text', text: this._hint(scene, input), lines: 6 }] : []),
       { type: 'buttons', columns: buttons.length, items: buttons, height: 0.042 },
     ]);
     this._markSeen();
@@ -236,6 +244,14 @@ export class Guide {
     const scene = app.activeScene;
     if (!scene?.tutorial) return;
     app.menu.close();
+    if (this._input === 'pointers') {
+      this.tut = null;
+      this.ghost.hide();
+      this.demoButton.group.visible = false;
+      app.hands.fingerHint = null;
+      this.showControls();
+      return;
+    }
     this.tut = { steps: scene.tutorial(), i: 0, doneT: -1, finished: false, finishT: 0 };
     this._markSeen();
     this.mode = 'tutorial';
@@ -288,6 +304,14 @@ export class Guide {
     }
     this.shownT += dt;
     if (this.mode === 'tutorial' && this.tut) {
+      if (this._input === 'pointers') {
+        this.tut = null;
+        this.ghost.hide();
+        this.demoButton.group.visible = false;
+        this.app.hands.fingerHint = null;
+        this.showControls();
+        return;
+      }
       // a scene switch stops it in sceneEntered(), but that's a frame later
       if (!app.activeScene?.tutorial) { this.stopTutorial(); return; }
       this._updateTutorial(dt);

@@ -93,6 +93,7 @@ Other commands:
 npm run build       # production build in dist/
 npm run preview     # serve the production build
 npm run test:smoke  # build and run the headless Chrome tests (requires Chrome)
+npm run test:qa     # smoke tests plus scene, input, recovery and usability checks
 npm run screenshots # build and retake the screenshots at the top of this README (requires Chrome)
 ```
 

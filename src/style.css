@@ -298,6 +298,24 @@ a:hover { color: #b3d3fa; text-decoration-color: currentColor; }
 
 .hud-tools { grid-column: 3; justify-self: end; display: flex; gap: 6px; }
 
+#hud-notice {
+  position: absolute;
+  top: var(--hud-tabs-bottom, 67px);
+  left: var(--edge-left);
+  right: var(--edge-right);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--plate);
+  border: 1px solid #000;
+  border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+#scene-load-status { margin: 0; font-size: 13.5px; line-height: 1.5; }
+#retry-scenes { flex: none; }
+
 /* HUD window: title bar on a dark glass plate */
 #hud-help {
   position: absolute;
