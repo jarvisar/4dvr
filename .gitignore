@@ -7,3 +7,4 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 CLAUDE.md
+docs/qa-report.md
