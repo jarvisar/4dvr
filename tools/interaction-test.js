@@ -113,7 +113,7 @@
       tap(h2, 'pinch');
       out.grabAt45mm = h2.grabbed === t3;
       untap(h2, 'pinch');
-      // Quest keeps pinching with the palm towards your face for its own menu
+      // Quest keeps pinching with the palm toward your face for its own menu
       h2.palmFacingHead = 0.9;
       h2.grabPos.copy(c3());
       tap(h2, 'pinch');
@@ -241,7 +241,7 @@
     step(hand, 1);
 
     // a panel that appears with a fingertip already at its surface isn't pressed,
-    // and pressing through it afterwards still works
+    // and pressing through it afterward still works
     const balls = menu.widgets.find((w) => w.item && w.item.label === 'Hyperballs');
     const at = (z) => onButton(balls, z);
     menu.group.visible = false;

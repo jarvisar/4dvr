@@ -1,6 +1,6 @@
 // Hand poses for the tutorial's demonstration hand. Joint positions in mm,
 // relative to the wrist joint (x, y, z per joint in the order of JOINT_NAMES),
-// for a left hand: fingers along -z, palm towards -y, thumb towards +x. The
+// for a left hand: fingers along -z, palm toward -y, thumb toward +x. The
 // right hand is the same with x flipped.
 //
 // Captured on a Quest. Taken from IWER's relaxed and pinch poses

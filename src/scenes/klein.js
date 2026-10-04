@@ -161,7 +161,7 @@ function roomGeometry() {
     add(box(size - 0.025, 0.012, size - 0.025), BRASS, at(x, top - 0.038, z));
     add(bevelBox(size + 0.03, 0.032, size + 0.03, 0.008), SLATE, at(x, top - 0.016, z));
   }
-  // shallow disc so the spiral doesn't look like it's hovering over its plinth
+  // shallow disk so the spiral doesn't look like it's hovering over its plinth
   add(new THREE.CylinderGeometry(0.18, 0.19, 0.018, 32), BRASS, at(HELIX.x, HELIX.top + 0.009, HELIX.z));
   // helix is chiral. This one twists to the right.
   const helixPts = Array.from({ length: 60 }, (_, k) => {
@@ -304,7 +304,7 @@ function floorTexture() {
   }, { anisotropy: 8 });
 }
 
-// Right hand, palm down, seen from above with the fingers towards -z. The thumb is on the left.
+// Right hand, palm down, seen from above with the fingers toward -z. The thumb is on the left.
 function handPrintTexture() {
   return canvasTexture(512, 512, (g) => {
     g.fillStyle = INK;
@@ -430,7 +430,7 @@ function visorGeometry() {
   ]);
 }
 
-// The numerals read backwards in a mirrored copy
+// The numerals read backward in a mirrored copy
 function clockFaceTexture() {
   return canvasTexture(512, 512, (g) => {
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -613,7 +613,7 @@ export class KleinScene extends SceneBase {
     this.pull.last.copy(ix.grabPos);
     const gain = ix.isMouse ? 2.5 : 3.0;
     this.app.addMotion(Math.hypot(d.x, d.z) * gain);
-    this._moveRoom(d.x * gain, d.z * gain); // pulling the room towards you moves you forward
+    this._moveRoom(d.x * gain, d.z * gain); // pulling the room toward you moves you forward
   }
 
   onEmptyGrabEnd() { this.pull = null; }
@@ -766,7 +766,7 @@ export class KleinScene extends SceneBase {
       desktop: touch ? 'Drag with two fingers to move.' : 'Use WASD or the arrow keys to move.',
     }[mode];
     // the print only reacts to tracked hands
-    const after = mode === 'hands' ? 'Text reads backwards and your left hand fits the right-hand print.' : 'Text reads backwards.';
+    const after = mode === 'hands' ? 'Text reads backward and your left hand fits the right-hand print.' : 'Text reads backward.';
     return `${move} The blue walls are glued straight across. The pink walls are glued with a flip, so crossing one leaves you mirror-reversed. ${after}`;
   }
 

@@ -27,7 +27,7 @@ const LEGEND = {
   hands: [
     ['Pinch or grab', 'Pick things up and move them.'],
     ['Middle-finger pinch', 'Turn or move things through w, the fourth direction.'],
-    ['Palm towards you', 'Shows a Menu button. Tap it with your other hand.'],
+    ['Palm toward you', 'Shows a Menu button. Tap it with your other hand.'],
     ['Fingertip', 'Press buttons. Point and pinch to use distant ones.'],
   ],
   controllers: [
@@ -38,7 +38,7 @@ const LEGEND = {
 };
 const MENU_HOW = {
   pointers: 'Select the Menu button below your view to open the menu.',
-  hands: 'Turn a palm towards you and tap Menu with your other hand to open the menu.',
+  hands: 'Turn a palm toward you and tap Menu with your other hand to open the menu.',
   controllers: 'Press A or X to open the menu.',
 };
 
@@ -417,7 +417,7 @@ export class Guide {
     // the hand on the target's side
     d.hand = _p.subVectors(d.pos, head).dot(_right) < -0.05 ? 'left' : 'right';
     const shoulder = _x.copy(head).addScaledVector(_right, d.hand === 'left' ? -0.17 : 0.17).addScaledVector(UP, -0.22);
-    // fingers towards the target from the shoulder, palm down
+    // fingers toward the target from the shoulder, palm down
     if (kind === 'air') _f.copy(_fwd).addScaledVector(UP, -0.35).normalize();
     else _f.subVectors(d.pos, shoulder).normalize();
     this._basis(d.q0, _f, UP);
@@ -428,7 +428,7 @@ export class Guide {
     return true;
   }
 
-  // Wrist rotation with the fingers (-z) along `fingers` and the back of the hand (+y) towards `back`
+  // Wrist rotation with the fingers (-z) along `fingers` and the back of the hand (+y) toward `back`
   _basis(out, fingers, back) {
     _z.copy(fingers).negate();
     _y.copy(back).addScaledVector(_z, -back.dot(_z)).normalize();
@@ -461,7 +461,7 @@ export class Guide {
       const y = 0.08 * (ease(span(t, 0.6, 1.2)) - 2 * ease(span(t, 1.2, 2.2)) + ease(span(t, 2.2, 2.8)));
       wrist.copy(d.b).addScaledVector(UP, y);
     } else {
-      // turn the palm towards the face, then the Menu button shows next to it
+      // turn the palm toward the face, then the Menu button shows next to it
       opacity = Math.min(span(t, 0, 0.3), 1 - span(t, 2.9, 3.2));
       _q.slerpQuaternions(d.q0, d.q1, ease(span(t, 0.3, 1.1)));
       wrist.copy(d.pos);

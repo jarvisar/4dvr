@@ -374,7 +374,7 @@ export class PlaygroundScene extends SceneBase {
     this.slowmo = false;
     this.lowGravity = false;
     this.preset = 'sandbox';
-    this.sunW = 0;          // angle of the 4D sun towards ana (radians)
+    this.sunW = 0;          // angle of the 4D sun toward ana (radians)
     this.gravity4 = true;   // orbits: 1/r³ (4D) or 1/r² (3D) gravity
     this.orbitTilt = false; // orbits: tilt the orbits into w
     this.orbitStats = { fell: 0, escaped: 0 };
@@ -637,7 +637,7 @@ export class PlaygroundScene extends SceneBase {
       this.launchMoons();
       this._say(this.gravity4 ? '4D gravity: no orbit is stable' : '3D gravity: orbits close up', 4);
     } else if (name === 'shadows') {
-      // The sun leans towards ana, so shadows shift towards kata as they fall.
+      // The sun leans toward ana, so shadows shift toward kata as they fall.
       // The first three are outside the slice but their shadows cross it.
       this.sunW = THREE.MathUtils.degToRad(50);
       this.add('tesseract', { scale: 0.14, pos: P4(-0.22, 0.07, -0.05, 0.11), rot: R4.planeRotation(R4.mat4(), 0, 2, 0.4) });
@@ -646,7 +646,7 @@ export class PlaygroundScene extends SceneBase {
       // in the slice, but their shadows fall outside it
       this.add('orthoplex', { scale: 0.1, pos: P4(0.28, 0.1, 0.18, -0.04), rot: randRot() });
       this.add('tesseract', { scale: 0.09, pos: P4(-0.12, 0.05, 0.28, 0), rot: R4.planeRotation(R4.mat4(), 0, 2, -0.3) });
-      this._say('The sun leans 50° towards ana', 4);
+      this._say('The sun leans 50° toward ana', 4);
     } else if (name === 'worldline') {
       if (!this.worldline) this.worldline = new Worldline(this.stage);
       if (this.worldline.empty || this.worldlineDemo) this._setJuggling();
@@ -1053,7 +1053,7 @@ export class PlaygroundScene extends SceneBase {
       this._celebrate(this.mirror.piece.body.x, 'Solved: a half-turn through w mirrored it');
     }
 
-    // 4D shadows use the sun's direction in slice space, tilted towards ana by sunW
+    // 4D shadows use the sun's direction in slice space, tilted toward ana by sunW
     const sd = LIGHT.uSunDir.value, c = Math.cos(this.sunW), sn = Math.sin(this.sunW);
     this.shadow4.setSun(sd.x * c, sd.y * c, sd.z * c, sn);
     const shadowsOn = this.app.env.shadows; // the graphics preset's shadow setting
@@ -1125,7 +1125,7 @@ export class PlaygroundScene extends SceneBase {
       {
         title: 'Open the menu',
         text: {
-          hands: "Turn a palm towards you and tap the Menu button next to it with your other hand. Don't pinch with that hand, since the Quest uses that for its own menu.",
+          hands: "Turn a palm toward you and tap the Menu button next to it with your other hand. Don't pinch with that hand, since the Quest uses that for its own menu.",
           controllers: 'Press A or X.',
         },
         demo: 'palm', tag: 'A or X: menu',
@@ -1229,7 +1229,7 @@ export class PlaygroundScene extends SceneBase {
       // the Low graphics preset turns the 4D shadows off (App rebuilds the menu when it changes)
       const noShadows = () => !this.app.env.shadows;
       rows.push({
-        type: 'slider', label: 'Sun angle towards ana', min: -THREE.MathUtils.degToRad(60), max: THREE.MathUtils.degToRad(60), center: 0,
+        type: 'slider', label: 'Sun angle toward ana', min: -THREE.MathUtils.degToRad(60), max: THREE.MathUtils.degToRad(60), center: 0,
         get: () => this.sunW, set: (v) => { this.sunW = v; }, format: deg, gradient: W_GRADIENT, disabled: noShadows,
       });
       if (noShadows()) rows.push({ type: 'text', lines: 2, text: 'Shadows are off at Low graphics quality.' });
@@ -1240,7 +1240,7 @@ export class PlaygroundScene extends SceneBase {
         items: [
           { label: 'Ghosts', get: () => this.ghosts, set: (v) => { this.ghosts = v; } },
           { label: 'Slow-mo', get: () => this.slowmo, set: (v) => { this.slowmo = v; } },
-          // orbits have no gravity towards the table
+          // orbits have no gravity toward the table
           { label: 'Low gravity', get: () => this.lowGravity, set: (v) => { this.lowGravity = v; }, disabled: () => this.preset === 'orbits' },
         ],
       },
@@ -1264,7 +1264,7 @@ export class PlaygroundScene extends SceneBase {
       return 'In 4D, gravity falls off as 1/r³. Every circular orbit then has zero energy, so a small nudge sends a moon into the sun or away for good. Switch to 1/r² to compare.';
     }
     if (this.preset === 'shadows') {
-      return 'The 4D sun leans towards ana. Shadows fall on the floor, which is 3D in 4D, and you see the part inside your slice. Objects outside it (the ghosts) cast shadows into it.';
+      return 'The 4D sun leans toward ana. Shadows fall on the floor, which is 3D in 4D, and you see the part inside your slice. Objects outside it (the ghosts) cast shadows into it.';
     }
     if (this.preset === 'worldline') {
       return `A motion recorded with time as w, so moving the slice along w replays it. Rotating the slice in xw mixes time with space, so each x shows a different moment like a slit-scan photo. Record your own ${{ hands: 'hands', controllers: 'controller movements', desktop: touch ? 'finger movements' : 'mouse movements' }[mode]} from the menu.`;

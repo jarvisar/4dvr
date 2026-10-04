@@ -18,7 +18,7 @@
     'ring-finger-metacarpal', 'ring-finger-phalanx-proximal', 'ring-finger-phalanx-intermediate', 'ring-finger-phalanx-distal', 'ring-finger-tip',
     'pinky-finger-metacarpal', 'pinky-finger-phalanx-proximal', 'pinky-finger-phalanx-intermediate', 'pinky-finger-phalanx-distal', 'pinky-finger-tip'];
 
-  // local hand model: wrist at origin, fingers along −Z, palm normal −Y, thumb towards +X (right hand)
+  // local hand model: wrist at origin, fingers along −Z, palm normal −Y, thumb toward +X (right hand)
   function localJoints(side, pinch) {
     const s = side === 'right' ? 1 : -1;
     const pts = { wrist: [0, 0, 0] };
@@ -70,7 +70,7 @@
 
   const head = app.camera.position.clone();
   app.headPosition.copy(head);
-  // left hand with the palm turned towards the face, which shows the Menu button next to it
+  // left hand with the palm turned toward the face, which shows the Menu button next to it
   const lw = new V3(-0.17, 1.13, -0.12);
   const toHead = head.clone().sub(lw).normalize();
   const lq = new Q().setFromUnitVectors(new V3(0, -1, 0), toHead);

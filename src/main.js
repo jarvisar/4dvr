@@ -254,7 +254,7 @@ hud.addEventListener('keydown', (e) => {
   menuBtn.focus();
 });
 // A button clicked with the mouse gives up focus, so Space and Enter go to the
-// scene afterwards instead of clicking it again (detail is 0 for keyboard clicks).
+// scene afterward instead of clicking it again (detail is 0 for keyboard clicks).
 hud.addEventListener('click', (e) => { if (e.detail > 0) e.target.closest('button')?.blur(); });
 syncMenuButton(app.desktopMenu);
 setHelp(pref.get('help', !cramped()));

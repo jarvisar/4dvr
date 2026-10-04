@@ -73,7 +73,7 @@ const DEFS = {
     physics: () => convexPhysics(P.duoprism(6, 6)),
   },
   duocylinder: {
-    label: 'Duocylinder', blurb: 'disc × disc', radius: Math.hypot(0.62, 0.62), pattern: 1,
+    label: 'Duocylinder', blurb: 'disk × disk', radius: Math.hypot(0.62, 0.62), pattern: 1,
     tets: () => duocylinderTets(0.62, 0.62, 36),
     physics: () => ({ type: 'duocylinder', r1: 0.62, r2: 0.62 }),
   },
@@ -83,7 +83,7 @@ const DEFS = {
     physics: () => ({ type: 'spherinder', r: 0.62, h: 0.5 }),
   },
   cubinder: {
-    label: 'Cubinder', blurb: 'disc × square', radius: Math.hypot(0.6, 0.45 * Math.SQRT2), pattern: 3,
+    label: 'Cubinder', blurb: 'disk × square', radius: Math.hypot(0.6, 0.45 * Math.SQRT2), pattern: 3,
     tets: () => cubinderTets(0.6, 0.45, 32),
     physics: () => ({ type: 'cubinder', r: 0.6, h: 0.45 }),
   },

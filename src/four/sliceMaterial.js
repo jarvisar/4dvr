@@ -58,7 +58,7 @@ uniform mat4 uRot;        // object to slice space, linear part (includes scale)
 uniform vec4 uPos;        // object origin in slice space, w is the offset from the slice
 uniform float uLineScale; // object units to meters, for edge line width
 #ifdef SHADOW4
-uniform vec4 uSun;        // unit direction towards the sun, slice space (y > 0)
+uniform vec4 uSun;        // unit direction toward the sun, slice space (y > 0)
 uniform float uExtent;    // half-size of the square mask, meters
 #endif
 

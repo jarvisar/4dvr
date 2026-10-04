@@ -1,4 +1,4 @@
-// The menu. In VR, turning a palm towards your face shows a small Menu button
+// The menu. In VR, turning a palm toward your face shows a small Menu button
 // next to that hand, and tapping it with the other hand opens the menu in
 // front of you. A/X does the same on controllers. The menu stays where it
 // opened until it's closed (it doesn't follow the hand or the head), and the
@@ -7,7 +7,7 @@
 //
 // The palm used to open the whole menu next to the hand. That opened every
 // time someone looked at their hand, and it invited pinching with the palm
-// towards the face, which Quest keeps for its own menu.
+// toward the face, which Quest keeps for its own menu.
 
 import * as THREE from 'three';
 import { UIPanel, PanelHandle, DomPanel, COLORS, facePanel } from './ui.js';
@@ -22,9 +22,9 @@ const _side = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
 const _loc = new THREE.Vector3();
 
-// The palm button shows when a flat, open hand has its palm towards the head
+// The palm button shows when a flat, open hand has its palm toward the head
 // (cosine of the angle between the palm normal and the direction to the head)
-// while the person looks towards it (cosine of the angle between the view
+// while the person looks toward it (cosine of the angle between the view
 // direction and the hand, about 37°), for SHOW_DELAY seconds. The looser KEEP
 // values keep it up once it's showing.
 const PALM_SHOW = 0.72;
@@ -33,7 +33,7 @@ const LOOK_SHOW = 0.8;
 const LOOK_KEEP = 0.55;
 const FLAT = 0.8;
 // The other hand reaching for the button keeps it up, but only while the palm
-// is still at least this much towards the head. Otherwise it lingers after the
+// is still at least this much toward the head. Otherwise it lingers after the
 // palm drops, as Close, where the same finger can push through it.
 const PALM_REACH = 0.2;
 const SHOW_DELAY = 0.3;
@@ -189,7 +189,7 @@ export class HandMenu {
     else this.open(from);
   }
 
-  // Open in front of the head, turned a little towards `from` (the hand or
+  // Open in front of the head, turned a little toward `from` (the hand or
   // controller that opened it)
   open(from = null) {
     if (this.hiddenT > 2) this.setPage('scene');
@@ -357,7 +357,7 @@ export class HandMenu {
     this.dwellBar.material.uniforms.uOpacity.value = 0;
   }
 
-  // Keep the button beside the palm on the side towards the body's midline
+  // Keep the button beside the palm on the side toward the body's midline
   // (the little-finger side), where the other hand reaches it without crossing
   // over, and away from the thumb and index where Quest shows its own menu icon.
   _follow(o, dt) {

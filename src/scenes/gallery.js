@@ -24,11 +24,11 @@ const POLYS = {
   duoprism: { label: '6-6 duoprism', short: 'Duoprism', get: () => P.duoprism(6, 6), blurb: 'Product of two hexagons. 12 hexagonal prism cells.' },
 };
 const SMOOTH = {
-  duocylinder: 'Product of two discs. Its two curved cells meet at a flat torus.',
+  duocylinder: 'Product of two disks. Its two curved cells meet at a flat torus.',
   tiger: 'Points within a fixed distance of a flat torus. Its surface is a 3-torus, and its cross-sections are often two tori.',
   spheritorus: 'Points within a fixed distance of a circle. Cross-sections are tori or pairs of spheres.',
   torisphere: 'Points within a fixed distance of a 2-sphere. Cross-sections are spherical shells, tori or spheres.',
-  cubinder: 'Product of a disc and a square.',
+  cubinder: 'Product of a disk and a square.',
   spherinder: 'Product of a ball and a line segment.',
 };
 const LABELS = { duocylinder: 'Duocylinder', tiger: 'Tiger', spheritorus: 'Spheritorus', torisphere: 'Torisphere', cubinder: 'Cubinder', spherinder: 'Spherinder' };
@@ -94,7 +94,7 @@ export class GalleryScene extends SceneBase {
   _buildPedestal() {
     const mat = new THREE.MeshStandardMaterial({ color: '#1a1d26', roughness: 0.55, metalness: 0.3 });
     const topR = 0.16, tube = 0.006;
-    this.column = new THREE.Mesh(new THREE.CylinderGeometry(topR, 0.2, 1, 48), mat); // tapers towards the top
+    this.column = new THREE.Mesh(new THREE.CylinderGeometry(topR, 0.2, 1, 48), mat); // tapers toward the top
     // a bead around the top edge, flush with it, and the glow inside it
     this.ring = new THREE.Mesh(
       new THREE.TorusGeometry(topR - tube, tube, 12, 96).rotateX(Math.PI / 2),

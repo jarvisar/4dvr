@@ -173,7 +173,7 @@ export class Collider {
           }
         }
         this.bound = this.R + this.r;
-        moments = [this.R ** 2 / 3, this.R ** 2 / 3, this.R ** 2 / 3, this.r ** 2 / 4]; // w: a solid disc of radius r
+        moments = [this.R ** 2 / 3, this.R ** 2 / 3, this.R ** 2 / 3, this.r ** 2 / 4]; // w: a solid disk of radius r
         break;
       }
       default:

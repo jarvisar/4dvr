@@ -20,7 +20,7 @@ const COLLIDE = TUBE_R * 2.3;
 const MAX_MARKS = 24;
 const MARK_MERGE = 0.025;
 const MARK_R = 0.018, MARK_TUBE = 0.0022;
-// The ring sits this far in front of the crossing, towards the head. That's
+// The ring sits this far in front of the crossing, toward the head. That's
 // past the front of either strand (their centers are up to COLLIDE apart), so
 // they don't cut through it.
 const MARK_LIFT = COLLIDE / 2 + TUBE_R + MARK_TUBE;
@@ -227,7 +227,7 @@ class Rope {
         q[i * 4 + c] = p[i * 4 + c];
         p[i * 4 + c] += v;
       }
-      // move w back towards 0
+      // move w back toward 0
       if (settle > 0) p[i * 4 + 3] -= p[i * 4 + 3] * Math.min(1, settle * dt);
     }
     const at = this._pinAt, t = this.pinTarget;

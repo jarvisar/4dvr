@@ -45,7 +45,7 @@ export class Body4 {
     this.sleeping = false;
     this.sleepTimer = 0;
     this.kinematic = false; // immovable, optionally driven along target (fixed scenery)
-    this.held = false;      // dynamic but velocity-driven towards target (grabbed by a hand)
+    this.held = false;      // dynamic but velocity-driven toward target (grabbed by a hand)
     this.target = null;     // { x, R }
     this.baseInvMass = this.invMass;
     this.userData = null;
@@ -323,7 +323,7 @@ export class World4 {
     R4.orthonormalize(b.R);
   }
 
-  // Held bodies get a velocity towards the target instead of being moved there
+  // Held bodies get a velocity toward the target instead of being moved there
   // directly, so they still collide with walls and push other bodies.
   _driveHeld(b, dt) {
     const t = b.target;
@@ -480,7 +480,7 @@ export class World4 {
     const d = cg.sdf(_pl, this._tol + S.collider.r) - S.collider.r;
     if (d > this._tol) return;
     cg.normal(_pl, _t);
-    R4.apply(_n, G.R, _t); // outward from G, towards S
+    R4.apply(_n, G.R, _t); // outward from G, toward S
     V.addScaled(_pw, S.x, _n, -S.collider.r);
     if (sphereIsA) { V.scale(_n, _n, -1); this._addContact(S, G, _pw, _n, -d); }
     else this._addContact(G, S, _pw, _n, -d);
@@ -499,7 +499,7 @@ export class World4 {
       const d = cq.sdf(_pl, this._tol);
       if (d > this._tol) continue;
       cq.normal(_pl, _t);
-      R4.apply(_n, Q.R, _t); // from Q towards P
+      R4.apply(_n, Q.R, _t); // from Q toward P
       this._addContact(Q, P, _pw, _n, -d);
     }
   }

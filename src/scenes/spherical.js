@@ -269,7 +269,7 @@ function buildGeometry(tiling, { tube, node, lantern }) {
     V.normalize(Bp, Bp);
     const [N1, N2] = complementBasis(A, Bp);
     // complementBasis doesn't pick a handedness. The rings below are wound
-    // outwards when det(A, Bp, N1, N2) > 0. Otherwise the tube would be inside
+    // outward when det(A, Bp, N1, N2) > 0. Otherwise the tube would be inside
     // out, showing its far inner wall instead of its near outer one.
     if (V.dot(N2, V.cross4([0, 0, 0, 0], A, Bp, N1)) > 0) V.scale(N2, N2, -1);
     const nSeg = Math.max(2, Math.ceil(th / SEG_ANGLE));

@@ -21,20 +21,20 @@ Visit the [GitHub Pages site](https://4dvr.jarvisar.com/) to access the latest d
 
 ## Scenes
 
-- **Hyperplay:** A 4D physics sandbox on a table with the regular 4-polytopes, hyperspheres, duocylinders, spherinders, cubinders, and a tiger. Objects are shown as 3D cross-sections. The slice can be moved along w or rotated in the xw/zw planes. The sun can lean towards ana (+w), so objects outside the slice still cast shadows into it. Presets:
+- **Hyperplay:** A 4D physics sandbox on a table with the regular 4-polytopes, hyperspheres, duocylinders, spherinders, cubinders, and a tiger. Objects are shown as 3D cross-sections. The slice can be moved along w or rotated in the xw/zw planes. The sun can lean toward ana (+w), so objects outside the slice still cast shadows into it. Presets:
   - Sandbox, Tower, Hyperballs, Rollers, and Polytopes: sets of objects to play with.
   - Sealed box: get the ball out of a closed glass box by moving it through w.
   - Mirror: fit a chiral piece into an outline of its mirror image. Only a half-turn through w does it.
   - Dice: the regular 4-polytopes as a d5, d8, d16, d24, d120, and d600.
   - Orbits: moons around a sun with 4D gravity (1/r³). There are no stable orbits, so a small nudge sends a moon into the sun or off for good. Can be switched to 1/r² to compare.
-  - Shadows: the sun leans 50° towards ana.
+  - Shadows: the sun leans 50° toward ana.
   - Worldline: a motion with time as the w axis, so moving the slice replays it. Shows juggling by default and can record 4 seconds of your hands, controllers, or mouse.
 - **Polytope Lab:** The regular 4-polytopes as perspective or stereographic projections, with the current cross-section drawn inside. Also has a tesseract net that folds up, and cross-sections of curved shapes like the spheritorus.
 - **Knot Lab:** A rope simulated in 4D. Strands only collide when they're close in all four coordinates, so moving a strand in w lets it pass through another one. Detects when a knot is untied or a link is separated.
 - **Hopf Garden:** The Hopf fibration of the 3-sphere. Touch the globe to add the fiber for that point.
 - **Hyperbolic Space:** The {5,3,4} and {4,3,5} honeycombs viewed from inside. Head movement is tracked in hyperbolic space, so walking in a loop leaves you slightly rotated.
 - **Spherical Space:** The 120-cell, 24-cell, tesseract, and 5-cell as tilings of the 3-sphere, viewed from inside. Walking straight for 2π times the radius brings you back to the start, and straight ahead at the end of the long way round is the back of your own head.
-- **Klein Room:** A room glued to itself. Walk out the left or right side and you come back in the other. Walk out the front or back and you come back mirror-reversed. After crossing a flipped wall, text reads backwards and your left hand fits the right-hand print.
+- **Klein Room:** A room glued to itself. Walk out the left or right side and you come back in the other. Walk out the front or back and you come back mirror-reversed. After crossing a flipped wall, text reads backward and your left hand fits the right-hand print.
 - **Quasicrystals:** A Penrose tiling as a 2D slice of the 5D cubic lattice, and a 3D tiling as a slice of the 6D lattice. Moving the slice through the hidden dimensions rearranges tiles, but the pattern never repeats.
 
 ## Controls
@@ -49,7 +49,7 @@ Pinch with your thumb and index finger, or close your hand around an object, to 
 
 Pinch empty space and move up or down to move the slice along w. Middle-finger pinch empty space and move sideways to rotate the slice. A pinch that just missed an object doesn't move the slice.
 
-Turn a palm towards your face and a `Menu` button shows up next to it. Tap it with your other index finger. The menu opens in front of you and stays there until you close it. Pinch the bar under it to move it. Point and pinch to use UI that's out of reach.
+Turn a palm toward your face and a `Menu` button shows up next to it. Tap it with your other index finger. The menu opens in front of you and stays there until you close it. Pinch the bar under it to move it. Point and pinch to use UI that's out of reach.
 
 Don't pinch with your palm facing you. The Quest uses that gesture for its own menu (on the left hand it can end the VR session), so the app ignores those pinches.
 
@@ -128,7 +128,7 @@ An object's shadow is its projection onto the floor (a 3D hyperplane in 4D) alon
 
 ### Physics
 
-[world4.js](src/physics/world4.js) handles the 4D rigid bodies. Each body has a 4x4 rotation matrix and stores angular momentum as a bivector (6 rotation planes). Collisions test sample points on each body against the other body's signed distance function, and contacts are solved with sequential impulses. Held objects are moved by setting their velocity towards the hand so they still collide with walls.
+[world4.js](src/physics/world4.js) handles the 4D rigid bodies. Each body has a 4x4 rotation matrix and stores angular momentum as a bivector (6 rotation planes). Collisions test sample points on each body against the other body's signed distance function, and contacts are solved with sequential impulses. Held objects are moved by setting their velocity toward the hand so they still collide with walls.
 
 ### Curved Spaces
 

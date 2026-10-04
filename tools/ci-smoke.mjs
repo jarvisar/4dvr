@@ -120,7 +120,7 @@ try {
     ['air pinch scrubs W', r.wScrub > 0.1, r.wScrub],
     ['a tiny air-pinch wobble leaves W alone', r.airDeadzone === 0, r.airDeadzone],
     ['a toy can be grabbed from 4.5 cm off its surface', r.grabAt45mm],
-    ['a pinch with the palm towards the face is ignored', r.palmFacingIgnored],
+    ['a pinch with the palm toward the face is ignored', r.palmFacingIgnored],
     ['closing the whole hand around a toy grabs it', r.fistGrab],
     ['a fist in empty space does nothing', r.fistInEmptySpace],
     ['a pinch that just missed a toy leaves the slice alone', r.nearMiss && !r.nearMiss.grabbed && !r.nearMiss.emptyGrab && r.nearMiss.w === 0, JSON.stringify(r.nearMiss)],
@@ -134,7 +134,7 @@ try {
     ['fingertip poke presses a menu button', r.pokedTower],
     ['the poke cursor tracks the fingertip on the panel', r.pokeCursor],
     ['a panel appearing under a fingertip is not pressed', r.appearUnderFinger === 'tower', r.appearUnderFinger],
-    ['pressing through it afterwards works', r.pressAfterAppear === 'balls', r.pressAfterAppear],
+    ['pressing through it afterward works', r.pressAfterAppear === 'balls', r.pressAfterAppear],
     ['every scene tip fits the menu in both input modes', r.hintLines && Object.values(r.hintLines).every((n) => n <= 5), JSON.stringify(Object.entries(r.hintLines || {}).filter(([, n]) => n > 5))],
     ['index pinch', r.pinchKinds?.index.pinch && !r.pinchKinds.index.grip, JSON.stringify(r.pinchKinds)],
     ['middle pinch with the index resting near the thumb', r.pinchKinds?.middleWithIndexNear.grip && !r.pinchKinds.middleWithIndexNear.pinch, JSON.stringify(r.pinchKinds)],
@@ -326,7 +326,7 @@ try {
   await headPose(`__xrDevice.position.set(0, 1.6, 0); __xrDevice.quaternion.set(-0.1736, 0, 0, 0.9848);`);
   await sleep(300);
 
-  // Switch to tracked hands and turn the left palm towards the face. That only
+  // Switch to tracked hands and turn the left palm toward the face. That only
   // shows the small Menu button next to it, not the menu.
   await ev(`__app.setScene('playground', true); __app.menu.shown = false; __xrDevice.primaryInputMode = 'hand';`);
   await sleep(600);
@@ -410,7 +410,7 @@ try {
     ['a new scene opens in front of the person', Math.abs(recentred.x) < 0.02 && Math.abs(recentred.z) < 0.02 && recentred.fz < -0.99, JSON.stringify(recentred)],
     ['right stick snap-turns 30° about the head', turnDeg === -30 && Math.abs(turned.x - recentred.x) < 0.01 && Math.abs(turned.z - recentred.z) < 0.01, JSON.stringify({ recentred, turned, turnDeg })],
     ['stick movement closes the comfort vignette, and it opens when stopped', vignetteMoving > 0.3 && vignetteStill < 0.05, JSON.stringify({ vignetteMoving, vignetteStill })],
-    ['palm towards the face shows the Menu button, not the menu', palm.button && !palm.menu && palm.mode === 'hands', JSON.stringify(palm)],
+    ['palm toward the face shows the Menu button, not the menu', palm.button && !palm.menu && palm.mode === 'hands', JSON.stringify(palm)],
     ['the button holds still while the other hand reaches for it', dist(button0, button1) < 0.002, JSON.stringify({ button0, button1 })],
     ['tapping it with the other hand opens the menu in front, 20-40° below eye level', opened.shown && opened.label === 'Close' && opened.dist > 0.35 && opened.dist < 0.55 && opened.centerBelowEyes >= 20 && opened.centerBelowEyes <= 40, JSON.stringify(opened)],
     ['the menu stays put when the hand drops', afterDrop.shown && !afterDrop.button && dist(afterDrop.pos, pos0) < 0.001, JSON.stringify({ pos0, afterDrop })],

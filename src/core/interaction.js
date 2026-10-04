@@ -20,11 +20,11 @@ const NEAR_RADIUS = 0.035;
 
 // Pulling objects from out of reach with a tracked hand. The hand's ray has to
 // point at the object (within PULL_CONE, or PULL_KEEP once it's the target)
-// with the arm stretched out towards it (the wrist at least ARM_REACH from the
-// shoulder, measured horizontally towards the object), the object has to be
+// with the arm stretched out toward it (the wrist at least ARM_REACH from the
+// shoulder, measured horizontally toward the object), the object has to be
 // further than OUT_OF_REACH from the shoulder, and the ray has to stay on it
 // for PULL_DWELL before a pinch pulls it. Pinching empty space close to the
-// body (moving the slice) doesn't reach out towards anything, so the two don't
+// body (moving the slice) doesn't reach out toward anything, so the two don't
 // get in each other's way. Arms hanging down don't count as reaching either.
 const PULL_CONE = THREE.MathUtils.degToRad(4);
 const PULL_KEEP = THREE.MathUtils.degToRad(8);
@@ -34,7 +34,7 @@ const PULL_DWELL = 0.12;
 // Once something is hovered its grab radius grows by this much, so the hover
 // doesn't flicker between two objects the hand is between (MRTK does the same)
 const HOVER_STICK = 1.4;
-// Quest reserves pinching with the palm towards your face for its own menu
+// Quest reserves pinching with the palm toward your face for its own menu
 // (on the left hand it can end the WebXR session), and those pinches still
 // reach the page. New pinches aren't used while a palm faces the head this
 // much. Closing the whole hand isn't that gesture, so it still grabs.
@@ -246,7 +246,7 @@ export class InteractionManager {
   }
 
   // Hands: the pullable object the ray points at, if the arm is stretched out
-  // towards something out of reach. Sticks to the current target within a
+  // toward something out of reach. Sticks to the current target within a
   // wider cone, so the ray moving a little as the fingers pinch doesn't lose it.
   _updatePull(ix, items, dt) {
     // Closing the fingers to pinch moves the ray. Once they're on their way the target is kept.
@@ -263,7 +263,7 @@ export class InteractionManager {
       if (it.enabled === false || !it.pullPoint) continue;
       const r = it.pullPoint(_c);
       if (r <= 0 || _c.distanceTo(_shoulder) < OUT_OF_REACH) continue;
-      // how far the hand reaches out towards it
+      // how far the hand reaches out toward it
       _d.subVectors(_c, _shoulder).setY(0).normalize();
       if (_arm.dot(_d) < (it === ix.pullTarget ? ARM_REACH - 0.04 : ARM_REACH)) continue;
       _d.subVectors(_c, ix.rayOrigin);

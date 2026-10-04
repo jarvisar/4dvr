@@ -12,7 +12,7 @@
 // moved, and the table's material multiplies its color by the mask (see
 // receive()). Polytopes use the slice shader compiled with SHADOW4 (see
 // sliceMaterial.js). A hypersphere's shadow is done per pixel instead. It's
-// the floor points whose line towards the sun passes within r of the center.
+// the floor points whose line toward the sun passes within r of the center.
 
 import * as THREE from 'three';
 import { SLICE_VERTEX_GLSL } from './sliceMaterial.js';
@@ -20,7 +20,7 @@ import { SLICE_VERTEX_GLSL } from './sliceMaterial.js';
 const MASK_FRAG = /* glsl */ `void main() { gl_FragColor = vec4(1.0); }`;
 
 // A floor point p can only be in shadow if it's within r / sun.y of c', the
-// point where the line from the center towards the sun meets the floor. That
+// point where the line from the center toward the sun meets the floor. That
 // line is at least |p - c'| sun.y away from p. So the quad only covers that
 // square of the mask, and the fragment shader decides the exact shape.
 const SPHERE_VERT = /* glsl */ `
@@ -44,7 +44,7 @@ varying vec2 vXZ;
 void main() {
   vec4 d = vec4(vXZ.x, 0.0, vXZ.y, 0.0) - uPos;
   float a = dot(d, uSun);
-  // Distance from the center to the line towards the sun. The fragment shader
+  // Distance from the center to the line toward the sun. The fragment shader
   // runs once per texel, not per sample, so the edge is antialiased here. The
   // coverage ramps over one texel instead of switching on and off.
   float dist = sqrt(max(dot(d, d) - a * a, 0.0));
@@ -144,7 +144,7 @@ export class Shadow4 {
     this.receiverUniforms.uShadowStrength.value = on ? this.strength : 0;
   }
 
-  // Direction towards the sun, in slice space. y has to be > 0.
+  // Direction toward the sun, in slice space. y has to be > 0.
   setSun(x, y, z, w) {
     const u = this.uniforms.uSun.value;
     if (u.x === x && u.y === y && u.z === z && u.w === w) return;
