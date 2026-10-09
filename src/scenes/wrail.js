@@ -166,6 +166,7 @@ export class WRail {
   onGrabStart(ix, mode, kind) {
     this.grabbedBy = ix;
     this.kind = kind;
+    this.pg.playing = false; // Worldline playback, like the other ways of moving the slice
     this._startHand = this._handY(ix);
     this._startW = this.view.w;
     // grabbing the rail away from the ring jumps the slice there

@@ -45,9 +45,9 @@ const ALONE_AFTER = 4;
 const DWELL_OPEN = 1.5;
 // With no hands or controllers (a gaze cursor, a phone viewer, Vision Pro
 // without hand tracking) there's no palm to show the button or A/X to press,
-// so after this long into a session without any, the button waits low in
-// front of you instead. Not after hands have been seen, since they come and
-// go with tracking.
+// so after this long without any, the button waits low in front of you
+// instead. Once there have been hands, losing them isn't enough, since they
+// come and go with tracking. A pointer has to show up too.
 const NO_HANDS_AFTER = 1.5;
 
 // Where the menu opens: this far in front of the head, with its top edge this
@@ -99,7 +99,9 @@ export class HandMenu {
     this.dwellBar.position.set(0, -this.button.height / 2 - 0.006, 0.001);
     this.button.group.add(this.dwellBar);
     this.palm = { ix: null, t: 0, hideT: 0, shown: false, dwell: 0, armed: true, seen: [-Infinity, -Infinity] };
-    this.noHandsT = 0; // seconds into this session without hands or controllers, or -1 once there have been some
+    this.noHandsT = 0; // seconds since the last hand or controller in this session
+    this.handsSeen = false; // hands or controllers since the last pointer (see NO_HANDS_AFTER)
+    this.floating = false; // the button waits in front of you instead of next to a palm
     this.hud = null; // the panel in the page on a flat screen (mountHud)
   }
 
@@ -223,7 +225,7 @@ export class HandMenu {
     }
     const pn = this.panel, g = pn.group;
     const s = app.uiScale;
-    const rays = app.inputMode === 'controllers' || this.noHandsT > NO_HANDS_AFTER;
+    const rays = app.inputMode === 'controllers' || this.floating;
     let top = head.y - OPEN_TOP;
     // A finger pressing a button that hangs below a table top would disappear
     // into the table. It doesn't go above eye level for that though, which is
@@ -256,6 +258,7 @@ export class HandMenu {
     if (!app.presenting) {
       g.visible = false; // shown in the page instead
       this.noHandsT = 0;
+      this.handsSeen = false;
       this.hud?.setShown(app.desktopMenu && app.hudActive);
       this.panel.opacity = 1;
       this.button.group.visible = false;
@@ -268,9 +271,17 @@ export class HandMenu {
     for (const ix of app.input.xr) {
       if (ix.kind === 'controller' && ix.btnA.down) this.toggle(ix.grabPos);
     }
-    if (app.input.xr.some((ix) => ix.active && (ix.kind === 'hand' || ix.kind === 'controller'))) this.noHandsT = -1;
-    else if (this.noHandsT >= 0) this.noHandsT += dt;
-    if (this.noHandsT > NO_HANDS_AFTER) this._updateFloating(dt);
+    const xr = app.input.xr;
+    if (xr.some((ix) => ix.active && (ix.kind === 'hand' || ix.kind === 'controller'))) {
+      this.noHandsT = 0;
+      this.handsSeen = true;
+    } else {
+      this.noHandsT += dt;
+      // switched to gaze or look and pinch
+      if (xr.some((ix) => ix.active && ix.kind === 'pointer')) this.handsSeen = false;
+    }
+    this.floating = this.noHandsT > NO_HANDS_AFTER && !this.handsSeen;
+    if (this.floating) this._updateFloating(dt);
     else this._updatePalm(dt);
 
     this.hiddenT = this.shown ? 0 : this.hiddenT + dt;

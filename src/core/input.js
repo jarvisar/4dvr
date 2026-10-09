@@ -171,10 +171,21 @@ export class Interactor {
 
   // Forget recent motion, for when grabPos jumps without the hand moving
   clearHistory(time) {
-    for (const h of this._hist) h.t = -1;
+    this.forgetMotion();
     this._record(time);
+  }
+
+  // Also for when the hand isn't tracked, so nothing is thrown with old motion
+  forgetMotion() {
+    for (const h of this._hist) h.t = -1;
     this.velocity.set(0, 0, 0);
     this.angularVelocity.set(0, 0, 0);
+  }
+
+  // Moves the recent poses along with grabPos when it switches to another
+  // point on the hand, so the switch doesn't count as motion
+  shiftHistory(d) {
+    for (const h of this._hist) h.p.add(d);
   }
 
   pulse(intensity = 0.4, ms = 30) {
@@ -268,8 +279,7 @@ export class InputSystem {
       ctrl.addEventListener('selectend', () => { ix.selecting = false; });
       ctrl.addEventListener('disconnected', () => {
         // drop what it was holding, without throwing it
-        ix.velocity.set(0, 0, 0);
-        ix.angularVelocity.set(0, 0, 0);
+        ix.forgetMotion();
         app.interaction?.release(ix);
         ix.source = null;
         ix.kind = 'none';
@@ -330,9 +340,14 @@ export class InputSystem {
         ix.grip.set(hold && ix.grip.pressed, ix.grip.value);
         ix.hasPoke = false;
         ix.hasPalm = false;
-        // after a longer gap, start the filter afresh where the hand reappears
-        // instead of sweeping across from where it was lost
-        if (!hold) smoother.reset();
+        if (!hold) {
+          // after a longer gap, start the filter afresh where the hand reappears
+          // instead of sweeping across from where it was lost
+          smoother.reset();
+          // What it held has been hanging still since the hand was lost, so
+          // it's dropped there instead of thrown with the motion from before
+          ix.forgetMotion();
+        }
         return;
       }
       ix._lostT = 0;
@@ -384,10 +399,14 @@ export class InputSystem {
 
       // Grab point is between the thumb and the pinching finger, or in front of
       // the palm for a closed hand. The filter restarts when it switches, so a
-      // held object doesn't drift across the gap between the two.
-      if (ix.palmGrab !== wasPalm) smoother.reset();
-      if (ix.palmGrab) ix.grabPos.copy(ix.palmPos);
-      else ix.grabPos.addVectors(thumb, ix.grip.pressed ? middle : index).multiplyScalar(0.5);
+      // held object doesn't drift across the gap between the two. Opening a
+      // fist switches it as the object is let go, and the jump would throw it.
+      const pinchPos = _v.addVectors(thumb, ix.grip.pressed ? middle : index).multiplyScalar(0.5);
+      if (ix.palmGrab !== wasPalm) {
+        smoother.reset();
+        ix.shiftHistory(ix.palmGrab ? _v2.subVectors(ix.palmPos, pinchPos) : _v2.subVectors(pinchPos, ix.palmPos));
+      }
+      ix.grabPos.copy(ix.palmGrab ? ix.palmPos : pinchPos);
       ix.grabQuat.copy(wrist.quat);
       smoother.apply(ix.grabPos, ix.grabQuat, dt);
 

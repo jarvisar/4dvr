@@ -309,6 +309,9 @@ const _qi = new THREE.Quaternion();
 const _B = R4.mat4();
 const _v3 = [0, 0, 0];
 const _p4 = [0, 0, 0, 0];
+const _fwd = new THREE.Vector3();
+const _yaw = new THREE.Quaternion();
+const UP = new THREE.Vector3(0, 1, 0);
 
 // head position is the last column of its pose
 function headPoint(out, Hm) {
@@ -438,7 +441,7 @@ export class HyperbolicScene extends SceneBase {
 
   enter() {
     super.enter();
-    this.hasPrev = false;
+    this._releaseHead();
     this.walk.attach();
     if (!this.app.presenting) {
       this.walk.yaw = 0; this.walk.pitch = 0;
@@ -449,10 +452,24 @@ export class HyperbolicScene extends SceneBase {
   exit() {
     super.exit();
     this.walk.detach();
+    this._releaseHead();
   }
 
-  onSessionStart() { this.hasPrev = false; }
-  onSessionEnd() { this.hasPrev = false; }
+  onSessionStart() { this._releaseHead(); }
+  onSessionEnd() { this._releaseHead(); }
+
+  // Hm includes the head's rotation, which the first frame of update() adds.
+  // When the head stops being followed (leaving the scene, entering or leaving
+  // VR), take the tilt back out, or the next first frame adds it a second
+  // time. The heading stays, so you come back facing the same way.
+  _releaseHead() {
+    if (this.hasPrev) {
+      _fwd.set(0, 0, -1).applyQuaternion(this.prevQuat);
+      _yaw.setFromAxisAngle(UP, Math.atan2(-_fwd.x, -_fwd.z));
+      this._rotateLocal(_q.copy(this.prevQuat).invert().multiply(_yaw));
+    }
+    this.hasPrev = false;
+  }
 
   // Moves the viewer by a head-local offset (hyperbolic units)
   _translateLocal(v) {

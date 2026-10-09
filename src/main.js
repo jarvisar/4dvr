@@ -80,11 +80,14 @@ function hudMessage(text = '') {
 }
 
 // --- scenes ---------------------------------------------------------------------
+// A scene that was asked for (?scene= or the start screen) before it loaded.
+// Picking any scene that has loaded since replaces it, even the one already showing.
 let pendingScene = null;
 function requestScene(key) {
   if (SCENES.some((s) => s.key === key)) app.setScene(key);
   else pendingScene = key; // still loading
 }
+app.onSceneRequest = () => { pendingScene = null; };
 
 function renderTabs() {
   // the tabs are rebuilt, so a keyboard user's focus moves to the new scene's tab
@@ -194,14 +197,14 @@ app.onSessionChange = (on) => {
   if (!on) renderTabs();
 };
 
-const initial = params.get('scene') || 'playground';
 app.setScene('playground', true);
+if (params.get('scene') !== 'playground') pendingScene = params.get('scene');
 loadExtraScenes().then(() => {
   renderTabs();
   app.menu.rebuild(); // the VR menu's scene tabs
-  const key = pendingScene || initial;
+  const key = pendingScene;
   pendingScene = null;
-  if (key !== 'playground' && SCENES.some((s) => s.key === key)) app.setScene(key, true);
+  if (key && SCENES.some((s) => s.key === key)) app.setScene(key, true);
   // Build the remaining 4D shapes and upload them to the GPU in idle time. This
   // only runs before VR starts. In the headset they're built on first use instead.
   prebuildShapes(() => !app.presenting, (shape) => {
@@ -213,7 +216,6 @@ loadExtraScenes().then(() => {
   if (!app.presenting) app.renderer.compileAsync(app.scene, app.camera).catch(() => {});
 }).catch((e) => {
   console.error('Failed to load scenes', e);
-  const requested = pendingScene || initial;
   const message = 'The other scenes could not load. Check your connection and reload to try again.';
   sceneLoadError = message;
   hudMessage();
@@ -221,7 +223,7 @@ loadExtraScenes().then(() => {
   for (const button of index.querySelectorAll('button')) button.disabled = button.dataset.scene !== 'playground';
   $('retry-scenes').onclick = () => {
     const url = new URL(location.href);
-    url.searchParams.set('scene', requested);
+    url.searchParams.set('scene', pendingScene || app.sceneKey);
     location.assign(url);
   };
 });

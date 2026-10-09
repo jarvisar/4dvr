@@ -570,7 +570,7 @@ export class SphericalScene extends SceneBase {
 
   enter() {
     super.enter();
-    this.hasPrev = false;
+    this._releaseHead();
     this.walk.attach();
     if (!this.app.presenting) {
       this.walk.yaw = 0; this.walk.pitch = 0;
@@ -581,10 +581,22 @@ export class SphericalScene extends SceneBase {
   exit() {
     super.exit();
     this.walk.detach();
+    this._releaseHead();
   }
 
-  onSessionStart() { this.hasPrev = false; }
-  onSessionEnd() { this.hasPrev = false; }
+  onSessionStart() { this._releaseHead(); }
+  onSessionEnd() { this._releaseHead(); }
+
+  // Hm includes the head's rotation (same as hyperbolic.js). Take the tilt
+  // back out when the head stops being followed, keeping the heading.
+  _releaseHead() {
+    if (this.hasPrev) {
+      _fwd.set(0, 0, -1).applyQuaternion(this.prevQuat);
+      _yaw.setFromAxisAngle(_up, Math.atan2(-_fwd.x, -_fwd.z));
+      this._rotateLocal(_q.copy(this.prevQuat).invert().multiply(_yaw));
+    }
+    this.hasPrev = false;
+  }
 
   // Moves the viewer by a head-local offset (radians of S³)
   _translateLocal(x, y, z) {

@@ -36,6 +36,8 @@ const MAX_THROW = 6;  // m/s
 const MAX_SPIN = 25;  // rad/s
 // Dice would roll out of the slice along w, so their walls in w are much closer
 const DICE_W_RANGE = 0.09;
+// The tutorial's turn step needs an object turned this far through w (radians)
+const TUTORIAL_TURN = 0.5;
 
 const fmtW = (v) => (Math.abs(v) < 0.005 ? '0' : `${v > 0 ? 'ana' : 'kata'} ${Math.abs(v * 100).toFixed(0)} cm`);
 const wColor = (v) => (v > 0.005 ? '#ff8fbf' : v < -0.005 ? '#7fd8ff' : '#ffffff');
@@ -180,6 +182,7 @@ class Toy {
     this.mode = mode;
     this.kind = kind;
     this.pullT = kind === 'pull' ? 0 : PULL_TIME;
+    this.turned = 0; // furthest it's been turned through w in this grab, for the tutorial
     this.body.held = true;
     this.body.invMass = this.body.baseInvMass * 0.25; // held objects push others harder
     this.body.wake();
@@ -212,6 +215,7 @@ class Toy {
         const dir = [d.x / len, d.y / len, d.z / len, 0];
         R4.rotationInPlane(_M2, EW, dir, len * k);
         R4.multiply(_M, _M2, _M);
+        this.turned = Math.max(this.turned, len * k);
       }
     } else {
       // carrying follows the hand rigidly in xyz and keeps the same offset in w
@@ -480,6 +484,11 @@ export class PlaygroundScene extends SceneBase {
     this.shadow4.dirty = true;
   }
 
+  exit() {
+    super.exit();
+    this.app.audio.stopScrub(); // update() keeps the w tone going, and it stops being called
+  }
+
   // ---------------------------------------------------------------------------
 
   // Glides the slice to w, unless something else moves it first
@@ -532,6 +541,7 @@ export class PlaygroundScene extends SceneBase {
     this._removeToy(t);
     this.toys = this.toys.filter((x) => x !== t);
     this.interactables = this.interactables.filter((x) => x !== t);
+    this.moons = this.moons.filter((x) => x !== t); // spawning past MAX_TOYS recycles moons too
   }
 
   spawn(key) {
@@ -585,7 +595,7 @@ export class PlaygroundScene extends SceneBase {
       this.add('tesseract', { ...glass, scale4: [2 * s - th, hgt, th, 2 * ww], pos: P4(0, hgt / 2, s, 0) });
       this.add('tesseract', { ...glass, scale4: [2 * s - th, hgt, th, 2 * ww], pos: P4(0, hgt / 2, -s, 0) });
       this.ball = this.add('hypersphere', { scale: 0.045, pos: P4(0, 0.05, 0, 0), restitution: 0.2 });
-      this.boxGoal = { s, done: false };
+      this.boxGoal = { s, top: hgt + th, done: false };
       this._say('Get the ball out of the box', 5);
     } else if (name === 'tower') {
       const s = 0.1; // tesseract edge length
@@ -806,8 +816,7 @@ export class PlaygroundScene extends SceneBase {
           const p = this.view.toSlice([0, 0, 0, 0], b.x);
           if (Math.abs(p[3]) < 0.1) this.burst.fire(new THREE.Vector3(p[0], p[1], p[2]), ['#ffc44d', '#ff9f68', '#ffffff'], 0.5);
         } else this.orbitStats.escaped++;
-        this.moons.splice(i, 1);
-        this._drop(m);
+        this._drop(m); // takes it out of this.moons too
         continue;
       }
       if (this.app.frameCount % 2 === 0) m.trail.push(b.x);
@@ -1038,11 +1047,11 @@ export class PlaygroundScene extends SceneBase {
     this.app.audio.scrub(w01, this.playing ? 0 : (this._wSpeed || 0) / Math.max(dt, 1e-3));
     this._wSpeed = 0;
 
-    // sealed-box puzzle
+    // sealed-box puzzle, out through a side or the lid
     if (this.boxGoal && !this.boxGoal.done && this.ball) {
       const x = this.ball.body.x;
-      const s = this.boxGoal.s;
-      if ((Math.abs(x[0]) > s + 0.03 || Math.abs(x[2]) > s + 0.03) && Math.abs(x[3]) < 0.05 && !this.ball.grabbedBy) {
+      const { s, top } = this.boxGoal;
+      if ((Math.abs(x[0]) > s + 0.03 || Math.abs(x[2]) > s + 0.03 || x[1] > top) && Math.abs(x[3]) < 0.05 && !this.ball.grabbedBy) {
         this.boxGoal.done = true;
         this._celebrate(x, 'Solved');
       }
@@ -1083,8 +1092,8 @@ export class PlaygroundScene extends SceneBase {
   tutorial() {
     if (this.preset !== 'sandbox') this.loadPreset('sandbox');
     const app = this.app;
-    const held = (mode) => app.input.xr.some((ix) => ix.grabbed instanceof Toy && (!mode || ix.grabMode === mode));
-    let grabbed = false, w0 = null, turnT = 0, turnResetPending = false;
+    const held = () => app.input.xr.some((ix) => ix.grabbed instanceof Toy);
+    let grabbed = false, w0 = null, turnResetPending = false;
     return [
       {
         title: 'Pick something up',
@@ -1112,14 +1121,14 @@ export class PlaygroundScene extends SceneBase {
         },
         fingers: 'middle', tag: 'Trigger and grip: turn through w',
         start: () => { turnResetPending = true; },
-        done: (dt) => {
+        done: () => {
           // Wait for the previous stick or air pinch to end, so it can't cancel the reset.
           if (turnResetPending && !app.input.xr.some((ix) => ix.emptyGrab || Math.abs(ix.stick.y) > 0)) {
             this.easeSliceTo(0);
             turnResetPending = false;
           }
-          if (held('secondary')) turnT += dt;
-          return turnT > 0.5;
+          // holding it isn't enough, it has to turn
+          return app.input.xr.some((ix) => ix.grabbed instanceof Toy && ix.grabMode === 'secondary' && ix.grabbed.turned > TUTORIAL_TURN);
         },
       },
       {

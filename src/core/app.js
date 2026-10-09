@@ -320,6 +320,9 @@ export class App {
   }
 
   _key(e) {
+    // A key press can start the sound too. ?desktop skips the start screen's
+    // click, so someone using only the keyboard might never click.
+    this.audio.unlock();
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
     // Space and Enter on a focused button press the button, not also the scene
     if (e.target?.tagName === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
@@ -346,6 +349,7 @@ export class App {
   // Switch scenes with a short fade (instant on first load)
   setScene(key, instant = false) {
     if (!this.sceneList.some((s) => s.key === key)) return;
+    this.onSceneRequest?.(key);
     if (key === this.sceneKey && this.activeScene) {
       this._pendingScene = null;
       this.fadeTarget = 0;

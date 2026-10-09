@@ -160,6 +160,11 @@ try {
     __xrDevice.controllers.right.updateButtonValue('trigger', 1);
     __xrDevice.controllers.right.updateButtonValue('squeeze', 1);
   });
+  await vr.waitForFunction(() => __app.input.xr.some((i) => i.grabbed && i.grabMode === 'secondary'));
+  // holding it still doesn't finish the step, turning it does
+  await new Promise((r) => setTimeout(r, 800));
+  results.tutorialTurnStill = await vr.evaluate(() => __app.guide.tut?.i);
+  await vr.evaluate(() => { const p = __xrDevice.controllers.right.position; p.set(p.x + 0.1, p.y, p.z); });
   await vr.waitForFunction(() => __app.guide.tut?.i === 3, { timeout: 20000 });
   await vr.evaluate(() => {
     __xrDevice.controllers.right.updateButtonValue('trigger', 0);
@@ -296,7 +301,6 @@ try {
     // Remove the other controller, mirroring headsets with only a gaze or look/pinch input.
     for (const s of app.input.spaces) s.ctrl.dispatchEvent({ type: 'disconnected' });
     sp.ctrl.dispatchEvent({ type: 'connected', data: { handedness: 'none', targetRayMode: 'gaze' } });
-    app.menu.noHandsT = 0;
     app.guide.startTutorial();
     for (let i = 0; i < 140; i++) app.menu.update(1 / 72);
     out.pointerInstructions = { mode: app.inputMode, guide: app.guide.mode, first: app.guide.panel.rows.find((r) => r.type === 'text').text, tutorial: !!app.guide.tut, menuButton: app.menu.button.group.visible };
@@ -343,6 +347,7 @@ try {
     'pointer cards and menu text fit': results.xr?.pointerLayout && results.xr?.pointerMenuLayout,
     'session ends with no held interactions': results.xr?.afterEnd.presenting === false && !results.xr?.afterEnd.held && results.xr?.afterEnd.guide === null,
     'XR session can start again with both controllers': results.reentry?.presenting && results.reentry?.mode === 'controllers' && results.reentry?.active === 2,
+    'tutorial turn step needs the object to turn': results.tutorialTurnStill === 2,
     'all four controller tutorial steps complete through real XR input': results.fullControllerTutorial?.finished && results.fullControllerTutorial?.steps === 4 && results.fullControllerTutorial?.saved === '1' && results.fullControllerTutorial?.card === 'Tutorial done',
     'tutorial restores visible objects after held slice-stick release': results.tutorialHeldTransition?.stillHeld && Math.abs(results.tutorialHeldTransition.w) > 0.1 && Math.abs(results.tutorialHeldTransition.afterRelease) < 0.03,
     'no runtime errors': errors.length === 0,

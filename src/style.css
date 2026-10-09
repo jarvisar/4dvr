@@ -322,7 +322,8 @@ a:hover { color: #b3d3fa; text-decoration-color: currentColor; }
   left: var(--edge-left);
   bottom: var(--edge-bottom);
   width: min(360px, calc(100% - var(--edge-left) - var(--edge-right)));
-  max-height: calc(100% - 90px);
+  /* stays under the tab bar and the notice (main.js sets --hud-top), or it covers them on short windows */
+  max-height: calc(100% - var(--hud-top, 67px) - var(--edge-bottom));
   overflow-y: auto;
   background: var(--plate);
   border: 1px solid #000;
@@ -417,7 +418,7 @@ a:hover { color: #b3d3fa; text-decoration-color: currentColor; }
   #scene-tabs button { padding: 8px 12px; }
   #scene-tabs button i { display: none; }
   .hud-tools { position: fixed; right: var(--edge-right); bottom: var(--edge-bottom); }
-  #hud-help { bottom: calc(var(--edge-bottom) + 52px); max-height: calc(100% - 136px); }
+  #hud-help { bottom: calc(var(--edge-bottom) + 52px); max-height: calc(100% - var(--hud-top, 67px) - var(--edge-bottom) - 52px); }
   #hud-help li { font-size: 13px; }
   #hud-vr { right: auto; left: var(--edge-left); }
   .hud-panel { left: var(--edge-left); width: auto; max-width: 440px; margin: 0 auto; }
@@ -430,7 +431,6 @@ a:hover { color: #b3d3fa; text-decoration-color: currentColor; }
 /* short screens (phones in landscape) */
 @media (max-height: 520px) {
   #hud-help ul { padding: 8px 12px 10px; gap: 3px; }
-  #hud-help { max-height: calc(100% - 76px); }
   #hud-help li { font-size: 13px; line-height: 1.35; }
   #hud-stats { top: 56px; }
 }
@@ -458,9 +458,17 @@ a:hover { color: #b3d3fa; text-decoration-color: currentColor; }
   .index .d { font-size: 12.5px; }
 }
 
-/* the wordmark's gradient text would disappear in Windows high contrast */
+/* Windows high contrast. The wordmark's gradient text would disappear, and
+   the gradients and shadows that show the current scene and keyboard focus
+   are dropped. */
 @media (forced-colors: active) {
   .wordmark { -webkit-text-fill-color: currentColor; background: none; filter: none; }
+  /* the bar is otherwise see-through, and the scene behind it isn't recolored */
+  #scene-tabs { background: Canvas; }
+  #scene-tabs button.active, .index button.selected { forced-color-adjust: none; background: Highlight; color: HighlightText; text-shadow: none; box-shadow: none; }
+  #scene-tabs button.active i, .index button.selected .n, .index button.selected .d { color: HighlightText; }
+  #scene-tabs button:focus-visible { outline: 2px solid CanvasText; outline-offset: -4px; box-shadow: none; }
+  #scene-tabs button.active:focus-visible, .index button.selected:focus-visible { outline-color: HighlightText; box-shadow: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -61,6 +61,8 @@ export class WalkControls {
         const d = this._drag;
         if (app.presenting || !app.hudActive) { this._drag = null; return; }
         if (!d || e.pointerId !== d.id) return;
+        // the release was missed, like after letting go outside the window
+        if (!(e.buttons & 1)) { this._drag = null; return; }
         this.yaw -= (e.clientX - d.x) * LOOK;
         this.pitch = THREE.MathUtils.clamp(this.pitch - (e.clientY - d.y) * LOOK, -1.4, 1.4);
         d.x = e.clientX;

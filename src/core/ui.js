@@ -226,11 +226,32 @@ export class UIPanel {
       if (!this._rowWidgets.has(w.row)) this._rowWidgets.set(w.row, []);
       this._rowWidgets.get(w.row).push(w);
     }
+    // Hovers, presses and drags move to the new widgets. On a widget that's
+    // gone, like a slider on the page the other hand just switched away from,
+    // they end, or the slider would keep changing things while it's hidden.
+    for (const map of [this.hover, this.pressed]) {
+      for (const [ix, w] of map) {
+        const now = this.carry(w);
+        if (now) map.set(ix, now);
+        else map.delete(ix);
+      }
+    }
+    const input = this.ui.app?.input;
+    for (const ix of input ? [...input.xr, input.mouse] : []) {
+      if (ix.uiCapture?.panel === this) ix.uiCapture.widget = this.carry(ix.uiCapture.widget);
+    }
     this._fit.clear();
     this._drawn.length = 0;
     this._changedBand(); // record what the widgets show now
     this.draw();
     this.onLayout?.();
+  }
+
+  // The widget for the same row and item after setRows, or null if it's gone.
+  // Laying the same rows out again (fonts loading, a text row growing) keeps
+  // them. A menu rebuilt with new rows doesn't.
+  carry(w) {
+    return (w && this.widgets.find((n) => n.row === w.row && n.item === w.item)) || null;
   }
 
   // What a widget shows, as a string that changes whenever it needs a redraw
@@ -780,8 +801,16 @@ export class DomPanel {
     this._h = 0;
     this._down = null;
     this._drag = null;
+    this._dragId = null;
     this._items = [];
-    panel.onLayout = () => { this.update(); this._build(); };
+    panel.onLayout = () => {
+      // a press or drag on a widget that's gone ends (see UIPanel.setRows)
+      this._drag = panel.carry(this._drag);
+      if (this._down) this._down.w = panel.carry(this._down.w);
+      if (!this._down?.w) this._down = null;
+      this.update();
+      this._build();
+    };
     panel.onDraw = () => this._sync();
     const c = panel.canvas;
     c.style.touchAction = 'pan-y'; // vertical swipes scroll the panel
@@ -790,6 +819,11 @@ export class DomPanel {
     c.addEventListener('pointerup', (e) => this._release(e));
     c.addEventListener('pointercancel', () => this._end());
     c.addEventListener('pointerleave', () => { if (!this._drag) { this._hover(null); this._end(); } });
+    // A slider drag holds the pointer capture. If that's lost without a
+    // pointerup reaching the canvas, the drag would follow the mouse with no
+    // button held.
+    c.addEventListener('lostpointercapture', () => this._end());
+    window.addEventListener('blur', () => this._end());
     c.addEventListener('contextmenu', (e) => e.preventDefault()); // no "Save image" menu, same as the 3D canvas
     this.el.addEventListener('scroll', () => this._fade(), { passive: true });
     new ResizeObserver(() => this._fade()).observe(this.el); // its height depends on the window and the page's other controls
@@ -953,7 +987,11 @@ export class DomPanel {
 
   _move(e) {
     const [x, y] = this._at(e);
-    if (this._drag) { this.panel.dragSlider(this._drag, x); return; }
+    if (this._drag) {
+      if (e.pointerId !== this._dragId) return;
+      if (e.buttons & 1) { this.panel.dragSlider(this._drag, x); return; }
+      this._end(); // the release was missed
+    }
     if (e.pointerType !== 'touch') this._hover(this.panel.widgetAt(x, y, 0));
     const d = this._down;
     if (!d) return;
@@ -976,6 +1014,7 @@ export class DomPanel {
   _startDrag(w, e, x) {
     this._down = null;
     this._drag = w;
+    this._dragId = e.pointerId;
     this.panel.canvas.setPointerCapture(e.pointerId);
     this.panel.activate(w, x);
   }

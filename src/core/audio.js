@@ -157,4 +157,12 @@ export class AudioEngine {
     s.g.gain.setTargetAtTime(this.enabled ? target : 0, t, target > s.level ? 0.02 : 0.12);
     s.level = target;
   }
+
+  // Fades it out, for when nothing will update it anymore
+  stopScrub() {
+    const s = this._scrub;
+    if (!s) return;
+    s.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+    s.level = 0;
+  }
 }
