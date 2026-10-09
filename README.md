@@ -132,7 +132,7 @@ An object's shadow is its projection onto the floor (a 3D hyperplane in 4D) alon
 
 ### Curved Spaces
 
-Hyperbolic Space and Spherical Space are based on [Non-Euclidean Virtual Reality](https://arxiv.org/abs/1702.04004) by Hart, Hawksley, Matsumoto, and Segerman. Each frame, head movement is converted to a hyperbolic translation (or a rotation of R⁴ in spherical space), separately for each eye. In spherical space every line of sight is a great circle, so everything is drawn twice, once along the short arc and once along the long one.
+Hyperbolic Space and Spherical Space are based on [Non-Euclidean Virtual Reality](https://arxiv.org/abs/1702.04004) by Hart, Hawksley, Matsumoto, and Segerman. Each frame, head movement is converted to a hyperbolic translation (or a rotation of R⁴ in spherical space). In spherical space every line of sight is a great circle, so everything is drawn twice, once along the short arc and once along the long one. Hyperbolic Space does this separately for each eye. Spherical Space does it once from between the eyes, since the real lines of sight from two eyes to anything more than a quarter of the way round diverge and can't be fused in a headset.
 
 ###### Note: this relies on each eye being rendered separately. Three.js's `WebGLRenderer` doesn't support multiview.
 

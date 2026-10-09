@@ -13,13 +13,20 @@
 // Every geodesic is a great circle of length 2π, so light from each point
 // reaches the eye along two arcs. The short one has direction u and distance t.
 // The long one has direction -u and distance 2π - t. Everything is drawn twice,
-// once per arc. Looking straight ahead along the long arc, the view ends at the
+// once per arc, unless the long arc is always hidden (see setTiling). Looking straight ahead along the long arc, the view ends at the
 // back of your own head, which is drawn as an avatar around the eyes.
 //
-// Each vertex is placed in its true direction from the eye at its true distance
+// Each vertex is placed in its true direction from the head at its true distance
 // (in meters), which gives each triangle the right outline on screen. Near the
 // antipodal point a small triangle can cover a big part of the view, so depth is
 // written per fragment from the interpolated distance.
+//
+// Unlike Hyperbolic Space this is done once from the point between the eyes, not
+// per eye. In S³ the true lines of sight from two eyes to anything past π/2 diverge
+// (by about 20° for the back of your own head), so true per-eye views can't be
+// fused and look broken in a headset. Projecting once and letting the eyes see
+// that in flat stereo makes everything look as far away as its distance along
+// the arc. Up close, where S³ is nearly flat, the difference is tiny.
 // See Hart, Hawksley, Matsumoto and Segerman, "Non-Euclidean Virtual Reality".
 
 import * as THREE from 'three';
@@ -54,8 +61,9 @@ const RAD = 6;          // tube radial segments (hexagonal beams)
 const SEG_ANGLE = 0.075; // tube segment length (radians)
 
 // Projection shared by every S³ shader. Places the vertex along its short or
-// long arc, in meters, around the eye.
+// long arc, in meters, around the head.
 const S3_PROJECT = /* glsl */ `
+uniform vec3 uHeadPos;
 uniform mat3 uHeadRot;
 uniform float uL;
 varying vec3 vPosW;
@@ -67,7 +75,7 @@ void s3Project(vec4 Q, vec4 D, float longWay) {
   float t = atan(r, Q.w);                 // distance along the short arc, 0..π
   vec3 u = r > 1e-9 ? Q.xyz / r : vec3(0.0, 0.0, -1.0);
   if (longWay > 0.5) { u = -u; t = 6.28318530718 - t; }
-  vPosW = cameraPosition + uHeadRot * u * (t * uL);
+  vPosW = uHeadPos + uHeadRot * u * (t * uL);
   vT = t;
   // direction of the surface normal as seen from the eye (derivative of Q.xyz / Q.w)
   vN = uHeadRot * (D.xyz * Q.w - Q.xyz * D.w);
@@ -76,6 +84,7 @@ void s3Project(vec4 Q, vec4 D, float longWay) {
 `;
 
 const S3_FRAGMENT_COMMON = /* glsl */ `
+uniform vec3 uHeadPos;
 uniform mat3 uHeadRot;
 uniform float uL;
 uniform float uFog;
@@ -85,11 +94,11 @@ varying vec3 vPosW;
 varying float vT;
 varying vec3 vN;
 
-// Depth of the point at the true distance along this pixel's view ray. The
-// rasterized triangle can pass much closer to the eye than the surface it
+// Depth of the point at the true distance in this pixel's direction. The
+// rasterized triangle can pass much closer to the head than the surface it
 // stands for (near the antipodal point), so the vertex depth isn't used.
 void s3Depth() {
-  vec3 P = cameraPosition + normalize(vPosW - cameraPosition) * (vT * uL);
+  vec3 P = uHeadPos + normalize(vPosW - uHeadPos) * (vT * uL);
   float zv = (viewMatrix * vec4(P, 1.0)).z;
   gl_FragDepth = 0.5 * (uDepth.x * zv + uDepth.y) / -zv + 0.5;
 }
@@ -97,7 +106,7 @@ void s3Depth() {
 
 const TILING_VERT = /* glsl */ `
 ${S3_PROJECT}
-uniform mat4 uEyeInv;  // world to this eye (rotation of R⁴)
+uniform mat4 uHeadInv; // world to head (rotation of R⁴)
 uniform float uLongWay;
 attribute vec4 aS;     // point on S³
 attribute vec4 aD;     // outward unit tangent at aS
@@ -108,7 +117,7 @@ varying float vKind;
 void main() {
   vColor = aColor;
   vKind = aKind;
-  s3Project(uEyeInv * aS, uEyeInv * aD, uLongWay);
+  s3Project(uHeadInv * aS, uHeadInv * aD, uLongWay);
 }
 `;
 
@@ -144,7 +153,6 @@ void main() {
 // since the short one is where you are.
 const AVATAR_VERT = /* glsl */ `
 ${S3_PROJECT}
-uniform mat4 uAvatarEye; // head frame to this eye
 uniform mat3 uBodyRot;   // body (yaw only) to head frame
 attribute vec3 aColor;
 attribute float aPart;   // 0 head, 1 body
@@ -181,7 +189,7 @@ void main() {
   vec3 dir = m / max(len3, 1e-9);
   vec4 Sp = vec4(dir * sin(d), cos(d));
   vec4 Dp = vec4(nl - dir * dot(nl, dir) * (1.0 - cos(d)), -dot(nl, dir) * sin(d)); // tangent at Sp
-  s3Project(uAvatarEye * Sp, uAvatarEye * Dp, 1.0);
+  s3Project(Sp, Dp, 1.0);
 }
 `;
 
@@ -252,7 +260,8 @@ function buildTiling(def) {
   R4.multiply(M, R4.fromQuaternion(R4.mat4(), q), M);
   const verts = poly.vertices.map((v) => R4.apply([0, 0, 0, 0], M, V.normalize([0, 0, 0, 0], v)));
   const cells = poly.cells.map((c, i) => ({ center: R4.apply([0, 0, 0, 0], M, centers[i]), color: def.color(c) }));
-  return { def, verts, edges: poly.edges, cells, cellDist: dmin };
+  const antipodal = verts.every((v) => verts.some((u) => V.dot(u, v) < -1 + 1e-6));
+  return { def, verts, edges: poly.edges, cells, cellDist: dmin, antipodal };
 }
 
 function buildGeometry(tiling, { tube, node, lantern }) {
@@ -406,8 +415,7 @@ const _qi = new THREE.Quaternion();
 const _v = new THREE.Vector3();
 const _mv = new THREE.Vector3();
 const _m4 = new THREE.Matrix4();
-const _E = R4.mat4();
-const _T = R4.mat4();
+const _center = new THREE.Vector3();
 const _B = R4.mat4();
 const _fwd = new THREE.Vector3();
 const _yaw = new THREE.Quaternion();
@@ -429,7 +437,8 @@ export class SphericalScene extends SceneBase {
     this.locomotion = true; // snap turn and the comfort vignette (see App)
 
     this.uniforms = {
-      uEyeInv: { value: new THREE.Matrix4() },
+      uHeadInv: { value: new THREE.Matrix4() },
+      uHeadPos: { value: new THREE.Vector3() },
       uHeadRot: { value: new THREE.Matrix3() },
       uL: { value: 1.6 },
       uFog: { value: 0.2 },
@@ -455,12 +464,12 @@ export class SphericalScene extends SceneBase {
 
     // avatar: head, body and tracked hands, long arc only
     this.avatarUniforms = {
+      uHeadPos: this.uniforms.uHeadPos,
       uHeadRot: this.uniforms.uHeadRot,
       uL: this.uniforms.uL,
       uFog: this.uniforms.uFog,
       uFogColor: this.uniforms.uFogColor,
       uDepth: this.uniforms.uDepth,
-      uAvatarEye: { value: new THREE.Matrix4() },
       uBodyRot: { value: new THREE.Matrix3() },
     };
     const avatarMat = (defines) => new THREE.ShaderMaterial({ uniforms: this.avatarUniforms, vertexShader: AVATAR_VERT, fragmentShader: AVATAR_FRAG, defines });
@@ -475,7 +484,7 @@ export class SphericalScene extends SceneBase {
     this.bones = new THREE.Mesh(this.boneGeo, avatarMat({ BONES: '' }));
     for (const mesh of [this.avatarBody, this.joints, this.bones]) {
       mesh.frustumCulled = false;
-      mesh.onBeforeRender = (r, s, camera) => this._setEye(camera, mesh.material, true);
+      mesh.onBeforeRender = (r, s, camera) => this._setDepth(camera, mesh.material);
       this.avatar.add(mesh);
     }
     for (let i = 0; i < MAX_JOINTS; i++) this.jointGeo.attributes.aColor.setXYZ(i, HAND_COLOR.r, HAND_COLOR.g, HAND_COLOR.b);
@@ -516,10 +525,15 @@ export class SphericalScene extends SceneBase {
     }
     this.tiling = built.tiling;
     for (const mesh of this.tilingMeshes || []) { mesh.removeFromParent(); }
-    this.tilingMeshes = this.tilingMats.map((mat) => {
+    this.tilingMeshes = this.tilingMats.map((mat, longWay) => {
       const mesh = new THREE.Mesh(built.geo, mat);
+      // If -p is in the tiling for every p, the long-arc image of anything lies
+      // exactly behind the short-arc image of its antipode (same direction, same
+      // angular size, π farther). Seen from one point it's never visible, and in
+      // stereo it only peeks out as slivers. Every tiling here except the 5-cell.
+      mesh.visible = !(longWay && built.tiling.antipodal);
       mesh.frustumCulled = false;
-      mesh.onBeforeRender = (r, s, camera) => this._setEye(camera, mat, false);
+      mesh.onBeforeRender = (r, s, camera) => this._setDepth(camera, mat);
       this.root.add(mesh);
       return mesh;
     });
@@ -534,7 +548,7 @@ export class SphericalScene extends SceneBase {
     this.beacons = this.beaconMats.map((mat) => {
       const mesh = new THREE.Mesh(bgeo, mat);
       mesh.frustumCulled = false;
-      mesh.onBeforeRender = (r, s, camera) => this._setEye(camera, mat, false);
+      mesh.onBeforeRender = (r, s, camera) => this._setDepth(camera, mat);
       this.root.add(mesh);
       return mesh;
     });
@@ -542,13 +556,8 @@ export class SphericalScene extends SceneBase {
     if (this.app.activeScene === this) this.app.menu.rebuild();
   }
 
-  // Per-eye transforms. three.js calls onBeforeRender separately for each eye.
-  _setEye(camera, material, avatar) {
-    const L = this.uniforms.uL.value;
-    _v.setFromMatrixPosition(camera.matrixWorld).sub(this.headPos).applyQuaternion(this.headQuatInv).divideScalar(L);
-    S.translation(_E, -_v.x, -_v.y, -_v.z); // head frame to this eye
-    if (avatar) R4.toThreeMatrix(material.uniforms.uAvatarEye.value, _E, 1);
-    else R4.toThreeMatrix(material.uniforms.uEyeInv.value, R4.multiply(_T, _E, this.HmT), 1);
+  // three.js calls onBeforeRender separately for each eye
+  _setDepth(camera, material) {
     const pe = camera.projectionMatrix.elements;
     material.uniforms.uDepth.value.set(pe[10], pe[14]);
     material.uniformsNeedUpdate = true;
@@ -618,7 +627,7 @@ export class SphericalScene extends SceneBase {
     }
 
     // accumulate head motion into the pose on S³
-    const pos = app.headPosition, quat = app.headQuaternion;
+    const pos = this._eyeCenter(_center), quat = app.headQuaternion;
     if (this.hasPrev) {
       const dp = _v.copy(pos).sub(this.prevPos);
       if (dp.length() < 0.5) {
@@ -643,7 +652,9 @@ export class SphericalScene extends SceneBase {
 
     R4.orthonormalize(this.Hm);
     R4.transpose(this.HmT, this.Hm);
+    R4.toThreeMatrix(this.uniforms.uHeadInv.value, this.HmT, 1);
     this.headPos.copy(pos);
+    this.uniforms.uHeadPos.value.copy(pos);
     this.headQuatInv.copy(quat).invert();
     _m4.makeRotationFromQuaternion(quat);
     this.uniforms.uHeadRot.value.setFromMatrix4(_m4);
@@ -662,8 +673,17 @@ export class SphericalScene extends SceneBase {
     for (const b of this.beacons) b.visible = this.showBeacon && this.homeDistance > this.beaconRadius * 3;
   }
 
+  // In VR three.js puts the head camera a few cm behind the eyes (so its frustum
+  // covers both), so use the actual midpoint of the two eye cameras
+  _eyeCenter(out) {
+    const cams = this.app.presenting ? this.app.renderer.xr.getCamera().cameras : null;
+    if (cams?.length !== 2) return out.copy(this.app.headPosition);
+    out.setFromMatrixPosition(cams[0].matrixWorld);
+    return out.add(_v.setFromMatrixPosition(cams[1].matrixWorld)).multiplyScalar(0.5);
+  }
+
   // world position to head-local meters
-  _toHead = (p, out) => out.copy(p).sub(this.headPos).applyQuaternion(this.headQuatInv);
+  _toHead =(p, out) => out.copy(p).sub(this.headPos).applyQuaternion(this.headQuatInv);
 
   // Tracked hands (or controllers) in head-local meters, for the avatar
   _updateHands() {
