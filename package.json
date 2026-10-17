@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "three": "^0.186.1",
-    "iwer": "^2.5.0",
+    "iwer": "^2.6.0",
     "@iwer/devui": "^2.5.0"
   },
   "devDependencies": {
