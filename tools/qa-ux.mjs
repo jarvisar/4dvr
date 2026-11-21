@@ -11,6 +11,14 @@ const browser = await puppeteer.launch({
 });
 const results = [];
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// The HUD menu's DOM (shown or hidden, its controls, slider values) only catches
+// up with the app when the next frame is drawn. With software WebGL on CI a frame
+// can take longer than the fixed pauses, so also wait for two new frames.
+async function settle(page, ms) {
+  await pause(ms);
+  const start = await page.evaluate(() => window.__app.frameCount);
+  await page.waitForFunction((end) => window.__app.frameCount >= end, { timeout: 30000 }, start + 2);
+}
 
 async function snapshot(page) {
   return page.evaluate(() => {
@@ -47,16 +55,16 @@ try {
   results.push({ test: 'first tab after entering', state: await snapshot(page) });
   await page.focus('#hud-menu');
   if (!(await page.evaluate(() => window.__app.desktopMenu))) await page.keyboard.press('Enter');
-  await pause(150);
+  await settle(page, 150);
   await page.keyboard.press('Tab');
   results.push({ test: 'tab after menu toggle', state: await snapshot(page) });
   await page.focus('.hud-panel input[type=range]');
   const sliderBefore = await page.$eval('.hud-panel input[type=range]', (el) => +el.value);
   await page.keyboard.press('ArrowRight');
-  await pause(250);
+  await settle(page, 250);
   const sliderAfter = await page.$eval('.hud-panel input[type=range]', (el) => +el.value);
   await page.keyboard.press('Escape');
-  await pause(250);
+  await settle(page, 250);
   results.push({ test: 'slider keyboard and escape', sliderBefore, sliderAfter, state: await snapshot(page) });
 
   const scenes = ['playground', 'gallery', 'knots', 'hopf', 'hyperbolic', 'spherical', 'klein', 'quasicrystal'];
@@ -65,7 +73,7 @@ try {
     await page.keyboard.press('Enter');
     await page.waitForFunction((key) => window.__app.sceneKey === key, { timeout: 30000 }, scene);
     await page.evaluate(() => { window.__app.setDesktopMenu(true); });
-    await pause(350);
+    await settle(page, 350);
     const state = await snapshot(page);
     results.push({ test: `desktop scene ${scene}`, state });
     await page.screenshot({ path: `${out}/desktop-${scene}.png` });
@@ -80,11 +88,11 @@ try {
     await page.click('#scene-index button[data-scene=playground]');
     await pause(500);
     await page.evaluate(() => window.__app.setDesktopMenu(true));
-    await pause(350);
+    await settle(page, 350);
     results.push({ test: `menu ${size.width}x${size.height}`, state: await snapshot(page) });
     await page.screenshot({ path: `${out}/menu-${size.width}x${size.height}.png` });
     await page.click('#hud-help-toggle');
-    await pause(350);
+    await settle(page, 350);
     results.push({ test: `help ${size.width}x${size.height}`, state: await snapshot(page) });
   }
 
@@ -94,7 +102,7 @@ try {
   for (const scene of scenes) {
     await page.evaluate((key) => window.__app.setScene(key, true), scene);
     await page.evaluate(() => window.__app.setDesktopMenu(true));
-    await pause(300);
+    await settle(page, 300);
     results.push({ test: `mobile scene ${scene}`, state: await snapshot(page) });
     await page.screenshot({ path: `${out}/mobile-${scene}.png` });
   }
